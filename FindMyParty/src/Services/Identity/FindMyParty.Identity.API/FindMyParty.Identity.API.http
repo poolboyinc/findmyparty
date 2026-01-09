@@ -1,0 +1,6 @@
+@FindMyParty.Identity.API_HostAddress = http://localhost:5034
+
+GET {{FindMyParty.Identity.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
