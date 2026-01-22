@@ -41,9 +41,6 @@ namespace FindMyParty.Bookings.API.Application.Handlers
                 booking.TicketCount
             ));
 
-
-            // NEXT STEP: publish BookingCreatedIntegrationEvent
-
             return booking.Id;
         }
 
