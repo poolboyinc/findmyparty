@@ -1,8 +1,10 @@
+using FindMyParty.Bookings.API.Application.Common;
+using FindMyParty.Bookings.API.Infrastructure.Data;
+using FindMyParty.Bookings.API.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using FindMyParty.Bookings.API.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,6 +43,16 @@ builder.Services
             ClockSkew = TimeSpan.FromSeconds(30)
         };
     });
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
+builder.Services.AddHttpClient<IPartyAvailabilityService, PartyAvailabilityService>(
+    client =>
+    {
+        client.BaseAddress = new Uri("https://localhost:5002"); // Parties API
+    });
+
 
 builder.Services.AddAuthorization();
 

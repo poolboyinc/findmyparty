@@ -1,4 +1,5 @@
 using FindMyParty.Bookings.API.Domain.Enums;
+using System.Security.Cryptography.X509Certificates;
 
 namespace FindMyParty.Bookings.API.Domain.Aggregates
 {
@@ -8,6 +9,8 @@ namespace FindMyParty.Bookings.API.Domain.Aggregates
         public Guid UserId { get; private set; }
         public Guid PartyId { get; private set; }
 
+        public string IdempotencyKey { get; private set; } = string.Empty;
+
         public int TicketCount { get; private set; }
         public decimal TotalPrice { get; private set; }
 
@@ -16,7 +19,7 @@ namespace FindMyParty.Bookings.API.Domain.Aggregates
 
         protected Booking() { }
 
-        public Booking(Guid userId, Guid partyId, int ticketCount, decimal pricePerTicket)
+        public Booking(Guid userId, Guid partyId, int ticketCount, decimal pricePerTicket, string idemPotencyKey)
         {
             if (ticketCount <= 0)
                 throw new ArgumentException("Ticket count must be positive");
@@ -28,6 +31,7 @@ namespace FindMyParty.Bookings.API.Domain.Aggregates
             TotalPrice = ticketCount * pricePerTicket;
             Status = BookingStatus.Pending;
             CreatedAt = DateTime.UtcNow;
+            IdempotencyKey = idemPotencyKey;
         }
 
         public void Confirm()

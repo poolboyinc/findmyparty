@@ -33,6 +33,10 @@ namespace FindMyParty.Bookings.API.Infrastructure.Data
                 // Future-proofing for concurrency
                 entity.Property<byte[]>("RowVersion")
                       .IsRowVersion();
+
+                entity.HasIndex(b => new { b.UserId, b.IdempotencyKey })
+                      .IsUnique();
+
             });
         }
     }
