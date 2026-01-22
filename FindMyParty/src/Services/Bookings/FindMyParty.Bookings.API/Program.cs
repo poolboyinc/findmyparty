@@ -1,4 +1,5 @@
 using FindMyParty.Bookings.API.Application.Common;
+using FindMyParty.Bookings.API.Application.IntegrationEvents.EventBus;
 using FindMyParty.Bookings.API.Infrastructure.Data;
 using FindMyParty.Bookings.API.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -52,6 +53,8 @@ builder.Services.AddHttpClient<IPartyAvailabilityService, PartyAvailabilityServi
     {
         client.BaseAddress = new Uri("https://localhost:5002"); // Parties API
     });
+
+builder.Services.AddSingleton<IEventBus, InMemoryEventBus>();
 
 
 builder.Services.AddAuthorization();

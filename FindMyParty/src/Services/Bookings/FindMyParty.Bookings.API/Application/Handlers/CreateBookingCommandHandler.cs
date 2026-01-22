@@ -1,5 +1,7 @@
 using FindMyParty.Bookings.API.Application.Commands;
 using FindMyParty.Bookings.API.Application.Common;
+using FindMyParty.Bookings.API.Application.IntegrationEvents;
+using FindMyParty.Bookings.API.Application.IntegrationEvents.EventBus;
 using FindMyParty.Bookings.API.Domain.Aggregates;
 using FindMyParty.Bookings.API.Infrastructure.Data;
 using FindMyParty.Bookings.API.Infrastructure.Services;
@@ -7,7 +9,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FindMyParty.Bookings.API.Application.Handlers
 {
-    public class CreateBookingCommandHandler( BookingsDbContext db, ICurrentUserService currentUser, IPartyAvailabilityService partyAvailability)
+    public class CreateBookingCommandHandler( BookingsDbContext db, 
+        ICurrentUserService currentUser, 
+        IPartyAvailabilityService partyAvailability, 
+        IEventBus eventBus)
     {
         public async Task<Guid> Handle(CreateBookingCommand command)
         {
@@ -27,6 +32,15 @@ namespace FindMyParty.Bookings.API.Application.Handlers
 
             db.Bookings.Add(booking);
             await db.SaveChangesAsync();
+
+            await eventBus.PublishAsync(
+              new BookingCreatedIntegrationEvent(
+                booking.Id,
+                booking.PartyId,
+                booking.UserId,
+                booking.TicketCount
+            ));
+
 
             // NEXT STEP: publish BookingCreatedIntegrationEvent
 
