@@ -1,4 +1,4 @@
-﻿namespace FindMyParty.Bookings.API.Application.IntegrationEvents.Events
+﻿namespace FindMyParty.Bookings.API.Application.IntegrationEvents
 {
     public record PartyCapacityExceededIntegrationEvent(
         Guid BookingId,
