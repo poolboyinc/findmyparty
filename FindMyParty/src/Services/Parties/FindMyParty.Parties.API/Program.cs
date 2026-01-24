@@ -1,5 +1,6 @@
 using FindMyParty.Parties.API.Application.Handlers;
 using FindMyParty.Parties.API.Infrastructure.Data;
+using FindMyParty.Parties.API.Infrastructure.IntegrationEvents;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -42,6 +43,8 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+
+builder.Services.AddSingleton<IEventBus, InMemoryEventBus>();
 
 builder.Services.AddScoped<CreatePartyCommandHandler>();
 builder.Services.AddScoped<GetPublishedPartiesQueryHandler>();

@@ -80,6 +80,15 @@ namespace FindMyParty.Parties.API.Domain.Entities
             TicketsSold++;
         }
 
+        public void ReserveCapacity(int tickets)
+        {
+            if (TicketsSold + tickets > Capacity)
+                throw new InvalidOperationException("Capacity exceeded");
+
+            TicketsSold += tickets;
+        }
+
+
         public void Delete()
         {
             IsDeleted = true;
