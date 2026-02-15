@@ -4,15 +4,16 @@ using FindMyParty.Bookings.API.Application.IntegrationEvents;
 using FindMyParty.Bookings.API.Application.IntegrationEvents.EventBus;
 using FindMyParty.Bookings.API.Domain.Aggregates;
 using FindMyParty.Bookings.API.Infrastructure.Data;
+using FindMyParty.Bookings.API.Infrastructure.Outbox;
 using FindMyParty.Bookings.API.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace FindMyParty.Bookings.API.Application.Handlers
 {
     public class CreateBookingCommandHandler( BookingsDbContext db, 
         ICurrentUserService currentUser, 
-        IPartyAvailabilityService partyAvailability, 
-        IEventBus eventBus)
+        IPartyAvailabilityService partyAvailability)
     {
         public async Task<Guid> Handle(CreateBookingCommand command)
         {
@@ -31,15 +32,24 @@ namespace FindMyParty.Bookings.API.Application.Handlers
             );
 
             db.Bookings.Add(booking);
+
+            var outboxMessage = new OutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                OccurredOnUtc = DateTime.UtcNow,
+                Type = nameof(BookingCreatedIntegrationEvent),
+                Payload = JsonSerializer.Serialize(
+                    new BookingCreatedIntegrationEvent(
+                        booking.Id,
+                        booking.PartyId,
+                        booking.UserId,
+                        booking.TicketCount))
+            };
+
+            db.OutboxMessages.Add(outboxMessage);
+
             await db.SaveChangesAsync();
 
-            await eventBus.PublishAsync(
-              new BookingCreatedIntegrationEvent(
-                booking.Id,
-                booking.PartyId,
-                booking.UserId,
-                booking.TicketCount
-            ));
 
             return booking.Id;
         }
