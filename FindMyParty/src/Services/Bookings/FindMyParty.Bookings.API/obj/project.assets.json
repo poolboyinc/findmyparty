@@ -477,6 +477,22 @@
           "buildTransitive/net8.0/_._": {}
         }
       },
+      "Microsoft.Extensions.Options.ConfigurationExtensions/10.0.3": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/_._": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/_._": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "buildTransitive/net8.0/_._": {}
+        }
+      },
       "Microsoft.IdentityModel.Abstractions/8.0.1": {
         "type": "package",
         "compile": {
@@ -697,6 +713,19 @@
         },
         "runtime": {
           "lib/net9.0/Quartz.Extensions.Hosting.dll": {
+            "related": ".xml"
+          }
+        }
+      },
+      "RabbitMQ.Client/7.2.0": {
+        "type": "package",
+        "compile": {
+          "lib/net8.0/RabbitMQ.Client.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net8.0/RabbitMQ.Client.dll": {
             "related": ".xml"
           }
         }
@@ -2085,6 +2114,35 @@
         "useSharedDesignerContext.txt"
       ]
     },
+    "Microsoft.Extensions.Options.ConfigurationExtensions/10.0.3": {
+      "sha512": "bn6QoBbbvwmzLIFyxrnL2/e+sqoNUOGbHyfWK9DPONMv1mDCYHm/C7MusYASM31b2lUx6OiDmonb3v+dv5t0nA==",
+      "type": "package",
+      "path": "microsoft.extensions.options.configurationextensions/10.0.3",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "Icon.png",
+        "PACKAGE.md",
+        "THIRD-PARTY-NOTICES.TXT",
+        "buildTransitive/net461/Microsoft.Extensions.Options.ConfigurationExtensions.targets",
+        "buildTransitive/net462/_._",
+        "buildTransitive/net8.0/_._",
+        "buildTransitive/netcoreapp2.0/Microsoft.Extensions.Options.ConfigurationExtensions.targets",
+        "lib/net10.0/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+        "lib/net10.0/Microsoft.Extensions.Options.ConfigurationExtensions.xml",
+        "lib/net462/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+        "lib/net462/Microsoft.Extensions.Options.ConfigurationExtensions.xml",
+        "lib/net8.0/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+        "lib/net8.0/Microsoft.Extensions.Options.ConfigurationExtensions.xml",
+        "lib/net9.0/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+        "lib/net9.0/Microsoft.Extensions.Options.ConfigurationExtensions.xml",
+        "lib/netstandard2.0/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+        "lib/netstandard2.0/Microsoft.Extensions.Options.ConfigurationExtensions.xml",
+        "microsoft.extensions.options.configurationextensions.10.0.3.nupkg.sha512",
+        "microsoft.extensions.options.configurationextensions.nuspec",
+        "useSharedDesignerContext.txt"
+      ]
+    },
     "Microsoft.IdentityModel.Abstractions/8.0.1": {
       "sha512": "OtlIWcyX01olfdevPKZdIPfBEvbcioDyBiE/Z2lHsopsMD7twcKtlN9kMevHmI5IIPhFpfwCIiR6qHQz1WHUIw==",
       "type": "package",
@@ -2401,6 +2459,23 @@
         "quartz.extensions.hosting.nuspec"
       ]
     },
+    "RabbitMQ.Client/7.2.0": {
+      "sha512": "PPQ7cF7lwbhqC4up6en1bTUZlz06YqQwJecOJzsguTtyhNA7oL5uNDZIx/h6ZfcyPZV4V3DYKSCxfm4RUFLcbA==",
+      "type": "package",
+      "path": "rabbitmq.client/7.2.0",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "icon.png",
+        "lib/net8.0/RabbitMQ.Client.dll",
+        "lib/net8.0/RabbitMQ.Client.xml",
+        "lib/netstandard2.0/RabbitMQ.Client.dll",
+        "lib/netstandard2.0/RabbitMQ.Client.xml",
+        "rabbitmq.client.7.2.0.nupkg.sha512",
+        "rabbitmq.client.nuspec"
+      ]
+    },
     "System.CodeDom/6.0.0": {
       "sha512": "CPc6tWO1LAer3IzfZufDBRL+UZQcj5uS207NHALQzP84Vp/z6wF0Aa0YZImOQY8iStY0A2zI/e3ihKNPfUm8XA==",
       "type": "package",
@@ -2617,10 +2692,12 @@
       "Microsoft.AspNetCore.OpenApi >= 10.0.1",
       "Microsoft.EntityFrameworkCore >= 10.0.2",
       "Microsoft.EntityFrameworkCore.Design >= 10.0.2",
+      "Microsoft.Extensions.Options.ConfigurationExtensions >= 10.0.3",
       "Npgsql.EntityFrameworkCore.PostgreSQL >= 10.0.0",
       "Quartz >= 3.15.1",
       "Quartz.Extensions.DependencyInjection >= 3.15.1",
-      "Quartz.Extensions.Hosting >= 3.15.1"
+      "Quartz.Extensions.Hosting >= 3.15.1",
+      "RabbitMQ.Client >= 7.2.0"
     ]
   },
   "packageFolders": {
@@ -2692,6 +2769,10 @@
             "target": "Package",
             "version": "[10.0.2, )"
           },
+          "Microsoft.Extensions.Options.ConfigurationExtensions": {
+            "target": "Package",
+            "version": "[10.0.3, )"
+          },
           "Npgsql.EntityFrameworkCore.PostgreSQL": {
             "target": "Package",
             "version": "[10.0.0, )"
@@ -2707,6 +2788,10 @@
           "Quartz.Extensions.Hosting": {
             "target": "Package",
             "version": "[3.15.1, )"
+          },
+          "RabbitMQ.Client": {
+            "target": "Package",
+            "version": "[7.2.0, )"
           }
         },
         "imports": [
@@ -3145,5 +3230,17 @@
         }
       }
     }
-  }
+  },
+  "logs": [
+    {
+      "code": "NU1510",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "PackageReference Microsoft.Extensions.Options.ConfigurationExtensions will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.",
+      "libraryId": "Microsoft.Extensions.Options.ConfigurationExtensions",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    }
+  ]
 }
