@@ -1,60 +1,63 @@
-﻿using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Options;
 using RabbitMQ.Client;
 using System.Text;
 using System.Text.Json;
 
 namespace FindMyParty.Bookings.API.Application.IntegrationEvents.EventBus;
 
-public class RabbitMqEventBus : IEventBus, IDisposable
+public sealed class RabbitMqEventBus : IEventBus, IAsyncDisposable
 {
-    private readonly IConnection connection;
-    private readonly IModel channel;
-    private readonly string exchangeName;
+    private readonly IConnection _connection;
+    private readonly IChannel _channel;
+    private readonly string _exchangeName;
 
-    public RabbitMqEventBus(IOptions<RabbitMqSettings> settings)
+    public RabbitMqEventBus(IOptions<RabbitMqSettings> options)
     {
-        exchangeName = settings.Value.ExchangeName;
+        _exchangeName = options.Value.ExchangeName;
 
         var factory = new ConnectionFactory
         {
-            HostName = settings.Value.HostName,
-            UserName = settings.Value.UserName,
-            Password = settings.Value.Password,
-            DispatchConsumersAsync = true
+            HostName = options.Value.HostName,
+            UserName = options.Value.UserName,
+            Password = options.Value.Password,
+            ClientProvidedName = "findmyparty-bookings-eventbus"
         };
 
-        connection = factory.CreateConnection();
-        channel = connection.CreateModel();
+        _connection = factory.CreateConnectionAsync().GetAwaiter().GetResult();
+        _channel = _connection.CreateChannelAsync().GetAwaiter().GetResult();
 
-        channel.ExchangeDeclare(
-            exchange: exchangeName,
+        _channel.ExchangeDeclareAsync(
+            exchange: _exchangeName,
             type: ExchangeType.Topic,
             durable: true,
-            autoDelete: false);
+            autoDelete: false,
+            arguments: null
+        ).GetAwaiter().GetResult();
     }
 
-    public Task PublishAsync<T>(T @event) where T : class
+    public async Task PublishAsync<T>(T @event) where T : class
     {
-        var eventName = typeof(T).Name;
-        var body = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(@event));
+        var body = Encoding.UTF8.GetBytes(
+            JsonSerializer.Serialize(@event));
 
-        var properties = channel.CreateBasicProperties();
-        properties.DeliveryMode = 2; // persistent
+        var properties = new BasicProperties
+        {
+            DeliveryMode = DeliveryModes.Persistent
+        };
 
-        channel.BasicPublish(
-            exchange: exchangeName,
-            routingKey: eventName,
+        await _channel.BasicPublishAsync(
+            exchange: _exchangeName,
+            routingKey: typeof(T).Name,
+            mandatory: false,
             basicProperties: properties,
             body: body);
-
-        return Task.CompletedTask;
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        channel?.Dispose();
-        connection?.Dispose();
+        await _channel.CloseAsync();
+        await _connection.CloseAsync();
+        await _channel.DisposeAsync();
+        await _connection.DisposeAsync();
     }
 }
-

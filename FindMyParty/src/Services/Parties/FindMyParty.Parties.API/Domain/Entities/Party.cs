@@ -95,5 +95,19 @@ namespace FindMyParty.Parties.API.Domain.Entities
         }
 
         public void ClearDomainEvents() => _domainEvents.Clear();
+
+        public void AddTicketsSold(int count)
+        {
+            if (count <= 0)
+                throw new InvalidOperationException();
+
+            TicketsSold += count;
+        }
+
+        public void MarkSoldOut()
+        {
+            Status = PartyStatus.SoldOut;
+        }
+
     }
 }

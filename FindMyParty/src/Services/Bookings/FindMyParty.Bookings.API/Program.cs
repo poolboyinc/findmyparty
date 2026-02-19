@@ -13,11 +13,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<BookingsDbContext>(options =>
 {
-    options.UseNpgsql(
+    options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        npgsql =>
+        sqlOptions =>
         {
-            npgsql.MigrationsAssembly(typeof(Program).Assembly.FullName);
+            sqlOptions.MigrationsAssembly(typeof(Program).Assembly.FullName);
         });
 });
 
@@ -74,7 +74,11 @@ builder.Services.AddQuartz(q =>
 
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
-builder.Services.AddSingleton<IEventBus, InMemoryEventBus>();
+builder.Services.Configure<RabbitMqSettings>(
+    builder.Configuration.GetSection("RabbitMq"));
+
+builder.Services.AddSingleton<IEventBus, RabbitMqEventBus>();
+
 
 builder.Services.AddAuthorization();
 

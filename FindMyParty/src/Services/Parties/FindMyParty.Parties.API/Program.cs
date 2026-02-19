@@ -1,6 +1,7 @@
 using FindMyParty.Parties.API.Application.Handlers;
+using FindMyParty.Parties.API.Application.IntegrationEvents.Handlers;
 using FindMyParty.Parties.API.Infrastructure.Data;
-using FindMyParty.Parties.API.Infrastructure.IntegrationEvents;
+using FindMyParty.Parties.API.Infrastructure.Messaging;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -10,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<PartiesDbContext>(options =>
 {
-    options.UseNpgsql(
+    options.UseSqlServer(
         builder.Configuration.GetConnectionString("DefaultConnection"),
         npgsql =>
         {
@@ -44,7 +45,10 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
-builder.Services.AddSingleton<IEventBus, InMemoryEventBus>();
+builder.Services.AddHostedService<RabbitMqEventConsumer>();
+
+builder.Services.AddScoped<BookingCreatedEventHandler>();
+
 
 builder.Services.AddScoped<CreatePartyCommandHandler>();
 builder.Services.AddScoped<GetPublishedPartiesQueryHandler>();
