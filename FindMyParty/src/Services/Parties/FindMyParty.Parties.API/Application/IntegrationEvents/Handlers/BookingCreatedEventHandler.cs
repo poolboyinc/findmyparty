@@ -1,4 +1,5 @@
-﻿using FindMyParty.Parties.API.Infrastructure.Data;
+﻿using FindMyParty.Parties.API.Application.IntegrationEvents;
+using FindMyParty.Parties.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 

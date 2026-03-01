@@ -1,4 +1,4 @@
-﻿namespace FindMyParty.Parties.API.Application.Integration_Events
+﻿namespace FindMyParty.Parties.API.Application.IntegrationEvents
 {
     public record BookingCreatedIntegrationEvent
         (
@@ -8,8 +8,3 @@
         int TicketCount
         );
 }
-public record BookingCreatedIntegrationEvent(
-    Guid BookingId,
-    Guid PartyId,
-    int TicketCount
-);

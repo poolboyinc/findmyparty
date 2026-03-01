@@ -1,4 +1,5 @@
-﻿using FindMyParty.Parties.API.Application.IntegrationEvents.Handlers;
+﻿using FindMyParty.Parties.API.Application.IntegrationEvents;
+using FindMyParty.Parties.API.Application.IntegrationEvents.Handlers;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using System.Text;

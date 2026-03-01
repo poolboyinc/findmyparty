@@ -13,7 +13,7 @@ namespace FindMyParty.Bookings.API.Controllers
     [Route("api/bookings")]
     public class BookingsController(CreateBookingCommandHandler handler) : ControllerBase
     {
-        [Authorize]
+        //[Authorize(Roles = "Host")]
         [HttpPost]
         public async Task<IActionResult> Create(
             CreateBookingRequest request,

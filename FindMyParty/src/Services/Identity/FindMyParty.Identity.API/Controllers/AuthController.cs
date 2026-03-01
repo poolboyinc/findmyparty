@@ -16,7 +16,7 @@ namespace FindMyParty.Identity.API.Controllers
         {
             var user = new ApplicationUser
             {
-                UserName = request.Email,
+                UserName = request.UserName,
                 Email = request.Email,
                 Subscription = Domain.Enums.SubscriptionType.Free
             };

@@ -1,4 +1,5 @@
 using FindMyParty.Bookings.API.Application.Common;
+using FindMyParty.Bookings.API.Application.Handlers;
 using FindMyParty.Bookings.API.Application.IntegrationEvents.EventBus;
 using FindMyParty.Bookings.API.Infrastructure.Data;
 using FindMyParty.Bookings.API.Infrastructure.Outbox;
@@ -53,7 +54,7 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddHttpClient<IPartyAvailabilityService, PartyAvailabilityService>(
     client =>
     {
-        client.BaseAddress = new Uri("https://localhost:5246"); 
+        client.BaseAddress = new Uri("http://localhost:5246"); 
     });
 
 builder.Services.AddQuartz(q =>
@@ -71,6 +72,8 @@ builder.Services.AddQuartz(q =>
             .WithIntervalInSeconds(1)
             .RepeatForever()));
 });
+
+builder.Services.AddScoped<CreateBookingCommandHandler>();
 
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
