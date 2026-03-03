@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "KikEGNpXVYs=",
+  "dgSpecHash": "c43tozUMe1U=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj",
+  "projectFilePath": "C:\\Users\\vukasin.macic\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj",
   "expectedPackageFiles": [],
   "logs": []
 }

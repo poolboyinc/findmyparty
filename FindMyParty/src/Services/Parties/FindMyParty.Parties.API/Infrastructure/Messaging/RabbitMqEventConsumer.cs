@@ -29,8 +29,8 @@ namespace FindMyParty.Parties.API.Infrastructure.Messaging
 
 
             await _channel.ExchangeDeclareAsync(
-                exchange: "booking",
-                type: ExchangeType.Fanout,
+                exchange: "booking.events",
+                type: ExchangeType.Topic,
                 durable: true);
 
             var queue = await _channel.QueueDeclareAsync(
@@ -41,8 +41,8 @@ namespace FindMyParty.Parties.API.Infrastructure.Messaging
 
             await _channel.QueueBindAsync(
                 queue: queue.QueueName,
-                exchange: "booking",
-                routingKey: string.Empty);
+                exchange: "booking.events",
+                routingKey: "BookingCreatedIntegrationEvent");
 
             var consumer = new AsyncEventingBasicConsumer(_channel);
             consumer.ReceivedAsync += OnMessageReceived;

@@ -78,7 +78,7 @@ builder.Services.AddScoped<CreateBookingCommandHandler>();
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
 builder.Services.Configure<RabbitMqSettings>(
-    builder.Configuration.GetSection("RabbitMq"));
+    builder.Configuration.GetSection("RabbitMQ"));
 
 builder.Services.AddSingleton<IEventBus, RabbitMqEventBus>();
 

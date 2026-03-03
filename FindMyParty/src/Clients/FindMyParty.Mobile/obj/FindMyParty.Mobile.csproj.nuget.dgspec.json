@@ -1,24 +1,24 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\Clients\\FindMyParty.Mobile\\FindMyParty.Mobile.csproj": {}
+    "C:\\Users\\vukasin.macic\\source\\repos\\findmyparty\\FindMyParty\\src\\Clients\\FindMyParty.Mobile\\FindMyParty.Mobile.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\Clients\\FindMyParty.Mobile\\FindMyParty.Mobile.csproj": {
+    "C:\\Users\\vukasin.macic\\source\\repos\\findmyparty\\FindMyParty\\src\\Clients\\FindMyParty.Mobile\\FindMyParty.Mobile.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\Clients\\FindMyParty.Mobile\\FindMyParty.Mobile.csproj",
+        "projectUniqueName": "C:\\Users\\vukasin.macic\\source\\repos\\findmyparty\\FindMyParty\\src\\Clients\\FindMyParty.Mobile\\FindMyParty.Mobile.csproj",
         "projectName": "FindMyParty.Mobile",
-        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\Clients\\FindMyParty.Mobile\\FindMyParty.Mobile.csproj",
-        "packagesPath": "C:\\Users\\Lenovo\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\Clients\\FindMyParty.Mobile\\obj\\",
+        "projectPath": "C:\\Users\\vukasin.macic\\source\\repos\\findmyparty\\FindMyParty\\src\\Clients\\FindMyParty.Mobile\\FindMyParty.Mobile.csproj",
+        "packagesPath": "C:\\Users\\vukasin.macic\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\vukasin.macic\\source\\repos\\findmyparty\\FindMyParty\\src\\Clients\\FindMyParty.Mobile\\obj\\",
         "projectStyle": "PackageReference",
         "crossTargeting": true,
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\Lenovo\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\vukasin.macic\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -30,19 +30,19 @@
         ],
         "sources": {
           "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-          "C:\\Program Files\\dotnet\\library-packs": {},
-          "https://api.nuget.org/v3/index.json": {}
+          "https://api.nuget.org/v3/index.json": {},
+          "https://transive-nuget-artifacts-779624856159.d.codeartifact.eu-west-1.amazonaws.com/nuget/transive-nugets/v3/index.json": {}
         },
         "frameworks": {
-          "net10.0-android36.0": {
+          "net10.0-android": {
             "targetAlias": "net10.0-android",
             "projectReferences": {}
           },
-          "net10.0-ios26.1": {
+          "net10.0-ios": {
             "targetAlias": "net10.0-ios",
             "projectReferences": {}
           },
-          "net10.0-maccatalyst26.1": {
+          "net10.0-maccatalyst": {
             "targetAlias": "net10.0-maccatalyst",
             "projectReferences": {}
           },
@@ -64,7 +64,7 @@
         "SdkAnalysisLevel": "10.0.100"
       },
       "frameworks": {
-        "net10.0-android36.0": {
+        "net10.0-android": {
           "targetAlias": "net10.0-android",
           "dependencies": {
             "Microsoft.Extensions.Logging.Debug": {
@@ -73,13 +73,7 @@
             },
             "Microsoft.Maui.Controls": {
               "target": "Package",
-              "version": "[10.0.1, )"
-            },
-            "Microsoft.NET.ILLink.Tasks": {
-              "suppressParent": "All",
-              "target": "Package",
-              "version": "[10.0.2, )",
-              "autoReferenced": true
+              "version": "(, )"
             }
           },
           "imports": [
@@ -94,17 +88,11 @@
           "assetTargetFallback": true,
           "warn": true,
           "frameworkReferences": {
-            "Microsoft.Android": {
-              "privateAssets": "all"
-            },
-            "Microsoft.Android.Runtimes": {
-              "privateAssets": "all"
-            },
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.102/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -380,7 +368,7 @@
             "System.Xml.XPath.XDocument": "(,5.0.32767]"
           }
         },
-        "net10.0-ios26.1": {
+        "net10.0-ios": {
           "targetAlias": "net10.0-ios",
           "dependencies": {
             "Microsoft.Extensions.Logging.Debug": {
@@ -389,13 +377,7 @@
             },
             "Microsoft.Maui.Controls": {
               "target": "Package",
-              "version": "[10.0.1, )"
-            },
-            "Microsoft.NET.ILLink.Tasks": {
-              "suppressParent": "All",
-              "target": "Package",
-              "version": "[10.0.2, )",
-              "autoReferenced": true
+              "version": "(, )"
             }
           },
           "imports": [
@@ -410,17 +392,11 @@
           "assetTargetFallback": true,
           "warn": true,
           "frameworkReferences": {
-            "Microsoft.iOS": {
-              "privateAssets": "all"
-            },
-            "Microsoft.iOS.Runtimes": {
-              "privateAssets": "all"
-            },
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.102/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -696,7 +672,7 @@
             "System.Xml.XPath.XDocument": "(,5.0.32767]"
           }
         },
-        "net10.0-maccatalyst26.1": {
+        "net10.0-maccatalyst": {
           "targetAlias": "net10.0-maccatalyst",
           "dependencies": {
             "Microsoft.Extensions.Logging.Debug": {
@@ -705,17 +681,10 @@
             },
             "Microsoft.Maui.Controls": {
               "target": "Package",
-              "version": "[10.0.1, )"
-            },
-            "Microsoft.NET.ILLink.Tasks": {
-              "suppressParent": "All",
-              "target": "Package",
-              "version": "[10.0.2, )",
-              "autoReferenced": true
+              "version": "(, )"
             }
           },
           "imports": [
-            "xamarinios10",
             "net461",
             "net462",
             "net47",
@@ -727,17 +696,11 @@
           "assetTargetFallback": true,
           "warn": true,
           "frameworkReferences": {
-            "Microsoft.MacCatalyst": {
-              "privateAssets": "all"
-            },
-            "Microsoft.MacCatalyst.Runtimes": {
-              "privateAssets": "all"
-            },
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.102/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -1022,7 +985,7 @@
             },
             "Microsoft.Maui.Controls": {
               "target": "Package",
-              "version": "[10.0.1, )"
+              "version": "(, )"
             }
           },
           "imports": [
@@ -1050,7 +1013,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.102/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",
@@ -1325,23 +1288,6 @@
             "System.Xml.XPath": "(,4.3.32767]",
             "System.Xml.XPath.XDocument": "(,5.0.32767]"
           }
-        }
-      },
-      "runtimes": {
-        "android-arm64": {
-          "#import": []
-        },
-        "android-x64": {
-          "#import": []
-        },
-        "iossimulator-x64": {
-          "#import": []
-        },
-        "maccatalyst-x64": {
-          "#import": []
-        },
-        "win-x64": {
-          "#import": []
         }
       }
     }

@@ -23,17 +23,23 @@ public class OutboxProcessorJob(
 
         foreach (var message in messages)
         {
-            var eventType = Type.GetType(
+            var assembly = typeof(OutboxProcessorJob).Assembly;
+
+            var eventType = assembly.GetType(
                 $"FindMyParty.Bookings.API.Application.IntegrationEvents.Events.{message.Type}");
 
             if (eventType == null) continue;
 
             var @event = JsonSerializer.Deserialize(message.Payload, eventType);
 
+            Console.WriteLine($"Resolved Type: {eventType}");
+
             if (@event != null)
             {
                 await eventBus.PublishAsync(@event);
             }
+
+            Console.WriteLine($"Message Type from DB: {message.Type}");
 
             message.ProcessedOnUtc = DateTime.UtcNow;
         }
