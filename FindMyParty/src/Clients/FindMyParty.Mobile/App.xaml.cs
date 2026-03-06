@@ -1,16 +1,28 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using FindMyParty.Mobile.Services.Auth;
 
 namespace FindMyParty.Mobile;
 
 public partial class App : Application
 {
-	public App()
-	{
-		InitializeComponent();
-	}
+    private readonly IAuthService _authService;
 
-	protected override Window CreateWindow(IActivationState? activationState)
-	{
-		return new Window(new AppShell());
-	}
+    public App(IAuthService authService)
+    {
+        InitializeComponent();
+        _authService = authService;
+    }
+
+    protected override Window CreateWindow(IActivationState? activationState)
+    {
+        return new Window(new AppShell());
+    }
+
+    protected override async void OnStart()
+    {
+        base.OnStart();
+
+        var token = await _authService.GetTokenAsync();
+        if (token != null)
+            await Shell.Current.GoToAsync("//main");
+    }
 }

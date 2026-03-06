@@ -9,7 +9,11 @@ using System.Security.Claims;
 
 [ApiController]
 [Route("api/parties")]
-public class PartiesController( CreatePartyCommandHandler createHandler, GetPublishedPartiesQueryHandler queryHandler, PartiesDbContext db) : ControllerBase
+public class PartiesController(
+    CreatePartyCommandHandler createHandler,
+    GetPublishedPartiesQueryHandler queryHandler,
+    GetPartyByIdQueryHandler getByIdHandler,
+    PartiesDbContext db) : ControllerBase
 {
     [Authorize(Roles = "Host")]
     [HttpPost]
@@ -37,24 +41,16 @@ public class PartiesController( CreatePartyCommandHandler createHandler, GetPubl
     }
 
 
-    /*
-    [HttpGet("{id}/availability")]
-    public async Task<IActionResult> GetAvailability(Guid id)
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id)
     {
-        var party = await queryHandler.Handle(new GetPartyByIdQuery(id));
-        // OR use DbContext directly if you prefer
+        var party = await getByIdHandler.Handle(new GetPartyByIdQuery(id));
 
         if (party == null)
             return NotFound();
 
-        var remainingCapacity = party.Capacity - party.TicketsSold;
-
-        return Ok(new PartyAvailabilityResult(
-            RemainingCapacity: remainingCapacity,
-            IsAvailable: remainingCapacity > 0
-        ));
+        return Ok(party);
     }
-    */
 
     [HttpGet("{id}/availability")]
     public async Task<IActionResult> GetAvailability(Guid id)
@@ -69,7 +65,8 @@ public class PartiesController( CreatePartyCommandHandler createHandler, GetPubl
         return Ok(new
         {
             remainingCapacity,
-            isAvailable = remainingCapacity > 0
+            isAvailable = remainingCapacity > 0,
+            pricePerTicket = party.Price
         });
     }
 }

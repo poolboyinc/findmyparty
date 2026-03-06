@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="FindMyParty.Mobile.Views.PartyDetailPage"
+             Shell.NavBarIsVisible="True"
+             Shell.TabBarIsVisible="False"
+             BackgroundColor="#0D0D0D"
+             Title=" ">
+
+    <Grid RowDefinitions="*,Auto">
+
+        <!-- Scrollable content -->
+        <ScrollView Grid.Row="0">
+            <VerticalStackLayout Spacing="0">
+
+                <!-- Hero header -->
+                <Grid HeightRequest="180" BackgroundColor="#1E0A4E">
+                    <BoxView Color="#7C3AED" Opacity="0.3" />
+                    <VerticalStackLayout VerticalOptions="End" Padding="20,0,20,20" Spacing="6">
+                        <Label Text="{Binding Party.Title}"
+                               TextColor="White"
+                               FontSize="24"
+                               FontAttributes="Bold"
+                               LineBreakMode="WordWrap" />
+                        <Label Text="{Binding Party.StartsAt, StringFormat='{0:ddd, MMM d · HH:mm}'}"
+                               TextColor="#A78BFA"
+                               FontSize="14" />
+                    </VerticalStackLayout>
+                </Grid>
+
+                <!-- Loading indicator -->
+                <ActivityIndicator IsRunning="{Binding IsBusy}"
+                                   IsVisible="{Binding IsBusy}"
+                                   Color="#7C3AED"
+                                   Margin="0,32" />
+
+                <!-- Body — visible when loaded -->
+                <VerticalStackLayout IsVisible="{Binding IsNotBusy}"
+                                     Padding="20"
+                                     Spacing="24">
+
+                    <!-- Description -->
+                    <Label Text="{Binding Party.Description}"
+                           TextColor="#CCCCCC"
+                           FontSize="15"
+                           LineBreakMode="WordWrap" />
+
+                    <!-- Info grid -->
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
+
+                        <!-- Price -->
+                        <Border Grid.Row="0" Grid.Column="0"
+                                BackgroundColor="#1A1A1A" Stroke="#2A2A2A" StrokeThickness="1">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="12"/></Border.StrokeShape>
+                            <VerticalStackLayout Padding="16,12" Spacing="4">
+                                <Label Text="Price" TextColor="#888" FontSize="12" />
+                                <Label Text="{Binding Party.Price, StringFormat='€{0:F2}'}"
+                                       TextColor="#A78BFA" FontSize="18" FontAttributes="Bold" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Capacity -->
+                        <Border Grid.Row="0" Grid.Column="1"
+                                BackgroundColor="#1A1A1A" Stroke="#2A2A2A" StrokeThickness="1">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="12"/></Border.StrokeShape>
+                            <VerticalStackLayout Padding="16,12" Spacing="4">
+                                <Label Text="Remaining" TextColor="#888" FontSize="12" />
+                                <Label Text="{Binding Party.RemainingCapacity}"
+                                       TextColor="White" FontSize="18" FontAttributes="Bold" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Ends at -->
+                        <Border Grid.Row="1" Grid.Column="0"
+                                BackgroundColor="#1A1A1A" Stroke="#2A2A2A" StrokeThickness="1">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="12"/></Border.StrokeShape>
+                            <VerticalStackLayout Padding="16,12" Spacing="4">
+                                <Label Text="Ends" TextColor="#888" FontSize="12" />
+                                <Label Text="{Binding Party.EndsAt, StringFormat='{0:HH:mm}'}"
+                                       TextColor="White" FontSize="18" FontAttributes="Bold" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Capacity total -->
+                        <Border Grid.Row="1" Grid.Column="1"
+                                BackgroundColor="#1A1A1A" Stroke="#2A2A2A" StrokeThickness="1">
+                            <Border.StrokeShape><RoundRectangle CornerRadius="12"/></Border.StrokeShape>
+                            <VerticalStackLayout Padding="16,12" Spacing="4">
+                                <Label Text="Capacity" TextColor="#888" FontSize="12" />
+                                <Label Text="{Binding Party.Capacity}"
+                                       TextColor="White" FontSize="18" FontAttributes="Bold" />
+                            </VerticalStackLayout>
+                        </Border>
+
+                    </Grid>
+
+                    <!-- Sold out banner -->
+                    <Border IsVisible="{Binding Party.IsSoldOut}"
+                            BackgroundColor="#2D0A0A" Stroke="#EF4444" StrokeThickness="1">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="12"/></Border.StrokeShape>
+                        <Label Text="This party is sold out"
+                               TextColor="#EF4444"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               HorizontalTextAlignment="Center"
+                               Padding="16,12" />
+                    </Border>
+
+                    <!-- Success banner -->
+                    <Border IsVisible="{Binding BookingSuccess}"
+                            BackgroundColor="#0A2D0A" Stroke="#22C55E" StrokeThickness="1">
+                        <Border.StrokeShape><RoundRectangle CornerRadius="12"/></Border.StrokeShape>
+                        <Label Text="{Binding StatusMessage}"
+                               TextColor="#22C55E"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               HorizontalTextAlignment="Center"
+                               Padding="16,12" />
+                    </Border>
+
+                    <!-- Error message -->
+                    <Label Text="{Binding StatusMessage}"
+                           TextColor="#EF4444"
+                           FontSize="13"
+                           IsVisible="{Binding HasStatus}"
+                           HorizontalTextAlignment="Center">
+                        <Label.Triggers>
+                            <DataTrigger TargetType="Label" Binding="{Binding BookingSuccess}" Value="True">
+                                <Setter Property="IsVisible" Value="False" />
+                            </DataTrigger>
+                        </Label.Triggers>
+                    </Label>
+
+                    <!-- Spacer at bottom so content isn't hidden by the footer -->
+                    <BoxView HeightRequest="24" Color="Transparent" />
+
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Fixed booking footer — hidden when sold out or already booked -->
+        <Grid Grid.Row="1"
+              IsVisible="{Binding CanBook}"
+              BackgroundColor="#111111"
+              Padding="20,16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Ticket stepper -->
+            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,12">
+                <Label Grid.Column="0"
+                       Text="Tickets"
+                       TextColor="#AAAAAA"
+                       FontSize="15"
+                       VerticalOptions="Center" />
+
+                <HorizontalStackLayout Grid.Column="2" Spacing="0">
+                    <Button Text="−"
+                            Command="{Binding DecrementCommand}"
+                            BackgroundColor="#2A2A2A"
+                            TextColor="White"
+                            FontSize="20"
+                            WidthRequest="44" HeightRequest="44"
+                            CornerRadius="8"
+                            Padding="0" />
+                    <Label Text="{Binding TicketCount}"
+                           TextColor="White"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           WidthRequest="44"
+                           HorizontalTextAlignment="Center"
+                           VerticalOptions="Center" />
+                    <Button Text="+"
+                            Command="{Binding IncrementCommand}"
+                            BackgroundColor="#2A2A2A"
+                            TextColor="White"
+                            FontSize="20"
+                            WidthRequest="44" HeightRequest="44"
+                            CornerRadius="8"
+                            Padding="0" />
+                </HorizontalStackLayout>
+            </Grid>
+
+            <!-- Book button -->
+            <Button Grid.Row="1"
+                    Command="{Binding BookCommand}"
+                    BackgroundColor="#7C3AED"
+                    TextColor="White"
+                    CornerRadius="14"
+                    HeightRequest="54"
+                    FontAttributes="Bold"
+                    FontSize="16"
+                    IsEnabled="{Binding IsNotBusy}">
+                <Button.Text>
+                    <MultiBinding StringFormat="Book Now · {0}">
+                        <Binding Path="TotalPriceText" />
+                    </MultiBinding>
+                </Button.Text>
+            </Button>
+
+        </Grid>
+
+    </Grid>
+</ContentPage>

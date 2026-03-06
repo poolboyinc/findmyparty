@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="FindMyParty.Mobile.Views.ProfilePage"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="#0D0D0D">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="24,56,24,40" Spacing="0">
+
+            <!-- Loading -->
+            <ActivityIndicator IsRunning="{Binding IsBusy}"
+                               IsVisible="{Binding IsBusy}"
+                               Color="#7C3AED"
+                               Margin="0,60"
+                               HorizontalOptions="Center" />
+
+            <!-- Content -->
+            <VerticalStackLayout IsVisible="{Binding IsNotBusy}" Spacing="0">
+
+                <!-- Header -->
+                <Label Text="Profile"
+                       FontSize="28"
+                       FontAttributes="Bold"
+                       TextColor="White"
+                       Margin="0,0,0,32" />
+
+                <!-- Avatar + identity card -->
+                <Border BackgroundColor="#1A1A1A"
+                        Stroke="#2A2A2A"
+                        StrokeThickness="1"
+                        Margin="0,0,0,16">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="20" />
+                    </Border.StrokeShape>
+
+                    <VerticalStackLayout Padding="24" Spacing="16">
+
+                        <!-- Avatar circle + name row -->
+                        <HorizontalStackLayout Spacing="16" VerticalOptions="Center">
+
+                            <!-- Initials circle -->
+                            <Border WidthRequest="64"
+                                    HeightRequest="64"
+                                    BackgroundColor="#7C3AED"
+                                    Stroke="#9D5CF6"
+                                    StrokeThickness="2">
+                                <Border.StrokeShape>
+                                    <Ellipse />
+                                </Border.StrokeShape>
+                                <Label Text="{Binding UserInfo.Initial}"
+                                       FontSize="26"
+                                       FontAttributes="Bold"
+                                       TextColor="White"
+                                       HorizontalOptions="Center"
+                                       VerticalOptions="Center" />
+                            </Border>
+
+                            <VerticalStackLayout Spacing="4" VerticalOptions="Center">
+                                <Label Text="{Binding UserInfo.UserName}"
+                                       FontSize="18"
+                                       FontAttributes="Bold"
+                                       TextColor="White" />
+                                <Label Text="{Binding UserInfo.Email}"
+                                       FontSize="13"
+                                       TextColor="#888888" />
+                            </VerticalStackLayout>
+                        </HorizontalStackLayout>
+
+                        <!-- Divider -->
+                        <BoxView Color="#2A2A2A" HeightRequest="1" />
+
+                        <!-- Subscription + Role badges -->
+                        <HorizontalStackLayout Spacing="8">
+
+                            <Border BackgroundColor="{Binding UserInfo.SubscriptionBackgroundColor}"
+                                    Stroke="{Binding UserInfo.SubscriptionBorderColor}"
+                                    StrokeThickness="1"
+                                    Padding="12,6">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="20" />
+                                </Border.StrokeShape>
+                                <HorizontalStackLayout Spacing="6">
+                                    <Label Text="★"
+                                           TextColor="{Binding UserInfo.SubscriptionColor}"
+                                           FontSize="12"
+                                           VerticalOptions="Center" />
+                                    <Label Text="{Binding UserInfo.Subscription}"
+                                           TextColor="{Binding UserInfo.SubscriptionColor}"
+                                           FontSize="13"
+                                           FontAttributes="Bold" />
+                                </HorizontalStackLayout>
+                            </Border>
+
+                            <Border BackgroundColor="#1C1C1C"
+                                    Stroke="#333333"
+                                    StrokeThickness="1"
+                                    Padding="12,6">
+                                <Border.StrokeShape>
+                                    <RoundRectangle CornerRadius="20" />
+                                </Border.StrokeShape>
+                                <Label Text="{Binding UserInfo.Role}"
+                                       TextColor="#AAAAAA"
+                                       FontSize="13" />
+                            </Border>
+
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Stats card -->
+                <Border BackgroundColor="#1A1A1A"
+                        Stroke="#2A2A2A"
+                        StrokeThickness="1"
+                        Margin="0,0,0,32">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="20" />
+                    </Border.StrokeShape>
+
+                    <Grid ColumnDefinitions="*" Padding="24,20">
+                        <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                            <Label Text="{Binding BookingCount}"
+                                   FontSize="36"
+                                   FontAttributes="Bold"
+                                   TextColor="#A78BFA"
+                                   HorizontalTextAlignment="Center" />
+                            <Label Text="Total Bookings"
+                                   FontSize="13"
+                                   TextColor="#888888"
+                                   HorizontalTextAlignment="Center" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Border>
+
+                <!-- Logout button -->
+                <Button Text="Log Out"
+                        Clicked="OnLogoutClicked"
+                        BackgroundColor="#1C0A0A"
+                        TextColor="#EF4444"
+                        BorderColor="#3D1010"
+                        BorderWidth="1"
+                        CornerRadius="14"
+                        HeightRequest="54"
+                        FontAttributes="Bold"
+                        FontSize="16" />
+
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

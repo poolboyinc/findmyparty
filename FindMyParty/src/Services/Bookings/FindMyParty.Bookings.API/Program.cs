@@ -74,6 +74,9 @@ builder.Services.AddQuartz(q =>
 });
 
 builder.Services.AddScoped<CreateBookingCommandHandler>();
+builder.Services.AddScoped<CancelBookingCommandHandler>();
+builder.Services.AddScoped<ConfirmBookingCommandHandler>();
+builder.Services.AddScoped<GetUserBookingsQueryHandler>();
 
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 

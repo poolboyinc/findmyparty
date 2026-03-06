@@ -1,14 +1,37 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<Shell
-    x:Class="FindMyParty.Mobile.AppShell"
-    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    xmlns:local="clr-namespace:FindMyParty.Mobile"
-    Title="FindMyParty.Mobile">
+<Shell x:Class="FindMyParty.Mobile.AppShell"
+       xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+       xmlns:views="clr-namespace:FindMyParty.Mobile.Views"
+       Shell.NavBarIsVisible="False"
+       Shell.TabBarBackgroundColor="#111111"
+       Shell.TabBarTitleColor="#7C3AED"
+       Shell.TabBarUnselectedColor="#555555">
 
-    <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage" />
+    <!-- Auth pages — no tab bar -->
+    <ShellContent Route="login"
+                  Shell.TabBarIsVisible="False"
+                  ContentTemplate="{DataTemplate views:LoginPage}" />
+
+    <ShellContent Route="register"
+                  Shell.TabBarIsVisible="False"
+                  ContentTemplate="{DataTemplate views:RegisterPage}" />
+
+    <!-- Main app — tabbed -->
+    <TabBar Route="main">
+
+        <Tab Title="Explore" Route="explore">
+            <ShellContent ContentTemplate="{DataTemplate views:ExplorePage}" />
+        </Tab>
+
+        <Tab Title="My Bookings" Route="bookings">
+            <ShellContent ContentTemplate="{DataTemplate views:MyBookingsPage}" />
+        </Tab>
+
+        <Tab Title="Profile" Route="profile">
+            <ShellContent ContentTemplate="{DataTemplate views:ProfilePage}" />
+        </Tab>
+
+    </TabBar>
 
 </Shell>

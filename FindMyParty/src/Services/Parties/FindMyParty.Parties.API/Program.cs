@@ -52,6 +52,7 @@ builder.Services.AddScoped<BookingCreatedEventHandler>();
 
 builder.Services.AddScoped<CreatePartyCommandHandler>();
 builder.Services.AddScoped<GetPublishedPartiesQueryHandler>();
+builder.Services.AddScoped<GetPartyByIdQueryHandler>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

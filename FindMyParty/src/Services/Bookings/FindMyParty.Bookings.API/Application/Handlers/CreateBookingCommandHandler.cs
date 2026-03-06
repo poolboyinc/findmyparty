@@ -37,7 +37,7 @@ namespace FindMyParty.Bookings.API.Application.Handlers
             {
                 Id = Guid.NewGuid(),
                 OccurredOnUtc = DateTime.UtcNow,
-                Type = nameof(BookingCreatedIntegrationEvent),
+                Type = typeof(BookingCreatedIntegrationEvent).FullName!,
                 Payload = JsonSerializer.Serialize(
                     new BookingCreatedIntegrationEvent(
                         booking.Id,

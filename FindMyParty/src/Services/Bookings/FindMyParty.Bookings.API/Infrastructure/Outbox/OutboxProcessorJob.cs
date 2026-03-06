@@ -23,25 +23,39 @@ public class OutboxProcessorJob(
 
         foreach (var message in messages)
         {
-            var assembly = typeof(OutboxProcessorJob).Assembly;
-
-            var eventType = assembly.GetType(
-                $"FindMyParty.Bookings.API.Application.IntegrationEvents.Events.{message.Type}");
-
-            if (eventType == null) continue;
-
-            var @event = JsonSerializer.Deserialize(message.Payload, eventType);
-
-            Console.WriteLine($"Resolved Type: {eventType}");
-
-            if (@event != null)
+            try
             {
-                await eventBus.PublishAsync(@event);
+                var assembly = typeof(OutboxProcessorJob).Assembly;
+
+                var eventType = assembly.GetType(message.Type);
+
+                Console.WriteLine($"Resolved Type: {eventType}");
+
+                if (eventType == null)
+                {
+                    Console.WriteLine($"Could not resolve type: {message.Type}");
+                    continue;
+                }
+
+                var @event = JsonSerializer.Deserialize(message.Payload, eventType);
+
+                if (@event != null)
+                {
+                    Console.WriteLine("Publishing event...");
+                    var publishMethod = typeof(IEventBus)
+                        .GetMethod(nameof(IEventBus.PublishAsync))!
+                        .MakeGenericMethod(eventType);
+                    await (Task)publishMethod.Invoke(eventBus, [@event])!;
+                    Console.WriteLine("Published successfully.");
+                }
+
+                message.ProcessedOnUtc = DateTime.UtcNow;
             }
-
-            Console.WriteLine($"Message Type from DB: {message.Type}");
-
-            message.ProcessedOnUtc = DateTime.UtcNow;
+            catch (Exception ex)
+            {
+                Console.WriteLine("OUTBOX ERROR:");
+                Console.WriteLine(ex.ToString());
+            }
         }
 
         await dbContext.SaveChangesAsync(context.CancellationToken);
