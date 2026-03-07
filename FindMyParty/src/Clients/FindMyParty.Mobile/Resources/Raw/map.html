@@ -43,6 +43,21 @@
         .popup-price { color: #A78BFA; font-size: 13px; font-family: sans-serif; }
         .popup-date  { color: #888; font-size: 12px; margin-top: 3px; font-family: sans-serif; }
         .popup-sold  { color: #EF4444; font-size: 11px; margin-top: 3px; font-family: sans-serif; font-weight: 600; }
+
+        .user-location-dot {
+            width: 18px;
+            height: 18px;
+            background: #4A9EFF;
+            border: 3px solid white;
+            border-radius: 50%;
+            box-shadow: 0 0 0 0 rgba(74, 158, 255, 0.5);
+            animation: userPulse 2s infinite;
+        }
+        @keyframes userPulse {
+            0%   { box-shadow: 0 0 0 0   rgba(74, 158, 255, 0.5); }
+            70%  { box-shadow: 0 0 0 12px rgba(74, 158, 255, 0);   }
+            100% { box-shadow: 0 0 0 0   rgba(74, 158, 255, 0);   }
+        }
     </style>
 </head>
 <body>
@@ -50,9 +65,10 @@
     <script>
         mapboxgl.accessToken = '%%MAPBOX_TOKEN%%';
 
-        var initialLat    = %%CENTER_LAT%%;
-        var initialLng    = %%CENTER_LNG%%;
-        var initialParties = %%PARTIES_DATA%%;
+        var initialLat      = %%CENTER_LAT%%;
+        var initialLng      = %%CENTER_LNG%%;
+        var hasUserLocation = %%HAS_LOCATION%%;
+        var initialParties  = %%PARTIES_DATA%%;
 
         var map = new mapboxgl.Map({
             container: 'map',
@@ -64,6 +80,28 @@
         map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
 
         var markers = [];
+        var userMarker = null;
+
+        function showUserLocation(lat, lng) {
+            var el = document.createElement('div');
+            el.className = 'user-location-dot';
+            if (userMarker) { userMarker.remove(); }
+            userMarker = new mapboxgl.Marker(el)
+                .setLngLat([lng, lat])
+                .addTo(map);
+        }
+
+        function filterParties(dateStr) {
+            if (!dateStr) {
+                addPartyMarkers(initialParties);
+                return;
+            }
+            var target = new Date(dateStr).toDateString();
+            var filtered = initialParties.filter(function(p) {
+                return new Date(p.startsAt).toDateString() === target;
+            });
+            addPartyMarkers(filtered);
+        }
 
         function escapeHtml(text) {
             var div = document.createElement('div');
@@ -115,6 +153,9 @@
         map.on('load', function() {
             if (initialParties && initialParties.length > 0) {
                 addPartyMarkers(initialParties);
+            }
+            if (hasUserLocation) {
+                showUserLocation(initialLat, initialLng);
             }
         });
     </script>

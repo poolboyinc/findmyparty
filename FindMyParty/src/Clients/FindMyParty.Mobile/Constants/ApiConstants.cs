@@ -2,7 +2,7 @@ namespace FindMyParty.Mobile.Constants;
 
 public static class ApiConstants
 {
-    public const string MapboxPublicToken = "pk.eyJ1IjoicG9vbGJvaWluYyIsImEiOiJjbHR1MWxkeTQxYXlwMmpuamFzcHVkeDdiIn0.Ti_BulPJmDGDsxQ3bMhZxQ";
+    public const string MapboxPublicToken = "pk.eyJ1IjoicG9vbGJvaWluYyIsImEiOiJjbTl0eWhuNHkwM3l0Mm1zOXBqc2FxMDVkIn0.ARL02yHrAorx0t98mlv2KQ";
 
 #if DEBUG
     public static string IdentityBaseUrl =>

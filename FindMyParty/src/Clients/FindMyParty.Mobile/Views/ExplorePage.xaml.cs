@@ -10,6 +10,8 @@ public partial class ExplorePage : ContentPage
 {
     private readonly ExploreViewModel _viewModel;
     private bool _mapInitialized = false;
+    private bool _hasUserLocation = false;
+    private DateTime? _selectedDate = null;
 
     private static readonly JsonSerializerOptions CamelCase = new()
     {
@@ -56,6 +58,7 @@ public partial class ExplorePage : ContentPage
                 {
                     lat = location.Latitude;
                     lng = location.Longitude;
+                    _hasUserLocation = true;
                 }
             }
             catch { /* use defaults */ }
@@ -68,7 +71,7 @@ public partial class ExplorePage : ContentPage
         };
     }
 
-    private static string BuildMapHtml(double lat, double lng, List<PartyMapItem> parties)
+    private string BuildMapHtml(double lat, double lng, List<PartyMapItem> parties)
     {
         using var stream = FileSystem.OpenAppPackageFileAsync("map.html").GetAwaiter().GetResult();
         using var reader = new StreamReader(stream);
@@ -78,7 +81,36 @@ public partial class ExplorePage : ContentPage
             .Replace("%%MAPBOX_TOKEN%%", ApiConstants.MapboxPublicToken)
             .Replace("%%CENTER_LAT%%", lat.ToString("F6", CultureInfo.InvariantCulture))
             .Replace("%%CENTER_LNG%%", lng.ToString("F6", CultureInfo.InvariantCulture))
+            .Replace("%%HAS_LOCATION%%", _hasUserLocation ? "true" : "false")
             .Replace("%%PARTIES_DATA%%", JsonSerializer.Serialize(parties, CamelCase));
+    }
+
+    private void OnDateBubbleTapped(object sender, TappedEventArgs e)
+    {
+        datePicker.Date = _selectedDate ?? DateTime.Today;
+        datePickerOverlay.IsVisible = true;
+    }
+
+    private async void OnApplyDate(object sender, EventArgs e)
+    {
+        _selectedDate = datePicker.Date;
+        datePickerOverlay.IsVisible = false;
+        dateBubbleLabel.Text = $"\U0001F4C5  {_selectedDate:MMM dd, yyyy}";
+        await mapWebView.EvaluateJavaScriptAsync(
+            $"filterParties('{_selectedDate:yyyy-MM-dd}')");
+    }
+
+    private async void OnClearDate(object sender, EventArgs e)
+    {
+        _selectedDate = null;
+        datePickerOverlay.IsVisible = false;
+        dateBubbleLabel.Text = "\U0001F4C5  All Dates";
+        await mapWebView.EvaluateJavaScriptAsync("filterParties(null)");
+    }
+
+    private void OnCancelDate(object sender, EventArgs e)
+    {
+        datePickerOverlay.IsVisible = false;
     }
 
     private void OnNavigating(object sender, WebNavigatingEventArgs e)
