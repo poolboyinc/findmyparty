@@ -10,7 +10,6 @@ namespace FindMyParty.Identity.API.Controllers
     [Route("api/auth")]
     public class AuthController(UserManager<ApplicationUser> userManager, ITokenService tokenService) : ControllerBase
     {
-
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterRequest request)
         {
@@ -28,11 +27,13 @@ namespace FindMyParty.Identity.API.Controllers
 
             await userManager.AddToRoleAsync(user, "User");
 
-            var token = await tokenService.CreateAccessTokenAsync(user);
+            var accessToken = await tokenService.CreateAccessTokenAsync(user);
+            var refreshToken = await tokenService.CreateRefreshTokenAsync(user);
 
             return Ok(new LoginResponse
             {
-                AccessToken = token
+                AccessToken = accessToken,
+                RefreshToken = refreshToken
             });
         }
 
@@ -47,13 +48,32 @@ namespace FindMyParty.Identity.API.Controllers
             if (!validPassword)
                 return Unauthorized();
 
-            var token = await tokenService.CreateAccessTokenAsync(user);
+            var accessToken = await tokenService.CreateAccessTokenAsync(user);
+            var refreshToken = await tokenService.CreateRefreshTokenAsync(user);
 
             return Ok(new LoginResponse
             {
-                AccessToken = token
+                AccessToken = accessToken,
+                RefreshToken = refreshToken
             });
         }
 
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh(RefreshTokenRequest request)
+        {
+            var (isValid, user) = await tokenService.ValidateRefreshTokenAsync(request.UserId, request.RefreshToken);
+
+            if (!isValid || user == null)
+                return Unauthorized();
+
+            var accessToken = await tokenService.CreateAccessTokenAsync(user);
+            var refreshToken = await tokenService.CreateRefreshTokenAsync(user);
+
+            return Ok(new LoginResponse
+            {
+                AccessToken = accessToken,
+                RefreshToken = refreshToken
+            });
+        }
     }
 }
