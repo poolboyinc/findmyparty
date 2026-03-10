@@ -1,11 +1,12 @@
-﻿using FindMyParty.Parties.API.Application.IntegrationEvents;
+using FindMyParty.Parties.API.Application.IntegrationEvents;
 using FindMyParty.Parties.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 
 
 namespace FindMyParty.Parties.API.Application.IntegrationEvents.Handlers
 {
-    public class BookingCreatedEventHandler(PartiesDbContext db)
+    public class BookingCreatedEventHandler(PartiesDbContext db, IDistributedCache cache)
     {
         public async Task Handle(BookingCreatedIntegrationEvent @event, CancellationToken cancellationToken)
         {
@@ -36,6 +37,9 @@ namespace FindMyParty.Parties.API.Application.IntegrationEvents.Handlers
             });
 
             await db.SaveChangesAsync();
+
+            // Invalidate availability cache so next read reflects updated ticket count
+            await cache.RemoveAsync($"parties:availability:{@event.PartyId}");
         }
     }
 }

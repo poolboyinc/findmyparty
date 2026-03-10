@@ -1,4 +1,4 @@
-﻿using FindMyParty.Parties.API.Application.IntegrationEvents;
+using FindMyParty.Parties.API.Application.IntegrationEvents;
 using FindMyParty.Parties.API.Application.IntegrationEvents.Handlers;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
@@ -27,17 +27,41 @@ namespace FindMyParty.Parties.API.Infrastructure.Messaging
             _connection = await factory.CreateConnectionAsync(stoppingToken);
             _channel = await _connection.CreateChannelAsync();
 
-
+            // Main exchange for booking events
             await _channel.ExchangeDeclareAsync(
                 exchange: "booking.events",
                 type: ExchangeType.Topic,
                 durable: true);
 
+            // Dead letter exchange — failed messages land here instead of requeueing forever
+            await _channel.ExchangeDeclareAsync(
+                exchange: "booking.events.dlx",
+                type: ExchangeType.Fanout,
+                durable: true);
+
+            await _channel.QueueDeclareAsync(
+                queue: "parties.booking.created.dlq",
+                durable: true,
+                exclusive: false,
+                autoDelete: false);
+
+            await _channel.QueueBindAsync(
+                queue: "parties.booking.created.dlq",
+                exchange: "booking.events.dlx",
+                routingKey: "");
+
+            // Main queue — on failure, messages go to DLX rather than requeuing
+            var queueArgs = new Dictionary<string, object?>
+            {
+                { "x-dead-letter-exchange", "booking.events.dlx" }
+            };
+
             var queue = await _channel.QueueDeclareAsync(
                 queue: "parties.booking.created",
                 durable: true,
                 exclusive: false,
-                autoDelete: false);
+                autoDelete: false,
+                arguments: queueArgs);
 
             await _channel.QueueBindAsync(
                 queue: queue.QueueName,
@@ -73,10 +97,11 @@ namespace FindMyParty.Parties.API.Infrastructure.Messaging
             }
             catch
             {
+                // requeue: false → message routed to DLQ instead of cycling forever
                 await _channel!.BasicNackAsync(
                     args.DeliveryTag,
                     false,
-                    requeue: true);
+                    requeue: false);
             }
         }
 

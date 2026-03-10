@@ -5,7 +5,9 @@ using FindMyParty.Parties.API.Application.Queries;
 using FindMyParty.Parties.API.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Distributed;
 using System.Security.Claims;
+using System.Text.Json;
 
 [ApiController]
 [Route("api/parties")]
@@ -13,7 +15,8 @@ public class PartiesController(
     CreatePartyCommandHandler createHandler,
     GetPublishedPartiesQueryHandler queryHandler,
     GetPartyByIdQueryHandler getByIdHandler,
-    PartiesDbContext db) : ControllerBase
+    PartiesDbContext db,
+    IDistributedCache cache) : ControllerBase
 {
     [Authorize(Roles = "Host")]
     [HttpPost]
@@ -55,18 +58,30 @@ public class PartiesController(
     [HttpGet("{id}/availability")]
     public async Task<IActionResult> GetAvailability(Guid id)
     {
+        var cacheKey = $"parties:availability:{id}";
+
+        var cached = await cache.GetStringAsync(cacheKey);
+        if (cached != null)
+            return Ok(JsonSerializer.Deserialize<object>(cached));
+
         var party = await db.Parties.FindAsync(id);
 
         if (party == null)
             return NotFound();
 
-        var remainingCapacity = party.Capacity - party.TicketsSold;
-
-        return Ok(new
+        var result = new
         {
-            remainingCapacity,
-            isAvailable = remainingCapacity > 0,
+            remainingCapacity = party.Capacity - party.TicketsSold,
+            isAvailable = party.TicketsSold < party.Capacity,
             pricePerTicket = party.Price
-        });
+        };
+
+        await cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(result),
+            new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(10)
+            });
+
+        return Ok(result);
     }
 }

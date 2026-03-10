@@ -54,7 +54,8 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddHttpClient<IPartyAvailabilityService, PartyAvailabilityService>(
     client =>
     {
-        client.BaseAddress = new Uri("http://localhost:5246"); 
+        var url = builder.Configuration["Services:PartiesBaseUrl"] ?? "http://localhost:5246";
+        client.BaseAddress = new Uri(url);
     });
 
 builder.Services.AddQuartz(q =>

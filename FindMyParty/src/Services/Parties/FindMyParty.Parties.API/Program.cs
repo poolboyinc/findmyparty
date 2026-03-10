@@ -45,6 +45,12 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+    options.InstanceName = "fmp:";
+});
+
 builder.Services.AddHostedService<RabbitMqEventConsumer>();
 
 builder.Services.AddScoped<BookingCreatedEventHandler>();
