@@ -13,6 +13,7 @@ using System.Text.Json;
 [Route("api/parties")]
 public class PartiesController(
     CreatePartyCommandHandler createHandler,
+    PublishPartyCommandHandler publishHandler,
     GetPublishedPartiesQueryHandler queryHandler,
     GetPartyByIdQueryHandler getByIdHandler,
     PartiesDbContext db,
@@ -30,15 +31,34 @@ public class PartiesController(
         return CreatedAtAction(nameof(Get), new { id }, null);
     }
 
+    [Authorize(Roles = "Host")]
+    [HttpPost("{id:guid}/publish")]
+    public async Task<IActionResult> Publish(Guid id)
+    {
+        var hostId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var result = await publishHandler.Handle(new PublishPartyCommand(id, hostId));
+
+        return result switch
+        {
+            PublishPartyResult.Success => NoContent(),
+            PublishPartyResult.NotFound => NotFound(),
+            PublishPartyResult.Forbidden => Forbid(),
+            PublishPartyResult.InvalidState => BadRequest("Party cannot be published in its current state."),
+            _ => StatusCode(500)
+        };
+    }
+
     [HttpGet]
     public async Task<IActionResult> Get(
         [FromQuery] double? lat,
         [FromQuery] double? lng,
+        [FromQuery] DateOnly? date,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
         var parties = await queryHandler.Handle(
-            new GetPublishedPartiesQuery(lat, lng, page, pageSize));
+            new GetPublishedPartiesQuery(lat, lng, date, page, pageSize));
 
         return Ok(parties);
     }

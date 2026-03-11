@@ -14,14 +14,25 @@ namespace FindMyParty.Parties.API.Application.Handlers
             // Round coordinates to ~1 km precision to improve cache hit rate
             var latKey = query.Latitude.HasValue ? Math.Round(query.Latitude.Value, 2).ToString() : "any";
             var lngKey = query.Longitude.HasValue ? Math.Round(query.Longitude.Value, 2).ToString() : "any";
-            var cacheKey = $"parties:list:{latKey}:{lngKey}:{query.Page}:{query.PageSize}";
+            var dateKey = query.Date.HasValue ? query.Date.Value.ToString("yyyy-MM-dd") : "any";
+            var cacheKey = $"parties:list:{latKey}:{lngKey}:{dateKey}:{query.Page}:{query.PageSize}";
 
             var cached = await cache.GetStringAsync(cacheKey);
             if (cached != null)
                 return JsonSerializer.Deserialize<List<PartyResponse>>(cached)!;
 
-            var result = await db.Parties
-                .Where(p => p.Status == Domain.Enums.PartyStatus.Published && !p.IsDeleted)
+            var dbQuery = db.Parties
+                .Where(p => p.Status == Domain.Enums.PartyStatus.Published && !p.IsDeleted);
+
+            if (query.Date.HasValue)
+            {
+                // A party is "on this date" if it starts before end-of-day AND ends after start-of-day
+                var dayStart = query.Date.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+                var dayEnd = query.Date.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+                dbQuery = dbQuery.Where(p => p.StartsAt <= dayEnd && p.EndsAt >= dayStart);
+            }
+
+            var result = await dbQuery
                 .OrderBy(p => p.StartsAt)
                 .Skip((query.Page - 1) * query.PageSize)
                 .Take(query.PageSize)

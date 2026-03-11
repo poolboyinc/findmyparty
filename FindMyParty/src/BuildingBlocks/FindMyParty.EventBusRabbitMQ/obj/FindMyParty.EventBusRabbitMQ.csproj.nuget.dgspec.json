@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\vukasin.macic\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj": {}
+    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj": {}
   },
   "projects": {
-    "C:\\Users\\vukasin.macic\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj": {
+    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\vukasin.macic\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj",
+        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj",
         "projectName": "FindMyParty.EventBusRabbitMQ",
-        "projectPath": "C:\\Users\\vukasin.macic\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj",
-        "packagesPath": "C:\\Users\\vukasin.macic\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\vukasin.macic\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\obj\\",
+        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj",
+        "packagesPath": "C:\\Users\\Lenovo\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\vukasin.macic\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\Lenovo\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -27,8 +27,7 @@
         "sources": {
           "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "C:\\Program Files\\dotnet\\library-packs": {},
-          "https://api.nuget.org/v3/index.json": {},
-          "https://transive-nuget-artifacts-779624856159.d.codeartifact.eu-west-1.amazonaws.com/nuget/transive-nugets/v3/index.json": {}
+          "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net10.0": {
@@ -67,7 +66,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.102/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",

@@ -57,6 +57,7 @@ builder.Services.AddScoped<BookingCreatedEventHandler>();
 
 
 builder.Services.AddScoped<CreatePartyCommandHandler>();
+builder.Services.AddScoped<PublishPartyCommandHandler>();
 builder.Services.AddScoped<GetPublishedPartiesQueryHandler>();
 builder.Services.AddScoped<GetPartyByIdQueryHandler>();
 
