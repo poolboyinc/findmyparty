@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.3.11520.95 d18.3
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "FindMyParty", "FindMyParty", "{710886DA-E07A-9B76-B1BC-3DDAD6715663}"
 EndProject
@@ -38,6 +38,15 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Payments", "Payments", "{552B5BD9-C1B0-2A9A-2B66-B2FE7B3DF112}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FindMyParty.Payments.API", "FindMyParty\src\Services\Payments\FindMyParty.Payments.API\FindMyParty.Payments.API.csproj", "{BBD870A0-DD91-4DE5-91B4-3A47A0C70D24}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Gateway", "Gateway", "{F5DA0C20-55B5-356B-3D72-8C47D1D33875}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FindMyParty.ApiGateway", "FindMyParty\src\Gateway\FindMyParty.ApiGateway\FindMyParty.ApiGateway.csproj", "{781F5C85-03BF-44ED-BB03-736DB4242321}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{65223C5F-E50B-4101-996F-147121627A43}"
+	ProjectSection(SolutionItems) = preProject
+		FindMyParty\src\docker-compose.yml = FindMyParty\src\docker-compose.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -157,6 +166,18 @@ Global
 		{BBD870A0-DD91-4DE5-91B4-3A47A0C70D24}.Release|x64.Build.0 = Release|Any CPU
 		{BBD870A0-DD91-4DE5-91B4-3A47A0C70D24}.Release|x86.ActiveCfg = Release|Any CPU
 		{BBD870A0-DD91-4DE5-91B4-3A47A0C70D24}.Release|x86.Build.0 = Release|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Debug|x64.Build.0 = Debug|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Debug|x86.Build.0 = Debug|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Release|Any CPU.Build.0 = Release|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Release|x64.ActiveCfg = Release|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Release|x64.Build.0 = Release|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Release|x86.ActiveCfg = Release|Any CPU
+		{781F5C85-03BF-44ED-BB03-736DB4242321}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -179,5 +200,10 @@ Global
 		{667A1634-A34D-4B5D-A501-C6118B6E60D5} = {53DA534E-2DC1-6655-E394-65D7D5F7C026}
 		{552B5BD9-C1B0-2A9A-2B66-B2FE7B3DF112} = {EA1EFC54-6C14-7E49-C970-F7AC9FF22B05}
 		{BBD870A0-DD91-4DE5-91B4-3A47A0C70D24} = {552B5BD9-C1B0-2A9A-2B66-B2FE7B3DF112}
+		{F5DA0C20-55B5-356B-3D72-8C47D1D33875} = {94CAC827-4EFF-368B-5B93-D40ABE226E16}
+		{781F5C85-03BF-44ED-BB03-736DB4242321} = {F5DA0C20-55B5-356B-3D72-8C47D1D33875}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {39839425-5946-4A44-A24A-CFA869781B84}
 	EndGlobalSection
 EndGlobal

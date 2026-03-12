@@ -14,8 +14,12 @@ using System.Text.Json;
 public class PartiesController(
     CreatePartyCommandHandler createHandler,
     PublishPartyCommandHandler publishHandler,
+    UpdatePartyCommandHandler updateHandler,
+    CancelPartyCommandHandler cancelHandler,
+    DeletePartyCommandHandler deleteHandler,
     GetPublishedPartiesQueryHandler queryHandler,
     GetPartyByIdQueryHandler getByIdHandler,
+    GetHostPartiesQueryHandler hostPartiesHandler,
     PartiesDbContext db,
     IDistributedCache cache) : ControllerBase
 {
@@ -47,6 +51,68 @@ public class PartiesController(
             PublishPartyResult.InvalidState => BadRequest("Party cannot be published in its current state."),
             _ => StatusCode(500)
         };
+    }
+
+    [Authorize(Roles = "Host")]
+    [HttpPatch("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePartyRequest request)
+    {
+        var hostId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var result = await updateHandler.Handle(new UpdatePartyCommand(id, hostId, request));
+
+        return result switch
+        {
+            UpdatePartyResult.Success => NoContent(),
+            UpdatePartyResult.NotFound => NotFound(),
+            UpdatePartyResult.Forbidden => Forbid(),
+            UpdatePartyResult.InvalidState => BadRequest("Only draft parties can be edited."),
+            _ => StatusCode(500)
+        };
+    }
+
+    [Authorize(Roles = "Host")]
+    [HttpPost("{id:guid}/cancel")]
+    public async Task<IActionResult> Cancel(Guid id)
+    {
+        var hostId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var result = await cancelHandler.Handle(new CancelPartyCommand(id, hostId));
+
+        return result switch
+        {
+            CancelPartyResult.Success => NoContent(),
+            CancelPartyResult.NotFound => NotFound(),
+            CancelPartyResult.Forbidden => Forbid(),
+            _ => StatusCode(500)
+        };
+    }
+
+    [Authorize(Roles = "Host")]
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var hostId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var result = await deleteHandler.Handle(new DeletePartyCommand(id, hostId));
+
+        return result switch
+        {
+            DeletePartyResult.Success => NoContent(),
+            DeletePartyResult.NotFound => NotFound(),
+            DeletePartyResult.Forbidden => Forbid(),
+            DeletePartyResult.InvalidState => BadRequest("Only draft parties can be deleted."),
+            _ => StatusCode(500)
+        };
+    }
+
+    [Authorize(Roles = "Host")]
+    [HttpGet("mine")]
+    public async Task<IActionResult> GetMine()
+    {
+        var hostId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var parties = await hostPartiesHandler.Handle(new GetHostPartiesQuery(hostId));
+        return Ok(parties);
     }
 
     [HttpGet]

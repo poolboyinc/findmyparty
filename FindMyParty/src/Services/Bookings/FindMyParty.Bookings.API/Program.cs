@@ -1,7 +1,9 @@
 using FindMyParty.Bookings.API.Application.Common;
 using FindMyParty.Bookings.API.Application.Handlers;
 using FindMyParty.Bookings.API.Application.IntegrationEvents.EventBus;
+using FindMyParty.Bookings.API.Application.IntegrationEvents.Handlers;
 using FindMyParty.Bookings.API.Infrastructure.Data;
+using FindMyParty.Bookings.API.Infrastructure.Messaging;
 using FindMyParty.Bookings.API.Infrastructure.Outbox;
 using FindMyParty.Bookings.API.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -74,10 +76,14 @@ builder.Services.AddQuartz(q =>
             .RepeatForever()));
 });
 
+builder.Services.AddHostedService<RabbitMqPartyEventConsumer>();
+builder.Services.AddScoped<PartyCancelledIntegrationEventHandler>();
+
 builder.Services.AddScoped<CreateBookingCommandHandler>();
 builder.Services.AddScoped<CancelBookingCommandHandler>();
 builder.Services.AddScoped<ConfirmBookingCommandHandler>();
 builder.Services.AddScoped<GetUserBookingsQueryHandler>();
+builder.Services.AddScoped<GetPartyBookingsQueryHandler>();
 
 builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 

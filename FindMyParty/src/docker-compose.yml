@@ -32,6 +32,23 @@ services:
       - redis_data:/data
     restart: unless-stopped
 
+  # ── Gateway ──────────────────────────────────────────────────────────────────
+
+  api-gateway:
+    build:
+      context: ./Gateway/FindMyParty.ApiGateway
+      dockerfile: Dockerfile
+    container_name: fmp-gateway
+    ports:
+      - "80:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    depends_on:
+      - identity-api
+      - parties-api
+      - bookings-api
+    restart: unless-stopped
+
   # ── Services ────────────────────────────────────────────────────────────────
 
   identity-api:
@@ -65,6 +82,10 @@ services:
       - RabbitMQ__HostName=rabbitmq
       - RabbitMQ__UserName=${RABBITMQ_USER:-guest}
       - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
+      - PartyPublisher__HostName=rabbitmq
+      - PartyPublisher__UserName=${RABBITMQ_USER:-guest}
+      - PartyPublisher__Password=${RABBITMQ_PASS:-guest}
+      - PartyPublisher__ExchangeName=party.events
       - Redis__ConnectionString=redis:6379
     depends_on:
       rabbitmq:

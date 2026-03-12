@@ -14,7 +14,8 @@ public class BookingsController(
     CreateBookingCommandHandler createHandler,
     CancelBookingCommandHandler cancelHandler,
     ConfirmBookingCommandHandler confirmHandler,
-    GetUserBookingsQueryHandler queryHandler) : ControllerBase
+    GetUserBookingsQueryHandler queryHandler,
+    GetPartyBookingsQueryHandler partyBookingsHandler) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> Create(
@@ -49,5 +50,13 @@ public class BookingsController(
     {
         await confirmHandler.Handle(new ConfirmBookingCommand(bookingId));
         return NoContent();
+    }
+
+    [Authorize(Roles = "Host")]
+    [HttpGet("party/{partyId:guid}")]
+    public async Task<IActionResult> GetPartyBookings(Guid partyId)
+    {
+        var bookings = await partyBookingsHandler.Handle(new GetPartyBookingsQuery(partyId));
+        return Ok(bookings);
     }
 }

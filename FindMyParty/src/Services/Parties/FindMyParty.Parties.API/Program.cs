@@ -1,4 +1,5 @@
 using FindMyParty.Parties.API.Application.Handlers;
+using FindMyParty.Parties.API.Application.IntegrationEvents.EventBus;
 using FindMyParty.Parties.API.Application.IntegrationEvents.Handlers;
 using FindMyParty.Parties.API.Infrastructure.Data;
 using FindMyParty.Parties.API.Infrastructure.Messaging;
@@ -53,13 +54,21 @@ builder.Services.AddStackExchangeRedisCache(options =>
 
 builder.Services.AddHostedService<RabbitMqEventConsumer>();
 
+builder.Services.Configure<PartyPublisherSettings>(
+    builder.Configuration.GetSection("PartyPublisher"));
+builder.Services.AddSingleton<IEventBus, RabbitMqEventBus>();
+
 builder.Services.AddScoped<BookingCreatedEventHandler>();
 
 
 builder.Services.AddScoped<CreatePartyCommandHandler>();
 builder.Services.AddScoped<PublishPartyCommandHandler>();
+builder.Services.AddScoped<UpdatePartyCommandHandler>();
+builder.Services.AddScoped<CancelPartyCommandHandler>();
+builder.Services.AddScoped<DeletePartyCommandHandler>();
 builder.Services.AddScoped<GetPublishedPartiesQueryHandler>();
 builder.Services.AddScoped<GetPartyByIdQueryHandler>();
+builder.Services.AddScoped<GetHostPartiesQueryHandler>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

@@ -66,6 +66,21 @@ namespace FindMyParty.Parties.API.Domain.Entities
             _domainEvents.Add(new PartyPublishedDomainEvent(Id));
         }
 
+        public void Update(string title, string description, decimal price, int capacity, DateTime startsAt, DateTime endsAt, double latitude, double longitude)
+        {
+            if (Status != PartyStatus.Draft)
+                throw new InvalidOperationException("Only draft parties can be edited.");
+
+            Title = title;
+            Description = description;
+            Price = price;
+            Capacity = capacity;
+            StartsAt = startsAt;
+            EndsAt = endsAt;
+            Latitude = latitude;
+            Longitude = longitude;
+        }
+
         public void Cancel()
         {
             Status = PartyStatus.Cancelled;
