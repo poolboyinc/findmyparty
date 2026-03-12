@@ -1,3 +1,4 @@
+using FindMyParty.Parties.API.Application.Cache;
 using FindMyParty.Parties.API.Application.DTOs;
 using FindMyParty.Parties.API.Application.Queries;
 using FindMyParty.Parties.API.Infrastructure.Data;
@@ -11,11 +12,15 @@ namespace FindMyParty.Parties.API.Application.Handlers
     {
         public async Task<List<PartyResponse>> Handle(GetPublishedPartiesQuery query)
         {
+            // Include the list version so cancel/publish can bust all list entries at once
+            // by writing a new version, without needing to enumerate every possible key
+            var version = await cache.GetStringAsync(CacheKeys.ListVersion) ?? "v0";
+
             // Round coordinates to ~1 km precision to improve cache hit rate
             var latKey = query.Latitude.HasValue ? Math.Round(query.Latitude.Value, 2).ToString() : "any";
             var lngKey = query.Longitude.HasValue ? Math.Round(query.Longitude.Value, 2).ToString() : "any";
             var dateKey = query.Date.HasValue ? query.Date.Value.ToString("yyyy-MM-dd") : "any";
-            var cacheKey = $"parties:list:{latKey}:{lngKey}:{dateKey}:{query.Page}:{query.PageSize}";
+            var cacheKey = $"parties:list:{version}:{latKey}:{lngKey}:{dateKey}:{query.Page}:{query.PageSize}";
 
             var cached = await cache.GetStringAsync(cacheKey);
             if (cached != null)

@@ -1,19 +1,19 @@
 using FindMyParty.Bookings.API.Application.Commands;
 using FindMyParty.Bookings.API.Application.Common;
 using FindMyParty.Bookings.API.Application.IntegrationEvents;
-using FindMyParty.Bookings.API.Application.IntegrationEvents.EventBus;
 using FindMyParty.Bookings.API.Domain.Aggregates;
 using FindMyParty.Bookings.API.Infrastructure.Data;
 using FindMyParty.Bookings.API.Infrastructure.Outbox;
 using FindMyParty.Bookings.API.Infrastructure.Services;
-using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
 namespace FindMyParty.Bookings.API.Application.Handlers
 {
-    public class CreateBookingCommandHandler( BookingsDbContext db, 
-        ICurrentUserService currentUser, 
-        IPartyAvailabilityService partyAvailability)
+    public class CreateBookingCommandHandler(
+        BookingsDbContext db,
+        ICurrentUserService currentUser,
+        IPartyAvailabilityService partyAvailability,
+        IOutboxSignal outboxSignal)
     {
         public async Task<Guid> Handle(CreateBookingCommand command)
         {
@@ -33,7 +33,7 @@ namespace FindMyParty.Bookings.API.Application.Handlers
 
             db.Bookings.Add(booking);
 
-            var outboxMessage = new OutboxMessage
+            db.OutboxMessages.Add(new OutboxMessage
             {
                 Id = Guid.NewGuid(),
                 OccurredOnUtc = DateTime.UtcNow,
@@ -44,15 +44,14 @@ namespace FindMyParty.Bookings.API.Application.Handlers
                         booking.PartyId,
                         booking.UserId,
                         booking.TicketCount))
-            };
-
-            db.OutboxMessages.Add(outboxMessage);
+            });
 
             await db.SaveChangesAsync();
 
+            // Signal the processor — booking and outbox message are committed, publish now
+            outboxSignal.Notify();
 
             return booking.Id;
         }
-
     }
 }

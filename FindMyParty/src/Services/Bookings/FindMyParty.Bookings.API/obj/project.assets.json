@@ -657,22 +657,6 @@
           "buildTransitive/net8.0/_._": {}
         }
       },
-      "Microsoft.Extensions.Options.ConfigurationExtensions/10.0.3": {
-        "type": "package",
-        "compile": {
-          "lib/net10.0/_._": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/net10.0/_._": {
-            "related": ".xml"
-          }
-        },
-        "build": {
-          "buildTransitive/net8.0/_._": {}
-        }
-      },
       "Microsoft.Identity.Client/4.73.1": {
         "type": "package",
         "dependencies": {
@@ -863,51 +847,6 @@
         },
         "runtime": {
           "lib/net6.0/Newtonsoft.Json.dll": {
-            "related": ".xml"
-          }
-        }
-      },
-      "Quartz/3.15.1": {
-        "type": "package",
-        "compile": {
-          "lib/net9.0/Quartz.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/net9.0/Quartz.dll": {
-            "related": ".xml"
-          }
-        }
-      },
-      "Quartz.Extensions.DependencyInjection/3.15.1": {
-        "type": "package",
-        "dependencies": {
-          "Quartz": "3.15.1"
-        },
-        "compile": {
-          "lib/net9.0/Quartz.Extensions.DependencyInjection.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/net9.0/Quartz.Extensions.DependencyInjection.dll": {
-            "related": ".xml"
-          }
-        }
-      },
-      "Quartz.Extensions.Hosting/3.15.1": {
-        "type": "package",
-        "dependencies": {
-          "Quartz.Extensions.DependencyInjection": "3.15.1"
-        },
-        "compile": {
-          "lib/net9.0/Quartz.Extensions.Hosting.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/net9.0/Quartz.Extensions.Hosting.dll": {
             "related": ".xml"
           }
         }
@@ -2619,35 +2558,6 @@
         "useSharedDesignerContext.txt"
       ]
     },
-    "Microsoft.Extensions.Options.ConfigurationExtensions/10.0.3": {
-      "sha512": "bn6QoBbbvwmzLIFyxrnL2/e+sqoNUOGbHyfWK9DPONMv1mDCYHm/C7MusYASM31b2lUx6OiDmonb3v+dv5t0nA==",
-      "type": "package",
-      "path": "microsoft.extensions.options.configurationextensions/10.0.3",
-      "files": [
-        ".nupkg.metadata",
-        ".signature.p7s",
-        "Icon.png",
-        "PACKAGE.md",
-        "THIRD-PARTY-NOTICES.TXT",
-        "buildTransitive/net461/Microsoft.Extensions.Options.ConfigurationExtensions.targets",
-        "buildTransitive/net462/_._",
-        "buildTransitive/net8.0/_._",
-        "buildTransitive/netcoreapp2.0/Microsoft.Extensions.Options.ConfigurationExtensions.targets",
-        "lib/net10.0/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
-        "lib/net10.0/Microsoft.Extensions.Options.ConfigurationExtensions.xml",
-        "lib/net462/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
-        "lib/net462/Microsoft.Extensions.Options.ConfigurationExtensions.xml",
-        "lib/net8.0/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
-        "lib/net8.0/Microsoft.Extensions.Options.ConfigurationExtensions.xml",
-        "lib/net9.0/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
-        "lib/net9.0/Microsoft.Extensions.Options.ConfigurationExtensions.xml",
-        "lib/netstandard2.0/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
-        "lib/netstandard2.0/Microsoft.Extensions.Options.ConfigurationExtensions.xml",
-        "microsoft.extensions.options.configurationextensions.10.0.3.nupkg.sha512",
-        "microsoft.extensions.options.configurationextensions.nuspec",
-        "useSharedDesignerContext.txt"
-      ]
-    },
     "Microsoft.Identity.Client/4.73.1": {
       "sha512": "NnDLS8QwYqO5ZZecL2oioi1LUqjh5Ewk4bMLzbgiXJbQmZhDLtKwLxL3DpGMlQAJ2G4KgEnvGPKa+OOgffeJbw==",
       "type": "package",
@@ -2926,67 +2836,6 @@
         "newtonsoft.json.13.0.3.nupkg.sha512",
         "newtonsoft.json.nuspec",
         "packageIcon.png"
-      ]
-    },
-    "Quartz/3.15.1": {
-      "sha512": "XIbhzUAKSm3xdl1ORLPnK7mc5XANP3cuvYQhCtuX/8888IN41e9OXJak4R9OlmAGRnyAMqHE40yojVa89NS1wg==",
-      "type": "package",
-      "path": "quartz/3.15.1",
-      "files": [
-        ".nupkg.metadata",
-        ".signature.p7s",
-        "lib/net462/Quartz.dll",
-        "lib/net462/Quartz.xml",
-        "lib/net472/Quartz.dll",
-        "lib/net472/Quartz.xml",
-        "lib/net8.0/Quartz.dll",
-        "lib/net8.0/Quartz.xml",
-        "lib/net9.0/Quartz.dll",
-        "lib/net9.0/Quartz.xml",
-        "lib/netstandard2.0/Quartz.dll",
-        "lib/netstandard2.0/Quartz.xml",
-        "quartz-logo-small.png",
-        "quartz.3.15.1.nupkg.sha512",
-        "quartz.nuspec",
-        "quick-start.md"
-      ]
-    },
-    "Quartz.Extensions.DependencyInjection/3.15.1": {
-      "sha512": "LinB9z54aPn49C/DGM1v3OflX2nosrEo4zNz10vfYqcCndFJ8MNU9k++Ap9T7vxeZc355WStPDggpX60TYj1Lg==",
-      "type": "package",
-      "path": "quartz.extensions.dependencyinjection/3.15.1",
-      "files": [
-        ".nupkg.metadata",
-        ".signature.p7s",
-        "lib/net8.0/Quartz.Extensions.DependencyInjection.dll",
-        "lib/net8.0/Quartz.Extensions.DependencyInjection.xml",
-        "lib/net9.0/Quartz.Extensions.DependencyInjection.dll",
-        "lib/net9.0/Quartz.Extensions.DependencyInjection.xml",
-        "lib/netstandard2.0/Quartz.Extensions.DependencyInjection.dll",
-        "lib/netstandard2.0/Quartz.Extensions.DependencyInjection.xml",
-        "microsoft-di-integration.md",
-        "quartz-logo-small.png",
-        "quartz.extensions.dependencyinjection.3.15.1.nupkg.sha512",
-        "quartz.extensions.dependencyinjection.nuspec"
-      ]
-    },
-    "Quartz.Extensions.Hosting/3.15.1": {
-      "sha512": "svqLTEnVLb0VPUcNCd/khRqagwxM/yybUZ2sEOd7HFdPO+5dAOttL+ARtXSyBeaGWPWAaxY4VvU7pJTZzYhORw==",
-      "type": "package",
-      "path": "quartz.extensions.hosting/3.15.1",
-      "files": [
-        ".nupkg.metadata",
-        ".signature.p7s",
-        "hosted-services-integration.md",
-        "lib/net8.0/Quartz.Extensions.Hosting.dll",
-        "lib/net8.0/Quartz.Extensions.Hosting.xml",
-        "lib/net9.0/Quartz.Extensions.Hosting.dll",
-        "lib/net9.0/Quartz.Extensions.Hosting.xml",
-        "lib/netstandard2.0/Quartz.Extensions.Hosting.dll",
-        "lib/netstandard2.0/Quartz.Extensions.Hosting.xml",
-        "quartz-logo-small.png",
-        "quartz.extensions.hosting.3.15.1.nupkg.sha512",
-        "quartz.extensions.hosting.nuspec"
       ]
     },
     "RabbitMQ.Client/7.2.0": {
@@ -3368,10 +3217,6 @@
       "Microsoft.EntityFrameworkCore.Design >= 10.0.3",
       "Microsoft.EntityFrameworkCore.SqlServer >= 10.0.3",
       "Microsoft.EntityFrameworkCore.Tools >= 10.0.3",
-      "Microsoft.Extensions.Options.ConfigurationExtensions >= 10.0.3",
-      "Quartz >= 3.15.1",
-      "Quartz.Extensions.DependencyInjection >= 3.15.1",
-      "Quartz.Extensions.Hosting >= 3.15.1",
       "RabbitMQ.Client >= 7.2.0"
     ]
   },
@@ -3454,22 +3299,6 @@
             "suppressParent": "All",
             "target": "Package",
             "version": "[10.0.3, )"
-          },
-          "Microsoft.Extensions.Options.ConfigurationExtensions": {
-            "target": "Package",
-            "version": "[10.0.3, )"
-          },
-          "Quartz": {
-            "target": "Package",
-            "version": "[3.15.1, )"
-          },
-          "Quartz.Extensions.DependencyInjection": {
-            "target": "Package",
-            "version": "[3.15.1, )"
-          },
-          "Quartz.Extensions.Hosting": {
-            "target": "Package",
-            "version": "[3.15.1, )"
           },
           "RabbitMQ.Client": {
             "target": "Package",
@@ -3912,17 +3741,5 @@
         }
       }
     }
-  },
-  "logs": [
-    {
-      "code": "NU1510",
-      "level": "Warning",
-      "warningLevel": 1,
-      "message": "PackageReference Microsoft.Extensions.Options.ConfigurationExtensions will not be pruned. Consider removing this package from your dependencies, as it is likely unnecessary.",
-      "libraryId": "Microsoft.Extensions.Options.ConfigurationExtensions",
-      "targetGraphs": [
-        "net10.0"
-      ]
-    }
-  ]
+  }
 }

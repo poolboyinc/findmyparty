@@ -1,3 +1,4 @@
+using FindMyParty.Parties.API.Application.Cache;
 using FindMyParty.Parties.API.Application.IntegrationEvents;
 using FindMyParty.Parties.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -39,7 +40,7 @@ namespace FindMyParty.Parties.API.Application.IntegrationEvents.Handlers
             await db.SaveChangesAsync();
 
             // Invalidate availability cache so next read reflects updated ticket count
-            await cache.RemoveAsync($"parties:availability:{@event.PartyId}");
+            await cache.RemoveAsync(CacheKeys.Availability(@event.PartyId));
         }
     }
 }

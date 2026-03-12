@@ -9,7 +9,6 @@ using FindMyParty.Bookings.API.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Quartz;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -60,21 +59,8 @@ builder.Services.AddHttpClient<IPartyAvailabilityService, PartyAvailabilityServi
         client.BaseAddress = new Uri(url);
     });
 
-builder.Services.AddQuartz(q =>
-{
-    q.UseMicrosoftDependencyInjectionJobFactory();
-
-    var jobKey = new JobKey("OutboxProcessorJob");
-
-    q.AddJob<OutboxProcessorJob>(opts => opts.WithIdentity(jobKey));
-
-    q.AddTrigger(opts => opts
-        .ForJob(jobKey)
-        .WithIdentity("OutboxProcessorJob-trigger")
-        .WithSimpleSchedule(x => x
-            .WithIntervalInSeconds(1)
-            .RepeatForever()));
-});
+builder.Services.AddSingleton<IOutboxSignal, OutboxSignal>();
+builder.Services.AddHostedService<OutboxProcessorService>();
 
 builder.Services.AddHostedService<RabbitMqPartyEventConsumer>();
 builder.Services.AddScoped<PartyCancelledIntegrationEventHandler>();
@@ -84,8 +70,6 @@ builder.Services.AddScoped<CancelBookingCommandHandler>();
 builder.Services.AddScoped<ConfirmBookingCommandHandler>();
 builder.Services.AddScoped<GetUserBookingsQueryHandler>();
 builder.Services.AddScoped<GetPartyBookingsQueryHandler>();
-
-builder.Services.AddQuartzHostedService(q => q.WaitForJobsToComplete = true);
 
 builder.Services.Configure<RabbitMqSettings>(
     builder.Configuration.GetSection("RabbitMQ"));
