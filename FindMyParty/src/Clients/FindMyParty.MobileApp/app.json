@@ -39,7 +39,15 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsDownloadToken": "pk.eyJ1IjoicG9vbGJvaWluYyIsImEiOiJjbTl0eWhuNHkwM3l0Mm1zOXBqc2FxMDVkIn0.ARL02yHrAorx0t98mlv2KQ",
+          "RNMapboxMapsVersion": "11.8.0"
+        }
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

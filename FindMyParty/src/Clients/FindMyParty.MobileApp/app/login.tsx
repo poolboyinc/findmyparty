@@ -19,6 +19,7 @@ export default function LoginPage() {
 
   const handleLogin = () => {
     // TODO: implement email/password login
+    router.replace('/(tabs)');
   };
 
   const handleSignUp = () => {
