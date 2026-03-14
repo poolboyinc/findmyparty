@@ -22,6 +22,7 @@ namespace FindMyParty.Identity.API.Application.Services
             {
                 new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
                 new(JwtRegisteredClaimNames.Email, user.Email!),
+                new("userName", user.UserName!),
                 new("subscription", user.Subscription.ToString())
             };
 

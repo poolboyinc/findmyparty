@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 
-const DEV_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+const DEV_HOST = Platform.OS === 'android' ? '10.0.2.2' : '192.168.1.66';
 
 export const ApiConstants = {
   MapboxPublicToken:

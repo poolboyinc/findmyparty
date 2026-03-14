@@ -1,230 +1,216 @@
-import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Dimensions,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { AntDesign } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
+import { useLogin } from '@/hooks/useAuth';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const ELLIPSE_WIDTH = 686;
-const ELLIPSE_HEIGHT = 645;
+const ELLIPSE_SIZE = SCREEN_WIDTH * 2.2;
 
 export default function LoginPage() {
-  const handleGoogleSignIn = () => {
-    // TODO: implement Google Sign-In
-  };
+  const insets = useSafeAreaInsets();
+  const { email, setEmail, password, setPassword, error, loading, login } = useLogin();
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
-  const handleAppleSignIn = () => {
-    // TODO: implement Apple Sign-In
-  };
-
-  const handleLogin = () => {
-    // TODO: implement email/password login
-    router.replace('/(tabs)');
-  };
-
-  const handleSignUp = () => {
-    router.push('/onboarding');
+  const handleSignIn = async () => {
+    const success = await login();
+    if (success) router.replace('/(tabs)');
   };
 
   return (
-    <View style={styles.root}>
-      {/* Background gradient */}
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      {/* Background gradient: purple → pink → orange */}
       <LinearGradient
-        colors={['#000000', '#000000', '#2B0050', '#7D08FA']}
-        locations={[0, 0.13, 0.52, 1]}
+        colors={['#7D08FA', '#B03070', '#C84B00', '#FF8C48']}
+        locations={[0, 0.38, 0.65, 1]}
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Purple ellipse blob */}
-      <View style={[styles.ellipse, { left: (SCREEN_WIDTH - ELLIPSE_WIDTH) / 2 }]} />
+      {/* Purple ellipse blob at bottom */}
+      <View style={[styles.ellipseBottom, {
+        width: ELLIPSE_SIZE,
+        height: ELLIPSE_SIZE,
+        borderRadius: ELLIPSE_SIZE / 2,
+        left: (SCREEN_WIDTH - ELLIPSE_SIZE) / 2,
+      }]} />
 
-      {/* Warm bottom glow */}
-      <LinearGradient
-        colors={['transparent', 'rgba(180, 40, 20, 0.18)']}
-        locations={[0.6, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
+        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={26} color="#FFF" />
+        </TouchableOpacity>
+        <Text style={styles.title}>Sign In</Text>
+        <View style={styles.backBtn} />
+      </View>
 
-      <SafeAreaView style={styles.safeArea}>
-        {/* Logo section */}
-        <View style={styles.logoSection}>
-          <Image
-            source={require('@/assets/images/fmp_logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
+      {/* Form */}
+      <View style={styles.form}>
+        {/* Email */}
+        <View style={styles.fieldRow}>
+          <Ionicons name="mail-outline" size={28} color="#FFF" style={styles.fieldIcon} />
+          <TextInput
+            style={styles.fieldInput}
+            placeholder="Email"
+            placeholderTextColor="rgba(255,255,255,0.75)"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
-          <Text style={styles.appName}>FindMyParty</Text>
         </View>
+        <View style={styles.fieldLine} />
 
-        {/* Buttons section */}
-        <View style={styles.buttonsSection}>
-          {/* Continue with Google */}
-          <TouchableOpacity
-            style={styles.socialButton}
-            onPress={handleGoogleSignIn}
-            activeOpacity={0.8}
-          >
-            <AntDesign name="google" size={22} color="#DB4437" style={styles.socialIcon} />
-            <Text style={styles.socialButtonText}>Continue with Google</Text>
-          </TouchableOpacity>
-
-          {/* Continue with Apple */}
-          <TouchableOpacity
-            style={styles.socialButton}
-            onPress={handleAppleSignIn}
-            activeOpacity={0.8}
-          >
-            <AntDesign name="apple1" size={24} color="#000000" style={styles.socialIcon} />
-            <Text style={styles.socialButtonText}>Continue with Apple</Text>
-          </TouchableOpacity>
-
-          {/* Or divider */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          {/* Login */}
-          <TouchableOpacity
-            style={styles.loginButton}
-            onPress={handleLogin}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.loginButtonText}>Login</Text>
+        {/* Password */}
+        <View style={styles.fieldRow}>
+          <Ionicons name="lock-closed-outline" size={28} color="#FFF" style={styles.fieldIcon} />
+          <TextInput
+            style={styles.fieldInput}
+            placeholder="Password"
+            placeholderTextColor="rgba(255,255,255,0.75)"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!passwordVisible}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TouchableOpacity onPress={() => setPasswordVisible(v => !v)} activeOpacity={0.7}>
+            <Ionicons
+              name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
+              size={28}
+              color="#FFF"
+            />
           </TouchableOpacity>
         </View>
+        <View style={styles.fieldLine} />
 
-        {/* Sign up link */}
-        <TouchableOpacity onPress={handleSignUp} activeOpacity={0.7}>
-          <Text style={styles.signUpLinkText}>
-            Don't have an account?{'  '}
-            <Text style={styles.signUpLinkHighlight}>Login</Text>
-          </Text>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        {/* Sign In button */}
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handleSignIn}
+          activeOpacity={0.85}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.buttonText}>Sign In</Text>
+          )}
         </TouchableOpacity>
 
-        {/* Legal */}
-        <Text style={styles.legal}>
-          {'By continuing you automatically accept our '}
-          <Text style={styles.legalUnderline}>Terms & Conditions</Text>
-          {', '}
-          <Text style={styles.legalUnderline}>Privacy Policy</Text>
-          {' and '}
-          <Text style={styles.legalUnderline}>Cookies Policy</Text>
-        </Text>
-      </SafeAreaView>
-    </View>
+        {/* Sign up link */}
+        <TouchableOpacity onPress={() => router.push('/register')} activeOpacity={0.7}>
+          <Text style={styles.linkText}>
+            Don't have an account?{'  '}
+            <Text style={styles.linkHighlight}>Sign Up</Text>
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#000000',
-    overflow: 'hidden',
-  },
-  ellipse: {
-    position: 'absolute',
-    width: ELLIPSE_WIDTH,
-    height: ELLIPSE_HEIGHT,
-    top: '31%',
-    borderRadius: ELLIPSE_WIDTH / 2,
     backgroundColor: '#7D08FA',
   },
-  safeArea: {
-    flex: 1,
+  ellipseBottom: {
+    position: 'absolute',
+    bottom: -SCREEN_WIDTH * 1.6,
+    backgroundColor: '#7D08FA',
+  },
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 24,
-    paddingBottom: 20,
-    paddingHorizontal: 36,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
-  logoSection: {
+  backBtn: {
+    width: 48,
+    height: 48,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  logo: {
-    width: 190,
-    height: 190,
+  title: {
+    color: '#FFF',
+    fontSize: 32,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
-  appName: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-    marginTop: 8,
-  },
-  buttonsSection: {
-    width: '100%',
-    gap: 12,
-  },
-  socialButton: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 48,
-    height: 51,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 34,
-    borderWidth: 1,
-    borderColor: '#646464',
-  },
-  socialIcon: {
-    width: 32,
-    textAlign: 'center',
-    marginRight: 13,
-  },
-  socialButtonText: {
-    color: '#000000',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 2,
-  },
-  dividerLine: {
+  form: {
     flex: 1,
+    paddingHorizontal: 28,
+    paddingTop: '18%',
+    gap: 28,
+  },
+  fieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  fieldIcon: {
+    width: 32,
+  },
+  fieldInput: {
+    flex: 1,
+    color: '#FFF',
+    fontSize: 22,
+    fontWeight: '300',
+    paddingVertical: 4,
+  },
+  fieldLine: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.45)',
+    backgroundColor: 'rgba(255,255,255,0.6)',
+    marginTop: -20,
   },
-  dividerText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '100',
-    marginHorizontal: 12,
+  errorText: {
+    color: '#FFD0D0',
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: -12,
   },
-  loginButton: {
-    backgroundColor: '#7E0AFA',
+  button: {
+    backgroundColor: '#9B989D',
     borderRadius: 48,
     height: 51,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#646464',
+    marginTop: 8,
   },
-  loginButtonText: {
-    color: '#FFFFFF',
+  buttonText: {
+    color: '#FFF',
     fontSize: 20,
     fontWeight: '700',
   },
-  signUpLinkText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '400',
+  linkText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 15,
     textAlign: 'center',
   },
-  signUpLinkHighlight: {
-    color: '#7E0AFA',
+  linkHighlight: {
+    color: '#FFF',
     fontWeight: '700',
-  },
-  legal: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
-    textAlign: 'center',
-    lineHeight: 17,
-  },
-  legalUnderline: {
     textDecorationLine: 'underline',
   },
 });

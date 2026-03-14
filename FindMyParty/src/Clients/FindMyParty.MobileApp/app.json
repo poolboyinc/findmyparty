@@ -1,15 +1,19 @@
 {
   "expo": {
-    "name": "FindMyParty.MobileApp",
-    "slug": "FindMyParty.MobileApp",
+    "name": "FindMyParty",
+    "slug": "findmyparty",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/fmp_icon.png",
     "scheme": "findmypartymobileapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fmpglobalinc.findmyparty",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -42,16 +46,19 @@
       "expo-secure-store",
       [
         "@rnmapbox/maps",
-        {
-          "RNMapboxMapsDownloadToken": "pk.eyJ1IjoicG9vbGJvaWluYyIsImEiOiJjbTl0eWhuNHkwM3l0Mm1zOXBqc2FxMDVkIn0.ARL02yHrAorx0t98mlv2KQ",
-          "RNMapboxMapsVersion": "11.8.0"
-        }
+        {}
       ],
       "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3e6bcfe7-0b5f-49cc-af85-29d149a8949e"
+      }
     }
   }
 }

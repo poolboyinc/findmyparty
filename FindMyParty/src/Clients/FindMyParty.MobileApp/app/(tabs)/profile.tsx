@@ -9,9 +9,11 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useProfile } from '@/hooks/useProfile';
 
 // ─── Stat item ────────────────────────────────────────────────────────────────
 function StatItem({
@@ -94,6 +96,13 @@ const statStyles = StyleSheet.create({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const { userInfo, bookingCount, load, logout } = useProfile();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const handleSavedEvents = () => {
     // TODO: navigate to saved events
@@ -103,8 +112,8 @@ export default function ProfileScreen() {
     // TODO: navigate to edit profile
   };
 
-  const handleSignOut = () => {
-    // TODO: clear auth tokens, then navigate back to onboarding
+  const handleSignOut = async () => {
+    await logout();
     router.replace('/onboarding');
   };
 
@@ -136,15 +145,15 @@ export default function ProfileScreen() {
 
         {/* ── Name + Username ── */}
         <View style={styles.nameSection}>
-          <Text style={styles.name}>Jane Doe</Text>
-          <Text style={styles.username}>@janedoe</Text>
+          <Text style={styles.name}>{userInfo?.userName ?? '—'}</Text>
+          <Text style={styles.username}>{userInfo?.email ?? ''}</Text>
         </View>
 
         {/* ── Stats ── */}
         <View style={styles.statsCard}>
           <StatItem
             icon="calendar-outline"
-            value="24"
+            value={String(bookingCount)}
             label={'Parties\nAttended'}
             showSeparator
           />

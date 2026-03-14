@@ -7,6 +7,7 @@ import { AntDesign } from '@expo/vector-icons';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ELLIPSE_WIDTH = 686;
 const ELLIPSE_HEIGHT = 645;
+const LOGO_SECTION_HEIGHT = 230;
 
 export default function OnboardingPage() {
   const handleGoogleSignIn = () => {
@@ -18,7 +19,7 @@ export default function OnboardingPage() {
   };
 
   const handleSignUp = () => {
-    // TODO: navigate to sign-up screen
+    router.push('/register');
   };
 
   const handleLogIn = () => {
@@ -27,23 +28,15 @@ export default function OnboardingPage() {
 
   return (
     <View style={styles.root}>
-      {/* Background gradient */}
+      {/* Background gradient — dark purple top → orange bottom */}
       <LinearGradient
-        colors={['#000000', '#000000', '#2B0050', '#7D08FA']}
-        locations={[0, 0.13, 0.52, 1]}
+        colors={['#000000', '#0D001A', '#5B0090', '#C84B00', '#FF8C48']}
+        locations={[0, 0.12, 0.48, 0.82, 1]}
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Purple ellipse blob */}
+      {/* Purple ellipse blob — semi-transparent so gradient shows through */}
       <View style={[styles.ellipse, { left: (SCREEN_WIDTH - ELLIPSE_WIDTH) / 2 }]} />
-
-      {/* Warm bottom glow to match Figma */}
-      <LinearGradient
-        colors={['transparent', 'rgba(180, 40, 20, 0.18)']}
-        locations={[0.6, 1]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
 
       <SafeAreaView style={styles.safeArea}>
         {/* Logo section */}
@@ -132,9 +125,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: ELLIPSE_WIDTH,
     height: ELLIPSE_HEIGHT,
-    top: '31%',
+    top: '38%',
     borderRadius: ELLIPSE_WIDTH / 2,
-    backgroundColor: '#7D08FA',
+    backgroundColor: 'rgba(125, 8, 250, 0.55)',
   },
   safeArea: {
     flex: 1,
@@ -146,10 +139,12 @@ const styles = StyleSheet.create({
   },
   logoSection: {
     alignItems: 'center',
+    height: LOGO_SECTION_HEIGHT,
+    justifyContent: 'center',
   },
   logo: {
-    width: 190,
-    height: 190,
+    width: 160,
+    height: 160,
   },
   // Hidden — kept for future use if a separate wordmark asset is added
   wordmark: {

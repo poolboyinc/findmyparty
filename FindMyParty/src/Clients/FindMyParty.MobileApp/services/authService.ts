@@ -10,10 +10,29 @@ import type {
 
 const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'auth_refresh_token';
+const FETCH_TIMEOUT_MS = 8000;
+
+async function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
 const ROLE_CLAIM_KEY =
   'http://schemas.microsoft.com/ws/2008/06/identity/claims/role';
 const NAMEID_CLAIM_KEY =
   'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier';
+
+function isTokenExpired(token: string): boolean {
+  const payload = decodeJwtPayload(token);
+  if (!payload) return true;
+  const exp = payload['exp'];
+  if (typeof exp !== 'number') return false;
+  return Date.now() / 1000 > exp;
+}
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   const parts = token.split('.');
@@ -46,7 +65,7 @@ async function storeTokens(response: LoginResponse): Promise<void> {
 
 export const authService = {
   async login(email: string, password: string): Promise<boolean> {
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/auth/login`, {
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password } satisfies LoginRequest),
@@ -62,7 +81,7 @@ export const authService = {
   },
 
   async register(userName: string, email: string, password: string): Promise<boolean> {
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/auth/register`, {
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userName, email, password } satisfies RegisterRequest),
@@ -93,7 +112,7 @@ export const authService = {
 
     if (!userId) return false;
 
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/auth/refresh`, {
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, refreshToken } satisfies RefreshTokenRequest),
@@ -116,7 +135,14 @@ export const authService = {
   },
 
   async getToken(): Promise<string | null> {
-    return SecureStore.getItemAsync(TOKEN_KEY);
+    const token = await SecureStore.getItemAsync(TOKEN_KEY);
+    if (!token) return null;
+    if (isTokenExpired(token)) {
+      const refreshed = await authService.refresh();
+      if (!refreshed) return null;
+      return SecureStore.getItemAsync(TOKEN_KEY);
+    }
+    return token;
   },
 
   async getUserInfo(): Promise<UserInfo | null> {
@@ -129,11 +155,16 @@ export const authService = {
     const email = getStringClaim(payload, 'email');
     const userId =
       getStringClaim(payload, NAMEID_CLAIM_KEY) || getStringClaim(payload, 'sub');
+    const userName =
+      getStringClaim(payload, 'unique_name') ||
+      getStringClaim(payload, 'name') ||
+      getStringClaim(payload, 'userName') ||
+      email.split('@')[0];
 
     return {
       userId,
       email,
-      userName: email.split('@')[0],
+      userName,
       subscription: getStringClaim(payload, 'subscription'),
       role: getStringClaim(payload, ROLE_CLAIM_KEY),
     };
@@ -141,6 +172,8 @@ export const authService = {
 
   async isAuthenticated(): Promise<boolean> {
     const token = await SecureStore.getItemAsync(TOKEN_KEY);
-    return token !== null;
+    if (!token) return false;
+    if (!isTokenExpired(token)) return true;
+    return authService.refresh();
   },
 };

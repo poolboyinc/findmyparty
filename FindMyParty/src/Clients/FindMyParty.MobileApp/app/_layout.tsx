@@ -18,6 +18,7 @@ export default function RootLayout() {
         <Stack.Screen name="splash" options={{ headerShown: false, animation: 'none' }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="login" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="register" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>

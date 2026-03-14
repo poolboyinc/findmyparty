@@ -8,12 +8,13 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { router } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
+import * as SplashScreen from 'expo-splash-screen';
+import { authService } from '@/services/authService';
 
 async function getInitialRoute(): Promise<'/onboarding' | '/(tabs)'> {
   try {
-    const token = await SecureStore.getItemAsync('auth_token');
-    return token ? '/(tabs)' : '/onboarding';
+    const authenticated = await authService.isAuthenticated();
+    return authenticated ? '/(tabs)' : '/onboarding';
   } catch {
     return '/onboarding';
   }
@@ -29,6 +30,8 @@ export default function SplashPage() {
   }));
 
   useEffect(() => {
+    SplashScreen.hideAsync();
+
     opacity.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.ease) });
     translateY.value = withTiming(0, { duration: 700, easing: Easing.out(Easing.ease) });
 
