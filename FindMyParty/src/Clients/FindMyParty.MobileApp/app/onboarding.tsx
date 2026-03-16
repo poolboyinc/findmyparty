@@ -7,6 +7,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
+import { GoogleSigninButton } from '@react-native-google-signin/google-signin';
 import { authService } from '../services/authService';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -143,21 +144,17 @@ export default function OnboardingPage() {
         {/* Buttons section */}
         <View style={styles.buttonsSection}>
           {/* Continue with Google */}
-          <TouchableOpacity
-            style={styles.socialButton}
+          <GoogleSigninButton
+            size={GoogleSigninButton.Size.Wide}
+            color={GoogleSigninButton.Color.Light}
             onPress={handleGoogleSignIn}
-            activeOpacity={0.8}
             disabled={loading !== null}
-          >
-            {loading === 'google'
-              ? <ActivityIndicator size="small" color="#DB4437" style={styles.socialIcon} />
-              : <Image source={require('@/assets/images/google-logo.png')} style={styles.googleIcon} />}
-            <Text style={styles.socialButtonText}>Continue with Google</Text>
-          </TouchableOpacity>
+            style={styles.googleButton}
+          />
 
           {/* Continue with Apple — uses the official native button required by Apple */}
           {loading === 'apple' ? (
-            <View style={[styles.socialButton, styles.socialButtonLoading]}>
+            <View style={styles.socialButtonLoading}>
               <ActivityIndicator size="small" color="#000000" />
             </View>
           ) : (
@@ -257,38 +254,22 @@ const styles = StyleSheet.create({
     width: '100%',
     gap: 12,
   },
-  socialButton: {
+  googleButton: {
+    width: '100%',
+    height: 52,
+  },
+  socialButtonLoading: {
     backgroundColor: '#FFFFFF',
     borderRadius: 48,
-    height: 56,
-    flexDirection: 'row',
+    height: 52,
     alignItems: 'center',
-    paddingHorizontal: 34,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#646464',
   },
-  socialButtonLoading: {
-    justifyContent: 'center',
-  },
   appleButton: {
     width: '100%',
-    height: 56,
-  },
-  googleIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 13,
-    resizeMode: 'contain',
-  },
-  socialIcon: {
-    width: 32,
-    textAlign: 'center',
-    marginRight: 13,
-  },
-  socialButtonText: {
-    color: '#000000',
-    fontSize: 18,
-    fontWeight: '700',
+    height: 52,
   },
   dividerRow: {
     flexDirection: 'row',

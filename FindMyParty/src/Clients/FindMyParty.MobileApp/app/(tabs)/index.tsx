@@ -13,8 +13,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MapboxGL from '@rnmapbox/maps';
+import * as Location from 'expo-location';
 import { ApiConstants } from '@/constants/api';
 
 // Set Mapbox access token once
@@ -508,6 +510,20 @@ export default function ExploreScreen() {
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
+  const cameraRef = useRef<MapboxGL.Camera>(null);
+
+  // Request location permission and fly to user on mount
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const coords: [number, number] = [loc.coords.longitude, loc.coords.latitude];
+      setUserCoords(coords);
+      cameraRef.current?.flyTo(coords, 800);
+    })();
+  }, []);
 
   // Card slide-up animation
   const cardAnim = useRef(new Animated.Value(300)).current;
@@ -551,13 +567,15 @@ export default function ExploreScreen() {
         scaleBarEnabled={false}
       >
         <MapboxGL.Camera
+          ref={cameraRef}
           defaultSettings={{
-            centerCoordinate: [20.462, 44.803],
+            centerCoordinate: userCoords ?? [20.462, 44.803],
             zoomLevel: 13.5,
           }}
           animationMode="flyTo"
           animationDuration={0}
         />
+        <MapboxGL.UserLocation visible androidRenderMode="compass" />
 
         {/* Party markers */}
         {MOCK_PARTIES.map((party) => (
@@ -584,21 +602,18 @@ export default function ExploreScreen() {
 
       {/* ── Date picker FAB ── */}
       <TouchableOpacity
-        style={[styles.datePickerFab, { bottom: 110 }]}
+        style={styles.datePickerFab}
         onPress={() => setShowDatePicker(true)}
-        activeOpacity={0.85}
+        activeOpacity={0.75}
       >
-        <LinearGradient
-          colors={['#9B20FF', '#6500D2']}
-          style={styles.fabGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-        >
-          <Ionicons name="calendar" size={18} color="#FFF" />
-          <Text style={styles.fabText}>
-            {selectedDate ? formatDate(selectedDate) : 'Any date'}
-          </Text>
-        </LinearGradient>
+        <BlurView intensity={60} tint="light" style={styles.fabBlur}>
+          <View style={styles.fabInner}>
+            <Ionicons name="calendar" size={20} color="rgba(255,255,255,0.92)" />
+            {selectedDate && (
+              <View style={styles.fabDot} />
+            )}
+          </View>
+        </BlurView>
       </TouchableOpacity>
 
       {/* ── Party popup card ── */}
@@ -682,25 +697,40 @@ const styles = StyleSheet.create({
   // Date picker FAB
   datePickerFab: {
     position: 'absolute',
-    right: 16,
-    borderRadius: 30,
+    right: 20,
+    bottom: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     overflow: 'hidden',
-    shadowColor: '#7D08FA',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 10,
+    // Liquid glass border
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 12,
   },
-  fabGradient: {
-    flexDirection: 'row',
+  fabBlur: {
+    flex: 1,
+    // Subtle purple tint overlay simulating iOS liquid glass
+    backgroundColor: 'rgba(120,60,255,0.18)',
+  },
+  fabInner: {
+    flex: 1,
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    gap: 8,
+    justifyContent: 'center',
   },
-  fabText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '700',
+  fabDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#A855F7',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.7)',
   },
 });

@@ -56,7 +56,13 @@
         "@rnmapbox/maps",
         {}
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "FindMyParty uses your location to show parties near you."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
