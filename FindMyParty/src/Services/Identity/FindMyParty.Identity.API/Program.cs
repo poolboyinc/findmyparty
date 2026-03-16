@@ -20,6 +20,7 @@ builder.Services.AddDbContext<IdentityDbContext>(options =>
 });
 
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IExternalAuthService, ExternalAuthService>();
 
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole>(options =>

@@ -12,7 +12,14 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fmpglobalinc.findmyparty",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.614494491110-0soalbm7utg2he0a3psop3ju0oab6b7v"
+            ]
+          }
+        ]
       }
     },
     "android": {
@@ -31,10 +38,11 @@
     },
     "plugins": [
       "expo-router",
+      "expo-apple-authentication",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/fmp_icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",

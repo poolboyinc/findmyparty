@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { ApiConstants } from '../constants/api';
 import type {
+  ExternalAuthRequest,
   LoginRequest,
   LoginResponse,
   RefreshTokenRequest,
@@ -168,6 +169,22 @@ export const authService = {
       subscription: getStringClaim(payload, 'subscription'),
       role: getStringClaim(payload, ROLE_CLAIM_KEY),
     };
+  },
+
+  async externalSignIn(provider: string, idToken: string, name?: string): Promise<boolean> {
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/auth/external`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, idToken, name } satisfies ExternalAuthRequest),
+    });
+
+    if (!response.ok) return false;
+
+    const result: LoginResponse = await response.json();
+    if (!result.accessToken) return false;
+
+    await storeTokens(result);
+    return true;
   },
 
   async isAuthenticated(): Promise<boolean> {

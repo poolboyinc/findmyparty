@@ -1,8 +1,26 @@
-import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { AntDesign } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+import { authService } from '../services/authService';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fill these in after creating your Google Cloud Console project:
+//   1. Create a project at https://console.cloud.google.com
+//   2. APIs & Services → Credentials → Create Credentials → OAuth client ID
+//   3. Create an "iOS" type client with bundle ID: com.fmpglobalinc.findmyparty
+//   4. Paste both values below, and also update "Google:ClientId" in
+//      the Identity API's appsettings.json (or environment variable).
+// ─────────────────────────────────────────────────────────────────────────────
+const GOOGLE_IOS_CLIENT_ID = '614494491110-0soalbm7utg2he0a3psop3ju0oab6b7v.apps.googleusercontent.com';
+const GOOGLE_REVERSED_CLIENT_ID = 'com.googleusercontent.apps.614494491110-0soalbm7utg2he0a3psop3ju0oab6b7v';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ELLIPSE_WIDTH = 686;
@@ -10,12 +28,80 @@ const ELLIPSE_HEIGHT = 645;
 const LOGO_SECTION_HEIGHT = 230;
 
 export default function OnboardingPage() {
-  const handleGoogleSignIn = () => {
-    // TODO: implement Google Sign-In
+  const [loading, setLoading] = useState<'google' | 'apple' | null>(null);
+
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: GOOGLE_REVERSED_CLIENT_ID });
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    iosClientId: GOOGLE_IOS_CLIENT_ID,
+    redirectUri,
+  });
+
+  // Called after Google OAuth redirect returns with an auth code
+  useEffect(() => {
+    if (response?.type === 'success' && request?.codeVerifier) {
+      exchangeGoogleCode(response.params.code, request.codeVerifier);
+    } else if (response?.type === 'error' || response?.type === 'dismiss') {
+      setLoading(null);
+    }
+  }, [response]);
+
+  const exchangeGoogleCode = async (code: string, codeVerifier: string) => {
+    try {
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          code,
+          client_id: GOOGLE_IOS_CLIENT_ID,
+          redirect_uri: redirectUri,
+          grant_type: 'authorization_code',
+          code_verifier: codeVerifier,
+        }).toString(),
+      });
+
+      const tokens = await tokenRes.json();
+      if (!tokens.id_token) { setLoading(null); return; }
+
+      const success = await authService.externalSignIn('google', tokens.id_token);
+      if (success) router.replace('/(tabs)');
+    } catch {
+      // silent — user stays on onboarding
+    } finally {
+      setLoading(null);
+    }
   };
 
-  const handleAppleSignIn = () => {
-    // TODO: implement Apple Sign-In
+  const handleGoogleSignIn = () => {
+    setLoading('google');
+    promptAsync();
+  };
+
+  const handleAppleSignIn = async () => {
+    setLoading('apple');
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      const { identityToken, fullName } = credential;
+      if (!identityToken) return;
+
+      // Apple only provides fullName on the very first sign-in
+      const name = [fullName?.givenName, fullName?.familyName]
+        .filter(Boolean)
+        .join(' ') || undefined;
+
+      const success = await authService.externalSignIn('apple', identityToken, name);
+      if (success) router.replace('/(tabs)');
+    } catch (e: any) {
+      if (e.code !== 'ERR_REQUEST_CANCELED') console.error('Apple sign-in:', e);
+    } finally {
+      setLoading(null);
+    }
   };
 
   const handleSignUp = () => {
@@ -61,20 +147,28 @@ export default function OnboardingPage() {
             style={styles.socialButton}
             onPress={handleGoogleSignIn}
             activeOpacity={0.8}
+            disabled={loading !== null}
           >
-            <AntDesign name="google" size={22} color="#DB4437" style={styles.socialIcon} />
+            {loading === 'google'
+              ? <ActivityIndicator size="small" color="#DB4437" style={styles.socialIcon} />
+              : <Image source={require('@/assets/images/google-logo.png')} style={styles.googleIcon} />}
             <Text style={styles.socialButtonText}>Continue with Google</Text>
           </TouchableOpacity>
 
-          {/* Continue with Apple */}
-          <TouchableOpacity
-            style={styles.socialButton}
-            onPress={handleAppleSignIn}
-            activeOpacity={0.8}
-          >
-            <AntDesign name="apple1" size={24} color="#000000" style={styles.socialIcon} />
-            <Text style={styles.socialButtonText}>Continue with Apple</Text>
-          </TouchableOpacity>
+          {/* Continue with Apple — uses the official native button required by Apple */}
+          {loading === 'apple' ? (
+            <View style={[styles.socialButton, styles.socialButtonLoading]}>
+              <ActivityIndicator size="small" color="#000000" />
+            </View>
+          ) : (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+              cornerRadius={48}
+              style={styles.appleButton}
+              onPress={handleAppleSignIn}
+            />
+          )}
 
           {/* Or divider */}
           <View style={styles.dividerRow}>
@@ -166,12 +260,25 @@ const styles = StyleSheet.create({
   socialButton: {
     backgroundColor: '#FFFFFF',
     borderRadius: 48,
-    height: 51,
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 34,
     borderWidth: 1,
     borderColor: '#646464',
+  },
+  socialButtonLoading: {
+    justifyContent: 'center',
+  },
+  appleButton: {
+    width: '100%',
+    height: 56,
+  },
+  googleIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 13,
+    resizeMode: 'contain',
   },
   socialIcon: {
     width: 32,

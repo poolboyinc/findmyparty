@@ -27,6 +27,12 @@ export interface UserInfo {
   role: string;
 }
 
+export interface ExternalAuthRequest {
+  provider: string;
+  idToken: string;
+  name?: string;
+}
+
 export interface AssignRoleRequest {
   role: string;
 }
