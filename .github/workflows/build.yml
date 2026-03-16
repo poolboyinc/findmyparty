@@ -33,5 +33,5 @@ jobs:
           eas-version: latest
           token: ${{ secrets.FMP_SECRET }}
 
-      - name: Build (preview)
-        run: eas build --platform all --profile preview --non-interactive
+      - name: Build (iOS development)
+        run: eas build --platform ios --profile development --non-interactive
