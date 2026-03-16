@@ -19,12 +19,42 @@ import { useRegister } from '@/hooks/useAuth';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ELLIPSE_SIZE = SCREEN_WIDTH * 2.2;
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function PwHint({ met, label }: { met: boolean; label: string }) {
+  return (
+    <View style={styles.pwHintRow}>
+      <Ionicons
+        name={met ? 'checkmark-circle' : 'ellipse-outline'}
+        size={14}
+        color={met ? '#A8F0C6' : 'rgba(255,255,255,0.5)'}
+      />
+      <Text style={[styles.pwHintText, met && styles.pwHintTextMet]}>{label}</Text>
+    </View>
+  );
+}
+
 export default function RegisterPage() {
   const insets = useSafeAreaInsets();
   const { userName, setUserName, email, setEmail, password, setPassword, error, loading, register } = useRegister();
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
+
+  const emailInvalid = emailTouched && email.length > 0 && !EMAIL_REGEX.test(email.trim());
+  const pwChecks = {
+    length: password.length >= 8,
+    digit: /[0-9]/.test(password),
+    lower: /[a-z]/.test(password),
+  };
+
+  const formValid =
+    userName.trim().length > 0 &&
+    EMAIL_REGEX.test(email.trim()) &&
+    pwChecks.length && pwChecks.digit && pwChecks.lower;
 
   const handleSignUp = async () => {
+    if (!formValid) return;
     const success = await register();
     if (success) router.replace('/(tabs)');
   };
@@ -84,12 +114,16 @@ export default function RegisterPage() {
             placeholderTextColor="rgba(255,255,255,0.75)"
             value={email}
             onChangeText={setEmail}
+            onBlur={() => setEmailTouched(true)}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
           />
         </View>
-        <View style={styles.fieldLine} />
+        <View style={[styles.fieldLine, emailInvalid && styles.fieldLineError]} />
+        {emailInvalid && (
+          <Text style={styles.fieldError}>Please enter a valid email address</Text>
+        )}
 
         {/* Password */}
         <View style={styles.fieldRow}>
@@ -99,7 +133,7 @@ export default function RegisterPage() {
             placeholder="Password"
             placeholderTextColor="rgba(255,255,255,0.75)"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(v) => { setPassword(v); setPasswordTouched(true); }}
             secureTextEntry={!passwordVisible}
             autoCapitalize="none"
             autoCorrect={false}
@@ -113,15 +147,22 @@ export default function RegisterPage() {
           </TouchableOpacity>
         </View>
         <View style={styles.fieldLine} />
+        {passwordTouched && (
+          <View style={styles.pwHints}>
+            <PwHint met={pwChecks.length} label="At least 8 characters" />
+            <PwHint met={pwChecks.digit} label="At least 1 number" />
+            <PwHint met={pwChecks.lower} label="At least 1 lowercase letter" />
+          </View>
+        )}
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         {/* Sign Up button */}
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.button, formValid && styles.buttonActive]}
           onPress={handleSignUp}
           activeOpacity={0.85}
-          disabled={loading}
+          disabled={loading || !formValid}
         >
           {loading ? (
             <ActivityIndicator color="#FFF" />
@@ -203,6 +244,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: -12,
   },
+  fieldLineError: {
+    backgroundColor: '#FFD0D0',
+  },
+  fieldError: {
+    color: '#FFD0D0',
+    fontSize: 12,
+    marginTop: -20,
+  },
+  pwHints: {
+    gap: 6,
+    marginTop: -20,
+  },
+  pwHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pwHintText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+  },
+  pwHintTextMet: {
+    color: '#A8F0C6',
+  },
   button: {
     backgroundColor: '#9B989D',
     borderRadius: 48,
@@ -212,6 +277,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#646464',
     marginTop: 8,
+  },
+  buttonActive: {
+    backgroundColor: '#7D08FA',
+    borderColor: '#6A00D4',
   },
   buttonText: {
     color: '#FFF',
