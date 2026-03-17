@@ -7,7 +7,6 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import { GoogleSigninButton } from '@react-native-google-signin/google-signin';
 import { authService } from '../services/authService';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -144,13 +143,20 @@ export default function OnboardingPage() {
         {/* Buttons section */}
         <View style={styles.buttonsSection}>
           {/* Continue with Google */}
-          <GoogleSigninButton
-            size={GoogleSigninButton.Size.Wide}
-            color={GoogleSigninButton.Color.Light}
-            onPress={handleGoogleSignIn}
-            disabled={loading !== null}
-            style={styles.googleButton}
-          />
+          {loading === 'google' ? (
+            <View style={styles.socialButtonLoading}>
+              <ActivityIndicator size="small" color="#000000" />
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.googleButton}
+              onPress={handleGoogleSignIn}
+              disabled={loading !== null}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Continue with Apple — uses the official native button required by Apple */}
           {loading === 'apple' ? (
@@ -257,6 +263,17 @@ const styles = StyleSheet.create({
   googleButton: {
     width: '100%',
     height: 52,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#DADCE0',
+  },
+  googleButtonText: {
+    color: '#3C4043',
+    fontSize: 16,
+    fontWeight: '600',
   },
   socialButtonLoading: {
     backgroundColor: '#FFFFFF',
