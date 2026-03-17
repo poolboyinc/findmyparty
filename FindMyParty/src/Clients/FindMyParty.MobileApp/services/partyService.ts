@@ -12,13 +12,10 @@ import type {
 export const partyService = {
   // ── Public ────────────────────────────────────────────────────────────────
 
-  async getParties(lat: number, lng: number, date?: string): Promise<PartyMapItem[]> {
-    const params = new URLSearchParams({
-      lat: String(lat),
-      lng: String(lng),
-      page: '1',
-      pageSize: '100',
-    });
+  async getParties(lat?: number, lng?: number, date?: string): Promise<PartyMapItem[]> {
+    const params = new URLSearchParams({ page: '1', pageSize: '100' });
+    if (lat != null) params.set('lat', String(lat));
+    if (lng != null) params.set('lng', String(lng));
     if (date) params.set('date', date);
 
     const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/parties?${params}`);
@@ -116,6 +113,26 @@ export const partyService = {
       }
     );
     return response.ok;
+  },
+
+  async uploadPartyImage(partyId: string, imageUri: string): Promise<string | null> {
+    const token = await authService.getToken();
+    if (!token) return null;
+
+    const filename = imageUri.split('/').pop() ?? 'image.jpg';
+    const ext = filename.split('.').pop() ?? 'jpg';
+
+    const formData = new FormData();
+    formData.append('file', { uri: imageUri, name: filename, type: `image/${ext}` } as any);
+
+    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/image`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.imageUrl ?? null;
   },
 
   async deleteParty(partyId: string): Promise<boolean> {

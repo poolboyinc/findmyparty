@@ -9,5 +9,6 @@ namespace FindMyParty.Parties.API.Application.DTOs
         public double Latitude { get; set; }
         public double Longitude { get; set; }
         public bool IsSoldOut { get; set; }
+        public string? ImageUrl { get; set; }
     }
 }

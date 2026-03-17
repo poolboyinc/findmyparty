@@ -21,7 +21,8 @@ public class PartiesController(
     GetPartyByIdQueryHandler getByIdHandler,
     GetHostPartiesQueryHandler hostPartiesHandler,
     PartiesDbContext db,
-    IDistributedCache cache) : ControllerBase
+    IDistributedCache cache,
+    IWebHostEnvironment env) : ControllerBase
 {
     [Authorize(Roles = "Host")]
     [HttpPost]
@@ -139,6 +140,37 @@ public class PartiesController(
             return NotFound();
 
         return Ok(party);
+    }
+
+    [Authorize(Roles = "Host")]
+    [HttpPost("{id:guid}/image")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
+    public async Task<IActionResult> UploadImage(Guid id, IFormFile file)
+    {
+        var hostId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+        var party = await db.Parties.FindAsync(id);
+        if (party == null) return NotFound();
+        if (party.HostId != hostId) return Forbid();
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+        if (!allowed.Contains(ext)) return BadRequest("Only jpg, png and webp images are allowed.");
+
+        var imagesDir = Path.Combine(env.WebRootPath, "images", "parties");
+        Directory.CreateDirectory(imagesDir);
+
+        var fileName = $"{id}{ext}";
+        var filePath = Path.Combine(imagesDir, fileName);
+
+        using (var stream = System.IO.File.Create(filePath))
+            await file.CopyToAsync(stream);
+
+        var imageUrl = $"{Request.Scheme}://{Request.Host}/images/parties/{fileName}";
+        party.SetImageUrl(imageUrl);
+        await db.SaveChangesAsync();
+
+        return Ok(new { imageUrl });
     }
 
     [HttpGet("{id}/availability")]

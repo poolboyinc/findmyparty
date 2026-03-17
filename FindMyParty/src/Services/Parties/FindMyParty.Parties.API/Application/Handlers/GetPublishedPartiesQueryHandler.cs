@@ -49,7 +49,8 @@ namespace FindMyParty.Parties.API.Application.Handlers
                     StartsAt = p.StartsAt,
                     Latitude = p.Latitude,
                     Longitude = p.Longitude,
-                    IsSoldOut = p.TicketsSold >= p.Capacity
+                    IsSoldOut = p.TicketsSold >= p.Capacity,
+                    ImageUrl = p.ImageUrl
                 })
                 .ToListAsync();
 

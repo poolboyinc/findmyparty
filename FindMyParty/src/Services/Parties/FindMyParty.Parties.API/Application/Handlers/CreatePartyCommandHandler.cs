@@ -18,7 +18,8 @@ namespace FindMyParty.Parties.API.Application.Handlers
                 command.Request.StartsAt,
                 command.Request.EndsAt,
                 command.Request.Latitude,
-                command.Request.Longitude);
+                command.Request.Longitude,
+                command.Request.ImageUrl);
 
             db.Parties.Add(party);
             await db.SaveChangesAsync();

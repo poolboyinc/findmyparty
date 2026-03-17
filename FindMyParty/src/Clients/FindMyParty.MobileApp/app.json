@@ -62,6 +62,12 @@
         {
           "locationWhenInUsePermission": "FindMyParty uses your location to show parties near you."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FindMyParty needs access to your photos to set a party image."
+        }
       ]
     ],
     "experiments": {

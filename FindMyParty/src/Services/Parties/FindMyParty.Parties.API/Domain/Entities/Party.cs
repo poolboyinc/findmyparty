@@ -23,6 +23,8 @@ namespace FindMyParty.Parties.API.Domain.Entities
         public double Latitude { get; private set; }
         public double Longitude { get; private set; }
 
+        public string? ImageUrl { get; private set; }
+
         public PartyStatus Status { get; private set; }
         public bool IsDeleted { get; private set; }
 
@@ -39,7 +41,8 @@ namespace FindMyParty.Parties.API.Domain.Entities
             DateTime startsAt,
             DateTime endsAt,
             double latitude,
-            double longitude)
+            double longitude,
+            string? imageUrl = null)
         {
             Id = Guid.NewGuid();
             HostId = hostId;
@@ -51,6 +54,7 @@ namespace FindMyParty.Parties.API.Domain.Entities
             EndsAt = endsAt;
             Latitude = latitude;
             Longitude = longitude;
+            ImageUrl = imageUrl;
             Status = PartyStatus.Draft;
         }
 
@@ -66,7 +70,7 @@ namespace FindMyParty.Parties.API.Domain.Entities
             _domainEvents.Add(new PartyPublishedDomainEvent(Id));
         }
 
-        public void Update(string title, string description, decimal price, int capacity, DateTime startsAt, DateTime endsAt, double latitude, double longitude)
+        public void Update(string title, string description, decimal price, int capacity, DateTime startsAt, DateTime endsAt, double latitude, double longitude, string? imageUrl = null)
         {
             if (Status != PartyStatus.Draft)
                 throw new InvalidOperationException("Only draft parties can be edited.");
@@ -79,6 +83,7 @@ namespace FindMyParty.Parties.API.Domain.Entities
             EndsAt = endsAt;
             Latitude = latitude;
             Longitude = longitude;
+            ImageUrl = imageUrl;
         }
 
         public void Cancel()
@@ -107,6 +112,11 @@ namespace FindMyParty.Parties.API.Domain.Entities
         public void Delete()
         {
             IsDeleted = true;
+        }
+
+        public void SetImageUrl(string? imageUrl)
+        {
+            ImageUrl = imageUrl;
         }
 
         public void ClearDomainEvents() => _domainEvents.Clear();

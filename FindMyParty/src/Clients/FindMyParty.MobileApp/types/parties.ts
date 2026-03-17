@@ -6,6 +6,7 @@ export interface PartyMapItem {
   latitude: number;
   longitude: number;
   isSoldOut: boolean;
+  imageUrl?: string;
 }
 
 export interface PartyDetail {
@@ -21,6 +22,7 @@ export interface PartyDetail {
   latitude: number;
   longitude: number;
   isSoldOut: boolean;
+  imageUrl?: string;
 }
 
 export interface HostPartyResponse {

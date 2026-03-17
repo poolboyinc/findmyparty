@@ -25,7 +25,8 @@ public class GetPartyByIdQueryHandler(PartiesDbContext db)
             EndsAt = party.EndsAt,
             Latitude = party.Latitude,
             Longitude = party.Longitude,
-            IsSoldOut = party.TicketsSold >= party.Capacity
+            IsSoldOut = party.TicketsSold >= party.Capacity,
+            ImageUrl = party.ImageUrl
         };
     }
 }
