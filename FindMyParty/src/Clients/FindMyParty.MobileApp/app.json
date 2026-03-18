@@ -12,14 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fmpglobalinc.findmyparty",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleURLTypes": [
-          {
-            "CFBundleURLSchemes": [
-              "com.googleusercontent.apps.614494491110-0soalbm7utg2he0a3psop3ju0oab6b7v"
-            ]
-          }
-        ]
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

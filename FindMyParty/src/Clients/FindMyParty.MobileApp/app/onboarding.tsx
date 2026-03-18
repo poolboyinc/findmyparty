@@ -1,14 +1,15 @@
-import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions, ActivityIndicator } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
+import { BlurView } from 'expo-blur';
+import { useFonts } from 'expo-font';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { authService } from '../services/authService';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -19,18 +20,22 @@ import { authService } from '../services/authService';
 //   4. Paste both values below, and also update "Google:ClientId" in
 //      the Identity API's appsettings.json (or environment variable).
 // ─────────────────────────────────────────────────────────────────────────────
-const GOOGLE_IOS_CLIENT_ID = '614494491110-0soalbm7utg2he0a3psop3ju0oab6b7v.apps.googleusercontent.com';
-const GOOGLE_REVERSED_CLIENT_ID = 'com.googleusercontent.apps.614494491110-0soalbm7utg2he0a3psop3ju0oab6b7v';
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
+const GOOGLE_REVERSED_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_REVERSED_CLIENT_ID ?? '';
 
 WebBrowser.maybeCompleteAuthSession();
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const ELLIPSE_WIDTH = 686;
-const ELLIPSE_HEIGHT = 645;
-const LOGO_SECTION_HEIGHT = 230;
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const ELLIPSE_WIDTH = SCREEN_WIDTH * 2.2;
+const ELLIPSE_HEIGHT = SCREEN_HEIGHT * 1.2;
+const LOGO_SECTION_HEIGHT = 200;
 
 export default function OnboardingPage() {
   const [loading, setLoading] = useState<'google' | 'apple' | null>(null);
+
+  const [fontsLoaded] = useFonts({
+    Coolvetica: require('../assets/fonts/coolvetica.ttf'),
+  });
 
   const redirectUri = AuthSession.makeRedirectUri({ scheme: GOOGLE_REVERSED_CLIENT_ID });
 
@@ -116,15 +121,18 @@ export default function OnboardingPage() {
 
   return (
     <View style={styles.root}>
-      {/* Background gradient — dark purple top → orange bottom */}
-      <LinearGradient
-        colors={['#000000', '#0D001A', '#5B0090', '#C84B00', '#FF8C48']}
-        locations={[0, 0.12, 0.48, 0.82, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* Pure black background */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000000' }]} />
 
-      {/* Purple ellipse blob — semi-transparent so gradient shows through */}
-      <View style={[styles.ellipse, { left: (SCREEN_WIDTH - ELLIPSE_WIDTH) / 2 }]} />
+      {/* Sphere — large gradient orb sitting in the lower ~65% of the screen.
+          Gradient goes purple (top of orb) → magenta → coral → orange (bottom of orb) */}
+      <View style={[styles.ellipse, { left: (SCREEN_WIDTH - ELLIPSE_WIDTH) / 2 }]}>
+        <LinearGradient
+          colors={['#8B0DFF', '#C2007A', '#FF5230', '#FF8C48']}
+          locations={[0, 0.4, 0.75, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+      </View>
 
       <SafeAreaView style={styles.safeArea}>
         {/* Logo section */}
@@ -139,95 +147,103 @@ export default function OnboardingPage() {
             style={styles.wordmark}
             resizeMode="contain"
           />
-          <Text style={styles.appName}>FindMyParty</Text>
+          <Text style={[styles.appName, fontsLoaded ? { fontFamily: 'Coolvetica' } : {}]}>FindMyParty</Text>
         </View>
 
-        {/* Buttons section */}
-        <View style={styles.buttonsSection}>
-          {/* Continue with Google */}
-          {loading === 'google' ? (
-            <View style={styles.socialButtonLoading}>
-              <ActivityIndicator size="small" color="#000000" />
+        {/* Bottom group — all content below the logo */}
+        <View style={styles.bottomGroup}>
+          {/* Buttons section */}
+          <View style={styles.buttonsSection}>
+            {/* Continue with Google */}
+            {loading === 'google' ? (
+              <View style={styles.socialButtonLoading}>
+                <ActivityIndicator size="small" color="#000000" />
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.googleButton}
+                onPress={handleGoogleSignIn}
+                disabled={loading !== null}
+                activeOpacity={0.85}
+              >
+                <Image
+                  source={require('../assets/images/google_logo.png')}
+                  style={styles.googleLogo}
+                  resizeMode="contain"
+                />
+                <Text style={styles.googleButtonText}>Continue with Google</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Continue with Apple — uses the official native button required by Apple */}
+            {loading === 'apple' ? (
+              <View style={styles.socialButtonLoading}>
+                <ActivityIndicator size="small" color="#000000" />
+              </View>
+            ) : (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                cornerRadius={48}
+                style={styles.appleButton}
+                onPress={handleAppleSignIn}
+              />
+            )}
+
+            {/* Or divider */}
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>Or</Text>
+              <View style={styles.dividerLine} />
             </View>
-          ) : (
+
+            {/* Sign Up */}
             <TouchableOpacity
-              style={styles.googleButton}
-              onPress={handleGoogleSignIn}
-              disabled={loading !== null}
+              style={styles.signUpButton}
+              onPress={handleSignUp}
               activeOpacity={0.85}
             >
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
+              <Text style={styles.signUpText}>Sign Up</Text>
             </TouchableOpacity>
-          )}
-
-          {/* Continue with Apple — uses the official native button required by Apple */}
-          {loading === 'apple' ? (
-            <View style={styles.socialButtonLoading}>
-              <ActivityIndicator size="small" color="#000000" />
-            </View>
-          ) : (
-            <AppleAuthentication.AppleAuthenticationButton
-              buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-              cornerRadius={48}
-              style={styles.appleButton}
-              onPress={handleAppleSignIn}
-            />
-          )}
-
-          {/* Or divider */}
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Or</Text>
-            <View style={styles.dividerLine} />
           </View>
 
-          {/* Sign Up */}
-          <TouchableOpacity
-            style={styles.signUpButton}
-            onPress={handleSignUp}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.signUpText}>Sign Up</Text>
+          {/* Login link */}
+          <TouchableOpacity onPress={handleLogIn} activeOpacity={0.7} style={{ marginTop: 28 }}>
+            <Text style={styles.loginText}>
+              Have an account already?{'  '}
+              <Text style={styles.loginTextHighlight}>Log in</Text>
+            </Text>
           </TouchableOpacity>
-        </View>
 
-        {/* Login link */}
-        <TouchableOpacity onPress={handleLogIn} activeOpacity={0.7}>
-          <Text style={styles.loginText}>
-            Have an account already?{'  '}
-            <Text style={styles.loginTextHighlight}>Log in</Text>
+          {/* Admin portal entry */}
+          <TouchableOpacity
+            activeOpacity={0.82}
+            onPress={() => router.push('/admin')}
+            style={[styles.adminBtnWrapper, { marginTop: 26 }]}
+          >
+            <BlurView intensity={20} tint="dark" style={styles.adminBtnBlur}>
+              <LinearGradient
+                colors={['#3D0080', '#7E0AFA', '#FF6E00']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.adminBtnGradient}
+              >
+                <Ionicons name="shield-checkmark-outline" size={17} color="rgba(255,255,255,0.85)" />
+                <Text style={styles.adminBtnText}>Transfer to Admin Portal</Text>
+              </LinearGradient>
+            </BlurView>
+          </TouchableOpacity>
+
+          {/* Legal */}
+          <Text style={[styles.legal, { marginTop: 20 }]}>
+            {'By continuing you automatically accept our '}
+            <Text style={styles.legalUnderline}>Terms & Conditions</Text>
+            {', '}
+            <Text style={styles.legalUnderline}>Privacy Policy</Text>
+            {' and '}
+            <Text style={styles.legalUnderline}>Cookies Policy</Text>
           </Text>
-        </TouchableOpacity>
-
-        {/* Admin portal entry */}
-        <TouchableOpacity
-          activeOpacity={0.82}
-          onPress={() => router.push('/admin')}
-          style={styles.adminBtnWrapper}
-        >
-          <BlurView intensity={20} tint="dark" style={styles.adminBtnBlur}>
-            <LinearGradient
-              colors={['#3D0080', '#7E0AFA', '#FF6E00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.adminBtnGradient}
-            >
-              <Ionicons name="shield-checkmark-outline" size={17} color="rgba(255,255,255,0.85)" />
-              <Text style={styles.adminBtnText}>Transfer to Admin Portal</Text>
-            </LinearGradient>
-          </BlurView>
-        </TouchableOpacity>
-
-        {/* Legal */}
-        <Text style={styles.legal}>
-          {'By continuing you automatically accept our '}
-          <Text style={styles.legalUnderline}>Terms & Conditions</Text>
-          {', '}
-          <Text style={styles.legalUnderline}>Privacy Policy</Text>
-          {' and '}
-          <Text style={styles.legalUnderline}>Cookies Policy</Text>
-        </Text>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -243,26 +259,32 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: ELLIPSE_WIDTH,
     height: ELLIPSE_HEIGHT,
-    top: '38%',
+    top: '40%',
     borderRadius: ELLIPSE_WIDTH / 2,
-    backgroundColor: 'rgba(125, 8, 250, 0.55)',
+    overflow: 'hidden',
   },
   safeArea: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingTop: 24,
-    paddingBottom: 20,
+    paddingBottom: 40,
     paddingHorizontal: 36,
+  },
+  bottomGroup: {
+    width: '100%',
+    alignItems: 'center',
   },
   logoSection: {
     alignItems: 'center',
-    height: LOGO_SECTION_HEIGHT,
     justifyContent: 'center',
+    gap: 0,
+    marginTop: 'auto',
+    marginBottom: 160,
   },
   logo: {
-    width: 160,
-    height: 160,
+    width: 240,
+    height: 240,
   },
   // Hidden — kept for future use if a separate wordmark asset is added
   wordmark: {
@@ -272,34 +294,40 @@ const styles = StyleSheet.create({
   },
   appName: {
     color: '#FFFFFF',
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '800',
-    letterSpacing: 0.3,
-    marginTop: 8,
+    letterSpacing: 0.5,
+    marginTop: -30,
   },
   buttonsSection: {
     width: '100%',
-    gap: 12,
+    gap: 14,
   },
   googleButton: {
     width: '100%',
-    height: 52,
+    height: 44,
     backgroundColor: '#FFFFFF',
     borderRadius: 48,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#DADCE0',
+    borderColor: '#646464',
+    gap: 10,
+  },
+  googleLogo: {
+    width: 20,
+    height: 20,
   },
   googleButtonText: {
     color: '#3C4043',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   socialButtonLoading: {
     backgroundColor: '#FFFFFF',
     borderRadius: 48,
-    height: 52,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -307,7 +335,7 @@ const styles = StyleSheet.create({
   },
   appleButton: {
     width: '100%',
-    height: 52,
+    height: 44,
   },
   dividerRow: {
     flexDirection: 'row',
@@ -328,15 +356,13 @@ const styles = StyleSheet.create({
   signUpButton: {
     backgroundColor: '#7E0AFA',
     borderRadius: 48,
-    height: 51,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#646464',
   },
   signUpText: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
   },
   loginText: {
