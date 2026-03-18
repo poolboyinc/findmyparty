@@ -34,7 +34,11 @@ namespace FindMyParty.Identity.API.Controllers
         [HttpPost("{id}/roles")]
         public async Task<IActionResult> AssignRole(string id, [FromBody] AssignRoleRequest request)
         {
-            var validRoles = new[] { "User", "Host", "Admin" };
+            // Host role requires a venue profile — use POST /api/hosts/{userId} to onboard a host
+            if (request.Role == "Host")
+                return BadRequest("Cannot assign the Host role directly. Use POST /api/hosts/{userId} to onboard a host with their venue profile.");
+
+            var validRoles = new[] { "User", "Admin" };
             if (!validRoles.Contains(request.Role))
                 return BadRequest($"Invalid role. Valid roles: {string.Join(", ", validRoles)}");
 

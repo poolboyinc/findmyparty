@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import * as Location from 'expo-location';
 import { partyService } from '@/services/partyService';
 import type { PartyMapItem } from '@/types/parties';
 
@@ -33,6 +34,39 @@ function formatPrice(price: number): string {
   if (price <= 10) return '€';
   if (price <= 25) return '€€';
   return '€€€';
+}
+
+// Haversine distance in km
+function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function isTonight(iso: string): boolean {
+  const partyDate = new Date(iso);
+  const now = new Date();
+  return (
+    partyDate.getFullYear() === now.getFullYear() &&
+    partyDate.getMonth() === now.getMonth() &&
+    partyDate.getDate() === now.getDate()
+  );
+}
+
+function isThisWeekend(iso: string): boolean {
+  const partyDate = new Date(iso);
+  const now = new Date();
+  const day = partyDate.getDay(); // 0=Sun, 6=Sat
+  const diffDays = Math.floor(
+    (partyDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  );
+  return (day === 5 || day === 6 || day === 0) && diffDays >= 0 && diffDays <= 7;
 }
 
 // ─── Party Card ───────────────────────────────────────────────────────────────
@@ -161,33 +195,37 @@ const cardStyles = StyleSheet.create({
   },
 });
 
-// ─── Filter chip ──────────────────────────────────────────────────────────────
-const FILTERS = [
-  { label: 'Top Rated ⭐️' },
-  { label: 'Sort by', hasArrow: true },
-  { label: 'Price', hasArrow: true },
-  { label: 'Promotions' },
+// ─── Filter chips ─────────────────────────────────────────────────────────────
+type FilterKey = 'all' | 'tonight' | 'free' | 'weekend' | 'premium';
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All 🎉' },
+  { key: 'tonight', label: 'Tonight 🔥' },
+  { key: 'free', label: 'Free Entry' },
+  { key: 'weekend', label: 'This Weekend' },
+  { key: 'premium', label: 'Premium ✨' },
 ];
 
-function FilterRow() {
-  const [active, setActive] = useState(0);
+function FilterRow({
+  active,
+  onSelect,
+}: {
+  active: FilterKey;
+  onSelect: (k: FilterKey) => void;
+}) {
   return (
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={filterStyles.row}
     >
-      {FILTERS.map((f, i) => (
+      {FILTERS.map((f) => (
         <TouchableOpacity
-          key={i}
-          style={[filterStyles.chip, active === i && filterStyles.chipActive]}
-          onPress={() => setActive(i)}
+          key={f.key}
+          style={[filterStyles.chip, active === f.key && filterStyles.chipActive]}
+          onPress={() => onSelect(f.key)}
           activeOpacity={0.8}
         >
           <Text style={filterStyles.chipText}>{f.label}</Text>
-          {f.hasArrow && (
-            <Ionicons name="chevron-down" size={14} color="#FFF" style={{ marginLeft: 2 }} />
-          )}
         </TouchableOpacity>
       ))}
     </ScrollView>
@@ -203,15 +241,16 @@ const filterStyles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 25,
-    paddingHorizontal: 12,
+    height: 30,
+    paddingHorizontal: 14,
     borderRadius: 30,
     borderWidth: 1,
     borderColor: '#9739FB',
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   chipActive: {
-    backgroundColor: 'rgba(125,8,250,0.35)',
+    backgroundColor: 'rgba(125,8,250,0.45)',
+    borderColor: '#B060FF',
   },
   chipText: {
     color: '#FFF',
@@ -220,22 +259,87 @@ const filterStyles = StyleSheet.create({
   },
 });
 
+// ─── Section ──────────────────────────────────────────────────────────────────
+function Section({ title, data }: { title: string; data: PartyMapItem[] }) {
+  if (data.length === 0) return null;
+  return (
+    <>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>{title}</Text>
+      </View>
+      <FlatList
+        horizontal
+        data={data}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <PartyCard item={item} />}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.horizontalList}
+        scrollEnabled
+      />
+    </>
+  );
+}
+
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function PartiesScreen() {
   const insets = useSafeAreaInsets();
   const [parties, setParties] = useState<PartyMapItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
-    partyService.getParties().then((data) => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      let lat: number | undefined;
+      let lng: number | undefined;
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        lat = loc.coords.latitude;
+        lng = loc.coords.longitude;
+        setUserCoords({ lat, lng });
+      }
+      const data = await partyService.getParties(lat, lng);
       setParties(data);
       setLoading(false);
-    });
+    })();
   }, []);
 
-  // Split into sections — first half "Popping tonight", second half "Your favorites"
-  const popping = parties.slice(0, Math.ceil(parties.length / 2));
-  const favorites = parties.slice(Math.ceil(parties.length / 2));
+  // Sort all parties by distance if we have location
+  const sortedByDistance = userCoords
+    ? [...parties].sort(
+        (a, b) =>
+          distanceKm(userCoords.lat, userCoords.lng, a.latitude, a.longitude) -
+          distanceKm(userCoords.lat, userCoords.lng, b.latitude, b.longitude)
+      )
+    : parties;
+
+  // Apply active filter
+  const filtered: PartyMapItem[] = (() => {
+    switch (activeFilter) {
+      case 'tonight':
+        return sortedByDistance.filter((p) => isTonight(p.startsAt));
+      case 'free':
+        return sortedByDistance.filter((p) => p.price === 0);
+      case 'weekend':
+        return sortedByDistance.filter((p) => isThisWeekend(p.startsAt));
+      case 'premium':
+        return sortedByDistance.filter((p) => p.price > 25);
+      default:
+        return sortedByDistance;
+    }
+  })();
+
+  // Category sections for "All" view
+  const nearby = sortedByDistance.slice(0, 10);
+  const tonight = sortedByDistance.filter((p) => isTonight(p.startsAt));
+  const freeEntry = sortedByDistance.filter((p) => p.price === 0);
+  const thisWeekend = sortedByDistance.filter(
+    (p) => isThisWeekend(p.startsAt) && !isTonight(p.startsAt)
+  );
+  const premium = sortedByDistance.filter((p) => p.price > 25);
 
   return (
     <View style={styles.root}>
@@ -254,68 +358,61 @@ export default function PartiesScreen() {
       >
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          {/* Search bar */}
           <TouchableOpacity style={styles.searchBar} activeOpacity={0.8}>
             <Ionicons name="search" size={20} color="rgba(255,255,255,0.8)" />
             <View style={styles.searchDivider} />
             <Text style={styles.searchPlaceholder}>Search...</Text>
           </TouchableOpacity>
-          {/* Bell */}
           <TouchableOpacity style={styles.bellBtn} activeOpacity={0.8}>
             <Ionicons name="notifications-outline" size={22} color="#FFF" />
           </TouchableOpacity>
         </View>
 
         {/* Filter chips */}
-        <FilterRow />
-
-        {/* Popping tonight */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Popping tonight 🔥</Text>
-          <Ionicons name="information-circle-outline" size={17} color="rgba(255,255,255,0.5)" />
-        </View>
+        <FilterRow active={activeFilter} onSelect={setActiveFilter} />
 
         {loading ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator color="#7D08FA" />
           </View>
-        ) : popping.length === 0 ? (
-          <Text style={styles.emptyText}>No parties tonight</Text>
+        ) : activeFilter !== 'all' ? (
+          // Single filtered list
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {FILTERS.find((f) => f.key === activeFilter)?.label}
+              </Text>
+            </View>
+            {filtered.length === 0 ? (
+              <Text style={styles.emptyText}>No parties found</Text>
+            ) : (
+              <FlatList
+                horizontal
+                data={filtered}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item }) => <PartyCard item={item} />}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+                scrollEnabled
+              />
+            )}
+          </>
         ) : (
-          <FlatList
-            horizontal
-            data={popping}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <PartyCard item={item} />}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-            scrollEnabled
-          />
+          // All categories
+          <>
+            <Section
+              title={userCoords ? 'Nearby 📍' : 'All Parties 🎉'}
+              data={nearby}
+            />
+            <Section title="Tonight 🔥" data={tonight} />
+            <Section title="Free Entry 🆓" data={freeEntry} />
+            <Section title="This Weekend 🗓️" data={thisWeekend} />
+            <Section title="Premium ✨" data={premium} />
+            {nearby.length === 0 && (
+              <Text style={styles.emptyText}>No parties available</Text>
+            )}
+          </>
         )}
-
-        {/* Your favorites */}
-        <Text style={[styles.sectionTitle, { marginTop: 28, marginLeft: 14 }]}>
-          Your favorites
-        </Text>
-
-        {favorites.length === 0 ? (
-          <Text style={styles.emptyText}>Save parties to see them here</Text>
-        ) : (
-          <FlatList
-            horizontal
-            data={favorites}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <PartyCard item={item} />}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalList}
-            scrollEnabled
-          />
-        )}
-
-        {/* Nearby label */}
-        <Text style={[styles.sectionTitle, { marginTop: 28, marginLeft: 14 }]}>
-          Nearby
-        </Text>
       </ScrollView>
     </View>
   );
@@ -347,7 +444,6 @@ const styles = StyleSheet.create({
     borderColor: '#FFF',
     paddingHorizontal: 14,
     gap: 10,
-    // purple → black gradient background
     backgroundColor: 'rgba(126,10,250,0.55)',
   },
   searchDivider: {

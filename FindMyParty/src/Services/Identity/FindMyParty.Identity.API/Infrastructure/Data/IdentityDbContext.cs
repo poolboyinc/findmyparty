@@ -1,6 +1,7 @@
+using FindMyParty.Identity.API.Domain.Entities;
+using FindMyParty.Identity.API.Infrastructure.Data.Configurations;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using FindMyParty.Identity.API.Domain.Entities;
 
 namespace FindMyParty.Identity.API.Infrastructure.Data
 {
@@ -9,6 +10,14 @@ namespace FindMyParty.Identity.API.Infrastructure.Data
         public IdentityDbContext(DbContextOptions<IdentityDbContext> options)
             : base(options)
         {
+        }
+
+        public DbSet<VenueProfile> VenueProfiles => Set<VenueProfile>();
+
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            base.OnModelCreating(builder);
+            builder.ApplyConfiguration(new VenueProfileConfiguration());
         }
     }
 }

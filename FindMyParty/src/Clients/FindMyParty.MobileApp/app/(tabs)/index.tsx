@@ -16,6 +16,7 @@ import { BlurView } from 'expo-blur';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MapboxGL from '@rnmapbox/maps';
 import * as Location from 'expo-location';
+import { router } from 'expo-router';
 import { ApiConstants } from '@/constants/api';
 import { useExplore } from '@/hooks/useExplore';
 import type { PartyMapItem } from '@/types/parties';
@@ -169,7 +170,11 @@ function PartyCard({
         </View>
 
         {/* CTA */}
-        <TouchableOpacity style={cardStyles.ctaButton} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={cardStyles.ctaButton}
+          activeOpacity={0.85}
+          onPress={() => router.push(`/party/${party.id}`)}
+        >
           <Text style={cardStyles.ctaText}>View Details</Text>
         </TouchableOpacity>
       </LinearGradient>

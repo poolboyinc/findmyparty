@@ -33,6 +33,14 @@ export interface ExternalAuthRequest {
   name?: string;
 }
 
+export interface HostProfile {
+  venueId: string;
+  venueName: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+}
+
 export interface AssignRoleRequest {
   role: string;
 }

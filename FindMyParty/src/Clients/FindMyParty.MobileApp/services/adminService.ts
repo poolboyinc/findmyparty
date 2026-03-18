@@ -1,6 +1,6 @@
 import { authService } from './authService';
 import { ApiConstants } from '../constants/api';
-import type { AssignRoleRequest, UpdateSubscriptionRequest, UserListItem } from '../types/auth';
+import type { AssignRoleRequest, HostProfile, UpdateSubscriptionRequest, UserListItem } from '../types/auth';
 
 export const adminService = {
   async getUsers(page = 1, pageSize = 20): Promise<UserListItem[]> {
@@ -42,6 +42,17 @@ export const adminService = {
       }
     );
     return response.ok;
+  },
+
+  async getHostProfile(): Promise<HostProfile | null> {
+    const token = await authService.getToken();
+    if (!token) return null;
+
+    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/hosts/profile`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    return response.json();
   },
 
   async updateSubscription(userId: string, subscription: string): Promise<boolean> {

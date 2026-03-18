@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -20,11 +20,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { partyService } from '@/services/partyService';
+import { adminService } from '@/services/adminService';
 import type { CreatePartyRequest } from '@/types/parties';
-
-// ─── Venue placeholder — replace with actual profile data later ───────────────
-const VENUE_LAT = 44.8046;
-const VENUE_LNG = 20.4651;
+import type { HostProfile } from '@/types/auth';
 
 function combineDateTime(date: Date, time: Date): string {
   const combined = new Date(date);
@@ -43,6 +41,15 @@ function getEndsAt(date: Date, startTime: Date, endTime: Date): string {
 
 export default function CreatePartyScreen() {
   const insets = useSafeAreaInsets();
+
+  // ─── Venue profile (location fetched silently on mount)
+  const [hostProfile, setHostProfile] = useState<HostProfile | null>(null);
+
+  useEffect(() => {
+    adminService.getHostProfile().then(profile => {
+      if (profile) setHostProfile(profile);
+    });
+  }, []);
 
   // ─── Basic info
   const [partyName, setPartyName] = useState('');
@@ -115,6 +122,11 @@ export default function CreatePartyScreen() {
       return;
     }
 
+    if (!hostProfile) {
+      Alert.alert('Not ready', 'Venue profile is still loading. Please try again.');
+      return;
+    }
+
     setLoading(true);
     try {
       const title = performerName.trim()
@@ -134,8 +146,8 @@ export default function CreatePartyScreen() {
         capacity: parseInt(capacity),
         startsAt: combineDateTime(partyDate, startTime),
         endsAt: getEndsAt(partyDate, startTime, endTime),
-        latitude: VENUE_LAT,
-        longitude: VENUE_LNG,
+        latitude: hostProfile.latitude,
+        longitude: hostProfile.longitude,
       };
 
       const partyId = await partyService.createParty(request);

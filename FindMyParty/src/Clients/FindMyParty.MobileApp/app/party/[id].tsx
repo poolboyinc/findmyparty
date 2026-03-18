@@ -11,10 +11,12 @@ import {
   Dimensions,
   Linking,
   Alert,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { partyService } from '@/services/partyService';
@@ -25,7 +27,7 @@ const HERO_HEIGHT = 354;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', {
+  return new Date(iso).toLocaleDateString('en-US', {
     weekday: 'long',
     month: 'short',
     day: 'numeric',
@@ -40,55 +42,79 @@ function formatTime(iso: string): string {
   });
 }
 
-function formatPrice(price: number): string {
-  if (price === 0) return 'Free entry';
-  if (price <= 10) return `€  ·  Entrance €${price.toFixed(0)}`;
-  if (price <= 25) return `€€  ·  Entrance €${price.toFixed(0)}`;
-  return `€€€  ·  Entrance €${price.toFixed(0)}`;
+function priceTier(price: number): string {
+  if (price === 0) return 'Free';
+  if (price <= 10) return '$';
+  if (price <= 25) return '$$';
+  return '$$$';
 }
 
-// ─── Glass info row ────────────────────────────────────────────────────────────
-function InfoRow({
-  icon,
+// ─── Liquid Glass button ───────────────────────────────────────────────────────
+function GlassButton({
+  size = 48,
+  tint = 'dark',
   children,
-  showDivider = true,
+  onPress,
+  style,
 }: {
-  icon: React.ReactNode;
+  size?: number;
+  tint?: 'dark' | 'light';
   children: React.ReactNode;
-  showDivider?: boolean;
+  onPress?: () => void;
+  style?: object;
 }) {
   return (
-    <>
-      <View style={infoStyles.row}>
-        {icon}
-        <View style={infoStyles.rowContent}>{children}</View>
+    <TouchableOpacity
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          overflow: 'hidden',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.28)',
+        },
+        style,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <BlurView
+        intensity={Platform.OS === 'ios' ? 60 : 80}
+        tint={tint}
+        style={StyleSheet.absoluteFill}
+      />
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: 'rgba(255,255,255,0.12)' },
+        ]}
+      />
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {children}
       </View>
-      {showDivider && <View style={infoStyles.divider} />}
-    </>
+    </TouchableOpacity>
   );
 }
 
-const infoStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
-  },
-  rowContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    marginHorizontal: 18,
-  },
-});
+// ─── Divider ──────────────────────────────────────────────────────────────────
+function Divider() {
+  return (
+    <View
+      style={{
+        height: 1,
+        backgroundColor: 'rgba(255,255,255,0.12)',
+        marginHorizontal: 18,
+      }}
+    />
+  );
+}
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function PartyDetailScreen() {
@@ -133,22 +159,18 @@ export default function PartyDetailScreen() {
       Alert.alert('Permission needed', 'Please allow access to your photo library.');
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.85,
       allowsEditing: true,
       aspect: [16, 9],
     });
-
     if (result.canceled) return;
-
     setUploading(true);
     const imageUrl = await partyService.uploadPartyImage(party.id, result.assets[0].uri);
     setUploading(false);
-
     if (imageUrl) {
-      setParty((p) => p ? { ...p, imageUrl } : p);
+      setParty((p) => (p ? { ...p, imageUrl } : p));
     } else {
       Alert.alert('Upload failed', 'Could not upload image. Make sure you are the host of this party.');
     }
@@ -159,8 +181,13 @@ export default function PartyDetailScreen() {
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-        {/* ── Hero image ── */}
-        <TouchableOpacity style={styles.heroWrapper} activeOpacity={0.9} onPress={handleImagePress}>
+
+        {/* ── Hero ── */}
+        <TouchableOpacity
+          style={styles.heroWrapper}
+          activeOpacity={0.9}
+          onPress={handleImagePress}
+        >
           {party.imageUrl ? (
             <Image
               source={{ uri: party.imageUrl }}
@@ -175,7 +202,8 @@ export default function PartyDetailScreen() {
               end={{ x: 1, y: 1 }}
             />
           )}
-          {/* Upload overlay */}
+
+          {/* Upload states */}
           {uploading && (
             <View style={styles.uploadOverlay}>
               <ActivityIndicator size="large" color="#FFF" />
@@ -188,33 +216,34 @@ export default function PartyDetailScreen() {
               <Text style={styles.uploadHintText}>Tap to add image</Text>
             </View>
           )}
-          {/* Fade to black at bottom */}
+
+          {/* Gradient fade to black */}
           <LinearGradient
-            colors={['transparent', '#000']}
+            colors={['transparent', 'rgba(0,0,0,0.55)', '#000']}
             style={styles.heroFade}
             pointerEvents="none"
           />
 
-          {/* Back button top-left */}
-          <TouchableOpacity
-            style={[styles.backBtn, { top: insets.top + 12 }]}
+          {/* Back button — liquid glass */}
+          <GlassButton
+            size={44}
+            style={{ position: 'absolute', left: 16, top: insets.top + 12 }}
             onPress={() => router.back()}
-            activeOpacity={0.8}
           >
             <Ionicons name="chevron-back" size={22} color="#FFF" />
-          </TouchableOpacity>
+          </GlassButton>
 
-          {/* Heart + Share top-right */}
-          <View style={[styles.actionBtns, { top: insets.top + 12 }]}>
-            <TouchableOpacity style={styles.glassBtn} activeOpacity={0.8}>
+          {/* Heart + Share — liquid glass */}
+          <View style={[styles.actionRow, { top: insets.top + 12 }]}>
+            <GlassButton size={48}>
               <Ionicons name="heart-outline" size={22} color="#FFF" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.glassBtn} activeOpacity={0.8}>
+            </GlassButton>
+            <GlassButton size={48}>
               <Ionicons name="share-outline" size={22} color="#FFF" />
-            </TouchableOpacity>
+            </GlassButton>
           </View>
 
-          {/* Club name + rating over image */}
+          {/* Club name + rating */}
           <View style={styles.heroOverlay} pointerEvents="none">
             <Text style={styles.clubName}>{party.title}</Text>
             <LinearGradient
@@ -224,67 +253,77 @@ export default function PartyDetailScreen() {
               style={styles.ratingBadge}
             >
               <Text style={styles.ratingText}>
-                {party.isSoldOut ? 'Sold Out' : `€${party.price.toFixed(0)}`}
+                {party.isSoldOut ? 'Sold Out' : `${priceTier(party.price)}`}
               </Text>
             </LinearGradient>
           </View>
         </TouchableOpacity>
 
-        {/* ── Info glass card ── */}
+        {/* ── Glass info card ── */}
         <View style={styles.infoCard}>
           {/* Date & time */}
-          <InfoRow
-            icon={<Ionicons name="calendar-outline" size={24} color="#FFF" />}
-          >
-            <Text style={styles.infoText}>
-              {formatDate(party.startsAt)}
-            </Text>
-            <Text style={styles.infoSep}>|</Text>
+          <View style={styles.infoRow}>
+            <Ionicons name="calendar-outline" size={26} color="#FFF" />
+            <Text style={styles.infoText}>{formatDate(party.startsAt)}</Text>
+            <Text style={styles.infoSep}>{'  |  '}</Text>
             <Text style={styles.infoTextBold}>
               {formatTime(party.startsAt)} – {formatTime(party.endsAt)}
             </Text>
-          </InfoRow>
+          </View>
+
+          <Divider />
 
           {/* Location */}
-          <InfoRow
-            icon={<Ionicons name="location-outline" size={24} color="#FFF" />}
-          >
-            <Text style={styles.infoText} numberOfLines={1}>
-              {party.latitude.toFixed(4)}, {party.longitude.toFixed(4)}
+          <View style={styles.infoRow}>
+            <Ionicons name="location-outline" size={26} color="#FFF" />
+            <Text style={[styles.infoText, { flex: 1 }]} numberOfLines={1}>
+              {party.latitude.toFixed(3)}, {party.longitude.toFixed(3)}
             </Text>
             <TouchableOpacity onPress={() => Linking.openURL(mapsUrl)}>
               <Text style={styles.openMaps}>Open in maps</Text>
             </TouchableOpacity>
-          </InfoRow>
+          </View>
+
+          <Divider />
 
           {/* Price */}
-          <InfoRow
-            icon={<Ionicons name="cash-outline" size={24} color="rgba(255,255,255,0.4)" />}
-            showDivider={false}
-          >
-            <Text style={styles.priceText}>{formatPrice(party.price)}</Text>
-          </InfoRow>
+          <View style={styles.infoRow}>
+            <Ionicons name="cash-outline" size={26} color="rgba(255,255,255,0.4)" />
+            <Text style={styles.priceGray}>{priceTier(party.price)}</Text>
+            {party.price > 0 && (
+              <Text style={styles.infoText}>
+                {' – '}Entrance €{party.price.toFixed(0)}
+              </Text>
+            )}
+          </View>
         </View>
 
         {/* Description */}
-        {party.description ? (
+        {!!party.description && (
           <View style={styles.descBlock}>
             <Text style={styles.descText}>{party.description}</Text>
           </View>
-        ) : null}
+        )}
 
-        {/* ── Reserve button ── */}
+        {/* ── Reserve / Tickets — liquid glass purple ── */}
         <TouchableOpacity style={styles.reserveBtn} activeOpacity={0.85}>
-          <LinearGradient
-            colors={['rgba(125,8,250,0.6)', 'rgba(125,8,250,0.3)']}
-            style={styles.reserveGradient}
-          >
-            <Text style={styles.reserveText}>Reserve / Tickets</Text>
-          </LinearGradient>
+          <BlurView
+            intensity={Platform.OS === 'ios' ? 40 : 60}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={[StyleSheet.absoluteFill, styles.reserveOverlay]} />
+          <Text style={styles.reserveText}>Reserve / Tickets</Text>
         </TouchableOpacity>
 
-        {/* ── Other dates button ── */}
+        {/* ── Other Dates — liquid glass white ── */}
         <TouchableOpacity style={styles.otherDatesBtn} activeOpacity={0.85}>
+          <BlurView
+            intensity={Platform.OS === 'ios' ? 30 : 50}
+            tint="light"
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={[StyleSheet.absoluteFill, styles.otherDatesOverlay]} />
           <Text style={styles.otherDatesText}>Other Dates</Text>
         </TouchableOpacity>
 
@@ -321,11 +360,17 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontWeight: '700',
   },
-  // Hero
+
+  // ── Hero ──
   heroWrapper: {
     height: HERO_HEIGHT,
-    position: 'relative',
     overflow: 'hidden',
+    borderBottomLeftRadius: 6,
+    borderBottomRightRadius: 6,
+  },
+  heroImage: {
+    width: SCREEN_WIDTH,
+    height: HERO_HEIGHT,
   },
   uploadOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -341,7 +386,7 @@ const styles = StyleSheet.create({
   },
   uploadHint: {
     position: 'absolute',
-    bottom: 60,
+    bottom: 70,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -352,61 +397,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  heroImage: {
-    width: SCREEN_WIDTH,
-    height: HERO_HEIGHT,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-  },
   heroFade: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: 130,
+    height: 160,
   },
-  backBtn: {
-    position: 'absolute',
-    left: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionBtns: {
+  actionRow: {
     position: 'absolute',
     right: 16,
     flexDirection: 'row',
     gap: 8,
   },
-  glassBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   heroOverlay: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 28,
+    bottom: 32,
     alignItems: 'center',
     gap: 10,
   },
   clubName: {
     color: '#FFF',
-    fontSize: 34,
+    fontSize: 36,
     fontWeight: '800',
     textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowColor: 'rgba(0,0,0,0.7)',
     textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 6,
+    textShadowRadius: 8,
+    paddingHorizontal: 16,
   },
   ratingBadge: {
     height: 28,
@@ -422,15 +442,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  // Info card
+
+  // ── Info glass card ──
   infoCard: {
     marginHorizontal: 10,
-    marginTop: 12,
-    borderRadius: 28,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    marginTop: 14,
+    borderRadius: 34,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(38,38,38,0.92)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    overflow: 'hidden',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    flexWrap: 'wrap',
   },
   infoText: {
     color: '#FFF',
@@ -451,10 +480,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textDecorationLine: 'underline',
   },
-  priceText: {
-    color: 'rgba(255,255,255,0.5)',
+  priceGray: {
+    color: 'rgba(255,255,255,0.4)',
     fontSize: 17,
+    fontWeight: '500',
   },
+
   // Description
   descBlock: {
     marginHorizontal: 14,
@@ -465,36 +496,44 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
-  // Buttons
+
+  // ── Reserve / Tickets — liquid glass purple ──
   reserveBtn: {
     marginHorizontal: 10,
-    marginTop: 24,
+    marginTop: 28,
     height: 52,
     borderRadius: 30,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  reserveGradient: {
-    flex: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  reserveOverlay: {
+    borderRadius: 30,
+    backgroundColor: 'rgba(125,8,250,0.45)',
   },
   reserveText: {
     color: '#FFF',
     fontSize: 20,
     fontWeight: '700',
   },
+
+  // ── Other Dates — liquid glass white ──
   otherDatesBtn: {
     marginHorizontal: 10,
     marginTop: 12,
     height: 52,
     borderRadius: 30,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  otherDatesOverlay: {
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   otherDatesText: {
     color: '#FFF',

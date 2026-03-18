@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -15,11 +15,21 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { adminService } from '@/services/adminService';
+import type { HostProfile } from '@/types/auth';
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'] as const;
 
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
+
+  const [hostProfile, setHostProfile] = useState<HostProfile | null>(null);
+
+  useEffect(() => {
+    adminService.getHostProfile().then(profile => {
+      if (profile) setHostProfile(profile);
+    });
+  }, []);
 
   const [openTime, setOpenTime] = useState(() => {
     const d = new Date(); d.setHours(8, 0, 0, 0); return d;
@@ -81,18 +91,44 @@ export default function EditProfileScreen() {
               end={{ x: 1, y: 1 }}
             />
             <View style={styles.avatarInner}>
-              <Text style={styles.avatarInitials}>MP</Text>
+              <Text style={styles.avatarInitials}>
+                {hostProfile?.venueName
+                  ? hostProfile.venueName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+                  : '??'}
+              </Text>
             </View>
           </View>
-          <Text style={styles.venueName}>Morrison Pub</Text>
+          <Text style={styles.venueName}>{hostProfile?.venueName ?? '—'}</Text>
           <TouchableOpacity style={styles.editRow} activeOpacity={0.7}>
             <Text style={styles.editLabel}>Edit</Text>
             <Ionicons name="create-outline" size={20} color="rgba(255,255,255,0.5)" />
           </TouchableOpacity>
         </View>
 
+        {/* ─── Venue Location (read-only, set by FindMyParty team) ─── */}
+        <Text style={styles.sectionTitle}>Venue Location</Text>
+        <BlurView intensity={10} tint="dark" style={styles.locationBox}>
+          <Ionicons name="location-outline" size={22} color="rgba(255,255,255,0.6)" />
+          <View style={styles.locationText}>
+            {hostProfile ? (
+              <>
+                <Text style={styles.locationAddress}>{hostProfile.address}</Text>
+                <Text style={styles.locationCoords}>
+                  {hostProfile.latitude.toFixed(5)}, {hostProfile.longitude.toFixed(5)}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.locationAddress}>Loading venue location…</Text>
+            )}
+          </View>
+          <Ionicons name="lock-closed-outline" size={18} color="rgba(255,255,255,0.35)" />
+        </BlurView>
+        <Text style={styles.locationHint}>
+          Location is managed by the FindMyParty team. Contact support to update it.
+        </Text>
+
         {/* ─── Working Hours ─── */}
-        <Text style={styles.sectionTitle}>Working Hours</Text>
+        <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Working Hours</Text>
         <View style={styles.row}>
           <View style={styles.halfCol}>
             <Text style={styles.fieldLabel}>Open</Text>
@@ -263,6 +299,37 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
     marginTop: 8,
+  },
+  locationBox: {
+    borderRadius: 15,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(43,43,43,0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  locationText: {
+    flex: 1,
+    gap: 2,
+  },
+  locationAddress: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '400',
+  },
+  locationCoords: {
+    color: 'rgba(255,255,255,0.45)',
+    fontSize: 12,
+  },
+  locationHint: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12,
+    marginLeft: 4,
+    marginTop: 4,
   },
   fieldLabel: {
     color: 'rgba(255,255,255,0.6)',
