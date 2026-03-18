@@ -134,5 +134,17 @@ namespace FindMyParty.Parties.API.Domain.Entities
             Status = PartyStatus.SoldOut;
         }
 
+        public void RemoveTicketsSold(int count)
+        {
+            if (count <= 0)
+                throw new InvalidOperationException();
+
+            TicketsSold = Math.Max(0, TicketsSold - count);
+
+            // If the party was sold out, a cancellation reopens it
+            if (Status == PartyStatus.SoldOut)
+                Status = PartyStatus.Published;
+        }
+
     }
 }

@@ -5,6 +5,13 @@ using RabbitMQ.Client.Events;
 using System.Text;
 using System.Text.Json;
 
+// Routing key constants — must match what the Bookings service publishes
+file static class RoutingKeys
+{
+    public const string BookingCreated = "BookingCreatedIntegrationEvent";
+    public const string BookingCancelled = "BookingCancelledIntegrationEvent";
+}
+
 namespace FindMyParty.Parties.API.Infrastructure.Messaging
 {
     public class RabbitMqEventConsumer(
@@ -50,13 +57,14 @@ namespace FindMyParty.Parties.API.Infrastructure.Messaging
                 exchange: "booking.events.dlx",
                 routingKey: "");
 
-            // Main queue — on failure, messages go to DLX rather than requeuing
+            // Main queues — on failure, messages go to DLX rather than requeuing
             var queueArgs = new Dictionary<string, object?>
             {
                 { "x-dead-letter-exchange", "booking.events.dlx" }
             };
 
-            var queue = await _channel.QueueDeclareAsync(
+            // Queue: booking created
+            var createdQueue = await _channel.QueueDeclareAsync(
                 queue: "parties.booking.created",
                 durable: true,
                 exclusive: false,
@@ -64,15 +72,33 @@ namespace FindMyParty.Parties.API.Infrastructure.Messaging
                 arguments: queueArgs);
 
             await _channel.QueueBindAsync(
-                queue: queue.QueueName,
+                queue: createdQueue.QueueName,
                 exchange: "booking.events",
-                routingKey: "BookingCreatedIntegrationEvent");
+                routingKey: RoutingKeys.BookingCreated);
+
+            // Queue: booking cancelled
+            var cancelledQueue = await _channel.QueueDeclareAsync(
+                queue: "parties.booking.cancelled",
+                durable: true,
+                exclusive: false,
+                autoDelete: false,
+                arguments: queueArgs);
+
+            await _channel.QueueBindAsync(
+                queue: cancelledQueue.QueueName,
+                exchange: "booking.events",
+                routingKey: RoutingKeys.BookingCancelled);
 
             var consumer = new AsyncEventingBasicConsumer(_channel);
             consumer.ReceivedAsync += OnMessageReceived;
 
             await _channel.BasicConsumeAsync(
-                queue: queue.QueueName,
+                queue: createdQueue.QueueName,
+                autoAck: false,
+                consumer: consumer);
+
+            await _channel.BasicConsumeAsync(
+                queue: cancelledQueue.QueueName,
                 autoAck: false,
                 consumer: consumer);
         }
@@ -82,16 +108,26 @@ namespace FindMyParty.Parties.API.Infrastructure.Messaging
             BasicDeliverEventArgs args)
         {
             using var scope = scopeFactory.CreateScope();
-            var handler =
-                scope.ServiceProvider
-                     .GetRequiredService<BookingCreatedEventHandler>();
 
             try
             {
                 var json = Encoding.UTF8.GetString(args.Body.ToArray());
-                var @event = JsonSerializer.Deserialize<BookingCreatedIntegrationEvent>(json)!;
+                var routingKey = args.RoutingKey;
 
-                await handler.Handle(@event, CancellationToken.None);
+                if (routingKey == RoutingKeys.BookingCreated)
+                {
+                    var @event = JsonSerializer.Deserialize<BookingCreatedIntegrationEvent>(json)!;
+                    await scope.ServiceProvider
+                        .GetRequiredService<BookingCreatedEventHandler>()
+                        .Handle(@event, CancellationToken.None);
+                }
+                else if (routingKey == RoutingKeys.BookingCancelled)
+                {
+                    var @event = JsonSerializer.Deserialize<BookingCancelledIntegrationEvent>(json)!;
+                    await scope.ServiceProvider
+                        .GetRequiredService<BookingCancelledEventHandler>()
+                        .Handle(@event, CancellationToken.None);
+                }
 
                 await _channel!.BasicAckAsync(args.DeliveryTag, false);
             }

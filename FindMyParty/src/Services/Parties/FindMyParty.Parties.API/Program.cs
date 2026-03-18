@@ -59,6 +59,7 @@ builder.Services.Configure<PartyPublisherSettings>(
 builder.Services.AddSingleton<IEventBus, RabbitMqEventBus>();
 
 builder.Services.AddScoped<BookingCreatedEventHandler>();
+builder.Services.AddScoped<BookingCancelledEventHandler>();
 
 
 builder.Services.AddScoped<CreatePartyCommandHandler>();
