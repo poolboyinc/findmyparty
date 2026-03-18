@@ -7,6 +7,7 @@ import {
   StatusBar,
   ScrollView,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -46,6 +47,8 @@ function groupByDate(parties: HostPartyResponse[]): { date: string; items: HostP
 
 function PartyCard({ party }: { party: HostPartyResponse }) {
   const isDraft = party.status?.toLowerCase() === 'draft';
+  const { height: H } = useWindowDimensions();
+  const imageAreaHeight = H * 0.129;  // 109/844
 
   return (
     <TouchableOpacity
@@ -54,7 +57,7 @@ function PartyCard({ party }: { party: HostPartyResponse }) {
     >
     <BlurView intensity={12} tint="dark" style={styles.card}>
       {/* Image area */}
-      <View style={styles.imageArea}>
+      <View style={[styles.imageArea, { height: imageAreaHeight }]}>
         <LinearGradient
           colors={['#1a0030', '#3D0880', '#7D08FA']}
           start={{ x: 0, y: 0 }}
@@ -218,7 +221,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(30,20,50,0.5)',
   },
   imageArea: {
-    height: 109,
+    // height applied inline via useWindowDimensions
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',

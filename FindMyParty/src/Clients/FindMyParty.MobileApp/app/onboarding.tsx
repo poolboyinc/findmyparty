@@ -7,28 +7,15 @@ import { useFonts } from 'expo-font';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { authService } from '../services/authService';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Fill these in after creating your Google Cloud Console project:
-//   1. Create a project at https://console.cloud.google.com
-//   2. APIs & Services → Credentials → Create Credentials → OAuth client ID
-//   3. Create an "iOS" type client with bundle ID: com.fmpglobalinc.findmyparty
-//   4. Paste both values below, and also update "Google:ClientId" in
-//      the Identity API's appsettings.json (or environment variable).
-// ─────────────────────────────────────────────────────────────────────────────
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
 const GOOGLE_REVERSED_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_REVERSED_CLIENT_ID ?? '';
 
 WebBrowser.maybeCompleteAuthSession();
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const ELLIPSE_WIDTH = SCREEN_WIDTH * 2.2;
-const ELLIPSE_HEIGHT = SCREEN_HEIGHT * 1.2;
-const LOGO_SECTION_HEIGHT = 200;
 
 export default function OnboardingPage() {
   const [loading, setLoading] = useState<'google' | 'apple' | null>(null);
@@ -37,6 +24,34 @@ export default function OnboardingPage() {
     Coolvetica: require('../assets/fonts/coolvetica.ttf'),
   });
 
+  // ─── Responsive layout ────────────────────────────────────────────────────────
+  // All proportions are derived from the reference device (390×844 pt).
+  // useWindowDimensions re-evaluates if the window ever changes (e.g. split-view on iPad).
+  const { width: W, height: H } = useWindowDimensions();
+
+  const rs = useMemo(() => {
+    const ellipseW = W * 2.2;
+    return {
+      ellipseW,
+      ellipseH:          H * 1.2,
+      ellipseLeft:       (W - ellipseW) / 2,
+      ellipseBorderRadius: ellipseW / 2,
+      // Logo sits at the top — fixed proportion of screen height
+      logoSize:          H * 0.284,
+      logoMarginBottom:  H * 0.190,
+      appNameMarginTop:  H * -0.036,
+      // Safe-area padding
+      paddingTop:        H * 0.028,
+      paddingBottom:     H * 0.047,
+      paddingHorizontal: W * 0.092,
+      // Spacing between bottom elements
+      loginMarginTop:    H * 0.033,
+      adminMarginTop:    H * 0.031,
+      legalMarginTop:    H * 0.024,
+    };
+  }, [W, H]);
+
+  // ─── Auth ────────────────────────────────────────────────────────────────────
   const redirectUri = AuthSession.makeRedirectUri({ scheme: GOOGLE_REVERSED_CLIENT_ID });
 
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -44,7 +59,6 @@ export default function OnboardingPage() {
     redirectUri,
   });
 
-  // Called after Google OAuth redirect returns with an auth code
   useEffect(() => {
     if (response?.type === 'success' && request?.codeVerifier) {
       exchangeGoogleCode(response.params.code, request.codeVerifier);
@@ -97,7 +111,6 @@ export default function OnboardingPage() {
       const { identityToken, fullName } = credential;
       if (!identityToken) return;
 
-      // Apple only provides fullName on the very first sign-in
       const name = [fullName?.givenName, fullName?.familyName]
         .filter(Boolean)
         .join(' ') || undefined;
@@ -111,22 +124,23 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleSignUp = () => {
-    router.push('/register');
-  };
-
-  const handleLogIn = () => {
-    router.push('/login');
-  };
-
   return (
     <View style={styles.root}>
       {/* Pure black background */}
       <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000000' }]} />
 
-      {/* Sphere — large gradient orb sitting in the lower ~65% of the screen.
-          Gradient goes purple (top of orb) → magenta → coral → orange (bottom of orb) */}
-      <View style={[styles.ellipse, { left: (SCREEN_WIDTH - ELLIPSE_WIDTH) / 2 }]}>
+      {/* Sphere — wide gradient orb in the lower portion of the screen */}
+      <View
+        style={[
+          styles.ellipseBase,
+          {
+            width:        rs.ellipseW,
+            height:       rs.ellipseH,
+            left:         rs.ellipseLeft,
+            borderRadius: rs.ellipseBorderRadius,
+          },
+        ]}
+      >
         <LinearGradient
           colors={['#8B0DFF', '#C2007A', '#FF5230', '#FF8C48']}
           locations={[0, 0.4, 0.75, 1]}
@@ -134,27 +148,38 @@ export default function OnboardingPage() {
         />
       </View>
 
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView
+        style={[
+          styles.safeArea,
+          {
+            paddingTop:        rs.paddingTop,
+            paddingBottom:     rs.paddingBottom,
+            paddingHorizontal: rs.paddingHorizontal,
+          },
+        ]}
+      >
         {/* Logo section */}
-        <View style={styles.logoSection}>
+        <View style={[styles.logoSection, { marginBottom: rs.logoMarginBottom }]}>
           <Image
             source={require('@/assets/images/fmp_logo.png')}
-            style={styles.logo}
+            style={{ width: rs.logoSize, height: rs.logoSize }}
             resizeMode="contain"
           />
-          <Image
-            source={require('@/assets/images/fmp_logo.png')}
-            style={styles.wordmark}
-            resizeMode="contain"
-          />
-          <Text style={[styles.appName, fontsLoaded ? { fontFamily: 'Coolvetica' } : {}]}>FindMyParty</Text>
+          <Text
+            style={[
+              styles.appName,
+              { marginTop: rs.appNameMarginTop },
+              fontsLoaded ? { fontFamily: 'Coolvetica' } : {},
+            ]}
+          >
+            FindMyParty
+          </Text>
         </View>
 
-        {/* Bottom group — all content below the logo */}
+        {/* Bottom group */}
         <View style={styles.bottomGroup}>
-          {/* Buttons section */}
+          {/* Buttons */}
           <View style={styles.buttonsSection}>
-            {/* Continue with Google */}
             {loading === 'google' ? (
               <View style={styles.socialButtonLoading}>
                 <ActivityIndicator size="small" color="#000000" />
@@ -175,7 +200,6 @@ export default function OnboardingPage() {
               </TouchableOpacity>
             )}
 
-            {/* Continue with Apple — uses the official native button required by Apple */}
             {loading === 'apple' ? (
               <View style={styles.socialButtonLoading}>
                 <ActivityIndicator size="small" color="#000000" />
@@ -190,36 +214,34 @@ export default function OnboardingPage() {
               />
             )}
 
-            {/* Or divider */}
             <View style={styles.dividerRow}>
               <View style={styles.dividerLine} />
               <Text style={styles.dividerText}>Or</Text>
               <View style={styles.dividerLine} />
             </View>
 
-            {/* Sign Up */}
-            <TouchableOpacity
-              style={styles.signUpButton}
-              onPress={handleSignUp}
-              activeOpacity={0.85}
-            >
+            <TouchableOpacity style={styles.signUpButton} onPress={() => router.push('/register')} activeOpacity={0.85}>
               <Text style={styles.signUpText}>Sign Up</Text>
             </TouchableOpacity>
           </View>
 
           {/* Login link */}
-          <TouchableOpacity onPress={handleLogIn} activeOpacity={0.7} style={{ marginTop: 28 }}>
+          <TouchableOpacity
+            onPress={() => router.push('/login')}
+            activeOpacity={0.7}
+            style={{ marginTop: rs.loginMarginTop }}
+          >
             <Text style={styles.loginText}>
               Have an account already?{'  '}
               <Text style={styles.loginTextHighlight}>Log in</Text>
             </Text>
           </TouchableOpacity>
 
-          {/* Admin portal entry */}
+          {/* Admin portal */}
           <TouchableOpacity
             activeOpacity={0.82}
             onPress={() => router.push('/admin')}
-            style={[styles.adminBtnWrapper, { marginTop: 26 }]}
+            style={[styles.adminBtnWrapper, { marginTop: rs.adminMarginTop }]}
           >
             <BlurView intensity={20} tint="dark" style={styles.adminBtnBlur}>
               <LinearGradient
@@ -235,7 +257,7 @@ export default function OnboardingPage() {
           </TouchableOpacity>
 
           {/* Legal */}
-          <Text style={[styles.legal, { marginTop: 20 }]}>
+          <Text style={[styles.legal, { marginTop: rs.legalMarginTop }]}>
             {'By continuing you automatically accept our '}
             <Text style={styles.legalUnderline}>Terms & Conditions</Text>
             {', '}
@@ -255,49 +277,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     overflow: 'hidden',
   },
-  ellipse: {
+  // Dimension-dependent width/height/left/borderRadius are applied inline via `rs`
+  ellipseBase: {
     position: 'absolute',
-    width: ELLIPSE_WIDTH,
-    height: ELLIPSE_HEIGHT,
     top: '40%',
-    borderRadius: ELLIPSE_WIDTH / 2,
     overflow: 'hidden',
   },
   safeArea: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 24,
-    paddingBottom: 40,
-    paddingHorizontal: 36,
-  },
-  bottomGroup: {
-    width: '100%',
-    alignItems: 'center',
+    // padding values applied inline via `rs`
   },
   logoSection: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 0,
     marginTop: 'auto',
-    marginBottom: 160,
-  },
-  logo: {
-    width: 240,
-    height: 240,
-  },
-  // Hidden — kept for future use if a separate wordmark asset is added
-  wordmark: {
-    display: 'none',
-    width: 0,
-    height: 0,
+    // marginBottom applied inline via `rs`
   },
   appName: {
     color: '#FFFFFF',
     fontSize: 30,
     fontWeight: '800',
     letterSpacing: 0.5,
-    marginTop: -30,
+    // marginTop applied inline via `rs`
+  },
+  bottomGroup: {
+    width: '100%',
+    alignItems: 'center',
   },
   buttonsSection: {
     width: '100%',

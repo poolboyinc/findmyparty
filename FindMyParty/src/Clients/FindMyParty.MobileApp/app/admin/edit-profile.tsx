@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -22,6 +23,9 @@ const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'] as const;
 
 export default function EditProfileScreen() {
   const insets = useSafeAreaInsets();
+  const { height: H } = useWindowDimensions();
+  const avatarSize = H * 0.186;       // 157/844
+  const avatarInnerSize = H * 0.175;  // 148/844
 
   const [hostProfile, setHostProfile] = useState<HostProfile | null>(null);
 
@@ -83,14 +87,14 @@ export default function EditProfileScreen() {
       >
         {/* Avatar + Name */}
         <View style={styles.profileSection}>
-          <View style={styles.avatarRing}>
+          <View style={[styles.avatarRing, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}>
             <LinearGradient
               colors={['#9B20FF', '#7D08FA']}
               style={StyleSheet.absoluteFill}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
-            <View style={styles.avatarInner}>
+            <View style={[styles.avatarInner, { width: avatarInnerSize, height: avatarInnerSize, borderRadius: avatarInnerSize / 2 }]}>
               <Text style={styles.avatarInitials}>
                 {hostProfile?.venueName
                   ? hostProfile.venueName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -256,18 +260,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatarRing: {
-    width: 157,
-    height: 157,
-    borderRadius: 80,
+    // width/height/borderRadius applied inline via useWindowDimensions
     padding: 3,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarInner: {
-    width: 148,
-    height: 148,
-    borderRadius: 74,
+    // width/height/borderRadius applied inline via useWindowDimensions
     backgroundColor: '#1A0030',
     alignItems: 'center',
     justifyContent: 'center',

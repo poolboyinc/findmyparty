@@ -4,7 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Dimensions,
+  useWindowDimensions,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
@@ -15,9 +15,6 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { useLogin } from '@/hooks/useAuth';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const ELLIPSE_SIZE = SCREEN_WIDTH * 2.2;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -44,6 +41,8 @@ function PwHint({ met, label }: { met: boolean; label: string }) {
 
 export default function LoginPage() {
   const insets = useSafeAreaInsets();
+  const { width: W } = useWindowDimensions();
+  const ellipseSize = W * 2.2;
   const { email, setEmail, password, setPassword, error, loading, login } = useLogin();
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
@@ -78,10 +77,10 @@ export default function LoginPage() {
 
       {/* Purple ellipse blob at bottom */}
       <View style={[styles.ellipseBottom, {
-        width: ELLIPSE_SIZE,
-        height: ELLIPSE_SIZE,
-        borderRadius: ELLIPSE_SIZE / 2,
-        left: (SCREEN_WIDTH - ELLIPSE_SIZE) / 2,
+        width: ellipseSize,
+        height: ellipseSize,
+        borderRadius: ellipseSize / 2,
+        left: (W - ellipseSize) / 2,
       }]} />
 
       {/* Header */}
@@ -180,7 +179,7 @@ const styles = StyleSheet.create({
   },
   ellipseBottom: {
     position: 'absolute',
-    bottom: -SCREEN_WIDTH * 1.6,
+    bottom: '-160%',
     backgroundColor: '#7D08FA',
   },
   header: {

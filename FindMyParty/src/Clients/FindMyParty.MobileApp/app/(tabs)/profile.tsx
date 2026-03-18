@@ -7,6 +7,7 @@ import {
   ScrollView,
   StatusBar,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -96,7 +97,11 @@ const statStyles = StyleSheet.create({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const { height: H } = useWindowDimensions();
   const { userInfo, bookingCount, load, logout } = useProfile();
+
+  const avatarGlowSize = H * 0.213;   // 180/844
+  const avatarRingSize = H * 0.199;   // 168/844
 
   useFocusEffect(
     React.useCallback(() => {
@@ -134,10 +139,10 @@ export default function ProfileScreen() {
       >
         {/* ── Avatar ── */}
         <View style={styles.avatarSection}>
-          <View style={styles.avatarGlow}>
-            <View style={styles.avatarRing}>
+          <View style={[styles.avatarGlow, { width: avatarGlowSize, height: avatarGlowSize, borderRadius: avatarGlowSize / 2 }]}>
+            <View style={[styles.avatarRing, { width: avatarRingSize, height: avatarRingSize, borderRadius: avatarRingSize / 2 }]}>
               <View style={styles.avatarInner}>
-                <Ionicons name="person" size={70} color="rgba(255,255,255,0.9)" />
+                <Ionicons name="person" size={avatarRingSize * 0.42} color="rgba(255,255,255,0.9)" />
               </View>
             </View>
           </View>
@@ -305,9 +310,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   avatarGlow: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
+    // width/height/borderRadius applied inline via useWindowDimensions
     alignItems: 'center',
     justifyContent: 'center',
     // Purple glow
@@ -324,9 +327,7 @@ const styles = StyleSheet.create({
     }),
   },
   avatarRing: {
-    width: 168,
-    height: 168,
-    borderRadius: 84,
+    // width/height/borderRadius applied inline via useWindowDimensions
     padding: 3,
     backgroundColor: 'rgba(125,8,250,0.4)',
     borderWidth: 2,

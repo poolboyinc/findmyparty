@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -21,6 +22,8 @@ import { authService } from '@/services/authService';
 
 export default function AdminLoginScreen() {
   const insets = useSafeAreaInsets();
+  const { height: H } = useWindowDimensions();
+  const logoSize = H * 0.154;  // 130/844
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -80,7 +83,7 @@ export default function AdminLoginScreen() {
           <View style={styles.logoArea}>
             <Image
               source={require('@/assets/images/fmp_logo.png')}
-              style={styles.logo}
+              style={{ width: logoSize, height: logoSize }}
               resizeMode="contain"
             />
             <Text style={styles.brandName}>FindMyParty</Text>
@@ -179,10 +182,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  logo: {
-    width: 130,
-    height: 130,
-  },
   brandName: {
     color: '#FFF',
     fontSize: 26,
@@ -222,7 +221,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   btnWrapper: {
-    width: 331,
+    width: '100%',
     height: 51,
     borderRadius: 48,
     overflow: 'hidden',

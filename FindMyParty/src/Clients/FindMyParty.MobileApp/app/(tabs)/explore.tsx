@@ -9,7 +9,7 @@ import {
   Image,
   StatusBar,
   ActivityIndicator,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,10 +18,6 @@ import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { partyService } from '@/services/partyService';
 import type { PartyMapItem } from '@/types/parties';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH * 0.78;
-const CARD_IMAGE_HEIGHT = 168;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatTime(iso: string): string {
@@ -71,14 +67,17 @@ function isThisWeekend(iso: string): boolean {
 
 // ─── Party Card ───────────────────────────────────────────────────────────────
 function PartyCard({ item }: { item: PartyMapItem }) {
+  const { width: W, height: H } = useWindowDimensions();
+  const cardWidth = W * 0.78;
+  const cardImageHeight = H * 0.199;  // 168/844
   return (
     <TouchableOpacity
-      style={cardStyles.container}
+      style={[cardStyles.container, { width: cardWidth }]}
       activeOpacity={0.88}
       onPress={() => router.push(`/party/${item.id}`)}
     >
       {/* Image */}
-      <View style={cardStyles.imageWrapper}>
+      <View style={[cardStyles.imageWrapper, { height: cardImageHeight }]}>
         {item.imageUrl ? (
           <Image
             source={{ uri: item.imageUrl }}
@@ -126,11 +125,11 @@ function PartyCard({ item }: { item: PartyMapItem }) {
 
 const cardStyles = StyleSheet.create({
   container: {
-    width: CARD_WIDTH,
+    // width applied inline via useWindowDimensions
     marginLeft: 14,
   },
   imageWrapper: {
-    height: CARD_IMAGE_HEIGHT,
+    // height applied inline via useWindowDimensions
     borderRadius: 30,
     overflow: 'hidden',
     borderWidth: 1,
@@ -283,6 +282,7 @@ function Section({ title, data }: { title: string; data: PartyMapItem[] }) {
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function PartiesScreen() {
   const insets = useSafeAreaInsets();
+  const { height: H } = useWindowDimensions();
   const [parties, setParties] = useState<PartyMapItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
@@ -372,7 +372,7 @@ export default function PartiesScreen() {
         <FilterRow active={activeFilter} onSelect={setActiveFilter} />
 
         {loading ? (
-          <View style={styles.loadingRow}>
+          <View style={[styles.loadingRow, { height: H * 0.199 + 60 }]}>
             <ActivityIndicator color="#7D08FA" />
           </View>
         ) : activeFilter !== 'all' ? (
@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
     paddingRight: 14,
   },
   loadingRow: {
-    height: CARD_IMAGE_HEIGHT + 60,
+    // height applied inline via useWindowDimensions
     alignItems: 'center',
     justifyContent: 'center',
   },

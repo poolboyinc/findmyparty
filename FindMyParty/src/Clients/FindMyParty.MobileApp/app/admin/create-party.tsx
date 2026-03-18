@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -41,6 +42,8 @@ function getEndsAt(date: Date, startTime: Date, endTime: Date): string {
 
 export default function CreatePartyScreen() {
   const insets = useSafeAreaInsets();
+  const { height: H } = useWindowDimensions();
+  const imageBoxHeight = H * 0.145;  // 122/844
 
   // ─── Venue profile (location fetched silently on mount)
   const [hostProfile, setHostProfile] = useState<HostProfile | null>(null);
@@ -365,7 +368,7 @@ export default function CreatePartyScreen() {
         <View style={styles.row}>
           {[0, 1].map(i => (
             <TouchableOpacity key={i} onPress={() => pickImage(i)} activeOpacity={0.8} style={styles.halfCol}>
-              <BlurView intensity={10} tint="dark" style={styles.imageBox}>
+              <BlurView intensity={10} tint="dark" style={[styles.imageBox, { height: imageBoxHeight }]}>
                 {images[i] ? (
                   // eslint-disable-next-line @typescript-eslint/no-require-imports
                   <View style={styles.imagePreview}>
@@ -530,7 +533,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   imageBox: {
-    height: 122,
+    // height applied inline via useWindowDimensions
     borderRadius: 15,
     overflow: 'hidden',
     backgroundColor: 'rgba(43,43,43,0.85)',
@@ -574,7 +577,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionBtnWrapper: {
-    width: 331,
+    width: '100%',
     height: 50,
     borderRadius: 48,
     overflow: 'hidden',

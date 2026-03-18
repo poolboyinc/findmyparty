@@ -8,6 +8,7 @@ import {
   Modal,
   Platform,
   StatusBar,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -113,10 +114,12 @@ function PartyCard({
   onClose: () => void;
   translateY: Animated.Value;
 }) {
+  const { height: H } = useWindowDimensions();
+  const imageSectionHeight = H * 0.213;  // 180/844
   return (
     <Animated.View style={[cardStyles.container, { transform: [{ translateY }] }]}>
       {/* Image section */}
-      <View style={cardStyles.imageSection}>
+      <View style={[cardStyles.imageSection, { height: imageSectionHeight }]}>
         <LinearGradient
           colors={['#1a0030', '#3D0880', '#7D08FA']}
           style={cardStyles.imagePlaceholder}
@@ -197,7 +200,7 @@ const cardStyles = StyleSheet.create({
     elevation: 16,
   },
   imageSection: {
-    height: 180,
+    // height applied inline via useWindowDimensions
     position: 'relative',
   },
   imagePlaceholder: {

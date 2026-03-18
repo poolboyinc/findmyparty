@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, Image, Text } from 'react-native';
+import { StyleSheet, Image, Text, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
@@ -21,6 +21,9 @@ async function getInitialRoute(): Promise<'/onboarding' | '/(tabs)'> {
 }
 
 export default function SplashPage() {
+  const { height: H } = useWindowDimensions();
+  const logoSize = H * 0.19;
+
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(16);
 
@@ -52,7 +55,7 @@ export default function SplashPage() {
       <Animated.View style={[styles.content, animatedStyle]}>
         <Image
           source={require('@/assets/images/fmp_logo.png')}
-          style={styles.logo}
+          style={{ width: logoSize, height: logoSize }}
           resizeMode="contain"
         />
         <Text style={styles.title}>FindMyParty</Text>
@@ -71,10 +74,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
-  logo: {
-    width: 160,
-    height: 160,
-  },
+  // logo size is computed inline from useWindowDimensions
   title: {
     color: '#FFFFFF',
     fontSize: 32,

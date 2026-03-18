@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Image,
   StatusBar,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -14,6 +15,8 @@ import { router } from 'expo-router';
 
 export default function AdminSplashScreen() {
   const insets = useSafeAreaInsets();
+  const { height: H } = useWindowDimensions();
+  const logoSize = H * 0.213;  // 180/844
 
   return (
     <View style={styles.root}>
@@ -29,7 +32,7 @@ export default function AdminSplashScreen() {
         <View style={styles.logoArea}>
           <Image
             source={require('@/assets/images/fmp_logo.png')}
-            style={styles.logo}
+            style={{ width: logoSize, height: logoSize }}
             resizeMode="contain"
           />
           <Text style={styles.brandName}>FindMyParty</Text>
@@ -75,10 +78,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 40,
   },
-  logo: {
-    width: 180,
-    height: 180,
-  },
+  // logo size applied inline via useWindowDimensions
   brandName: {
     color: '#FFF',
     fontSize: 32,
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     lineHeight: 30,
   },
   btnWrapper: {
-    width: 331,
+    width: '100%',
     height: 51,
     borderRadius: 48,
     overflow: 'hidden',

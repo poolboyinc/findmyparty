@@ -6,6 +6,7 @@ import {
   StyleSheet,
   StatusBar,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -16,6 +17,9 @@ import { authService } from '@/services/authService';
 
 export default function AdminDashboardScreen() {
   const insets = useSafeAreaInsets();
+  const { height: H } = useWindowDimensions();
+  const avatarSize = H * 0.186;   // 157/844
+  const avatarInnerSize = H * 0.175;  // 148/844
   const [userName, setUserName] = useState('Morrison Pub');
 
   useEffect(() => {
@@ -60,14 +64,14 @@ export default function AdminDashboardScreen() {
 
         {/* Avatar + Name */}
         <View style={styles.profileSection}>
-          <View style={styles.avatarRing}>
+          <View style={[styles.avatarRing, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}>
             <LinearGradient
               colors={['#9B20FF', '#7D08FA']}
               style={StyleSheet.absoluteFill}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
-            <BlurView intensity={0} tint="dark" style={styles.avatarInner}>
+            <BlurView intensity={0} tint="dark" style={[styles.avatarInner, { width: avatarInnerSize, height: avatarInnerSize, borderRadius: avatarInnerSize / 2 }]}>
               <Text style={styles.avatarInitials}>{initials}</Text>
             </BlurView>
           </View>
@@ -186,18 +190,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   avatarRing: {
-    width: 157,
-    height: 157,
-    borderRadius: 80,
+    // width/height/borderRadius applied inline via useWindowDimensions
     padding: 3,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarInner: {
-    width: 148,
-    height: 148,
-    borderRadius: 74,
+    // width/height/borderRadius applied inline via useWindowDimensions
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   btnWrapper: {
-    width: 331,
+    width: '100%',
     height: 57,
     borderRadius: 48,
     overflow: 'hidden',
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   logoutWrapper: {
-    width: 331,
+    width: '100%',
     height: 51,
     borderRadius: 48,
     overflow: 'hidden',

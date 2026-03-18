@@ -12,6 +12,7 @@ import {
   Linking,
   Alert,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +25,6 @@ import { bookingService } from '@/services/bookingService';
 import type { PartyDetail } from '@/types/parties';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const HERO_HEIGHT = 354;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(iso: string): string {
@@ -121,6 +121,8 @@ function Divider() {
 export default function PartyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const { height: H } = useWindowDimensions();
+  const HERO_HEIGHT = H * 0.42;   // 354/844
   const [party, setParty] = useState<PartyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -203,20 +205,20 @@ export default function PartyDetailScreen() {
 
         {/* ── Hero ── */}
         <TouchableOpacity
-          style={styles.heroWrapper}
+          style={[styles.heroWrapper, { height: HERO_HEIGHT }]}
           activeOpacity={0.9}
           onPress={handleImagePress}
         >
           {party.imageUrl ? (
             <Image
               source={{ uri: party.imageUrl }}
-              style={styles.heroImage}
+              style={[styles.heroImage, { height: HERO_HEIGHT }]}
               resizeMode="cover"
             />
           ) : (
             <LinearGradient
               colors={['#1a0030', '#3D0880', '#7D08FA']}
-              style={styles.heroImage}
+              style={[styles.heroImage, { height: HERO_HEIGHT }]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
@@ -393,14 +395,14 @@ const styles = StyleSheet.create({
 
   // ── Hero ──
   heroWrapper: {
-    height: HERO_HEIGHT,
+    // height applied inline from useWindowDimensions
     overflow: 'hidden',
     borderBottomLeftRadius: 6,
     borderBottomRightRadius: 6,
   },
   heroImage: {
     width: SCREEN_WIDTH,
-    height: HERO_HEIGHT,
+    // height applied inline from useWindowDimensions
   },
   uploadOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -432,7 +434,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 160,
+    height: '45%',  // relative to heroWrapper height
   },
   actionRow: {
     position: 'absolute',
