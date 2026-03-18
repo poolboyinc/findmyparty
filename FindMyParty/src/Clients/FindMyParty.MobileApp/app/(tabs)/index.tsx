@@ -8,7 +8,6 @@ import {
   Modal,
   Platform,
   StatusBar,
-  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,80 +17,15 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import MapboxGL from '@rnmapbox/maps';
 import * as Location from 'expo-location';
 import { ApiConstants } from '@/constants/api';
+import { useExplore } from '@/hooks/useExplore';
+import type { PartyMapItem } from '@/types/parties';
 
 // Set Mapbox access token once
 MapboxGL.setAccessToken(ApiConstants.MapboxPublicToken);
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-// ─── Mock data ────────────────────────────────────────────────────────────────
-interface Party {
-  id: string;
-  name: string;
-  genre: string;
-  time: string;
-  price: string;
-  rating: number;
-  reviews: number;
-  coordinate: [number, number];
-}
-
-const MOCK_PARTIES: Party[] = [
-  {
-    id: '1',
-    name: 'Monkey Club – DJ Proximus',
-    genre: 'Techno',
-    time: '23–03h',
-    price: '€€',
-    rating: 4.5,
-    reviews: 347,
-    coordinate: [20.456, 44.803],
-  },
-  {
-    id: '2',
-    name: 'Freestyler – Funk Night',
-    genre: 'Funk',
-    time: '22–04h',
-    price: '€',
-    rating: 4.2,
-    reviews: 128,
-    coordinate: [20.462, 44.807],
-  },
-  {
-    id: '3',
-    name: 'Plastic – Trance Party',
-    genre: 'Trance',
-    time: '00–06h',
-    price: '€€€',
-    rating: 4.8,
-    reviews: 512,
-    coordinate: [20.468, 44.798],
-  },
-  {
-    id: '4',
-    name: 'Drugstore – House Sessions',
-    genre: 'House',
-    time: '22–05h',
-    price: '€€',
-    rating: 4.6,
-    reviews: 289,
-    coordinate: [20.453, 44.811],
-  },
-  {
-    id: '5',
-    name: 'Lava Bar – Deep Vibes',
-    genre: 'Deep House',
-    time: '21–03h',
-    price: '€',
-    rating: 4.1,
-    reviews: 95,
-    coordinate: [20.472, 44.802],
-  },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatDate(date: Date): string {
-  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+function formatTime(isoString: string): string {
+  return new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
 // ─── Party Marker ─────────────────────────────────────────────────────────────
@@ -100,14 +34,14 @@ function PartyMarker({
   onPress,
   isActive,
 }: {
-  party: Party;
+  party: PartyMapItem;
   onPress: () => void;
   isActive: boolean;
 }) {
   return (
     <MapboxGL.MarkerView
       key={party.id}
-      coordinate={party.coordinate}
+      coordinate={[party.longitude, party.latitude]}
       anchor={{ x: 0.5, y: 1 }}
     >
       <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
@@ -174,7 +108,7 @@ function PartyCard({
   onClose,
   translateY,
 }: {
-  party: Party;
+  party: PartyMapItem;
   onClose: () => void;
   translateY: Animated.Value;
 }) {
@@ -219,20 +153,19 @@ function PartyCard({
         <View style={cardStyles.infoRow}>
           <View style={cardStyles.infoLeft}>
             <Text style={cardStyles.partyName} numberOfLines={1}>
-              {party.name}
+              {party.title}
             </Text>
             <Text style={cardStyles.partyMeta}>
-              {party.genre}{'  ·  '}{party.time}{'  ·  '}{party.price}
+              {formatTime(party.startsAt)}{'  ·  '}€{party.price}
             </Text>
           </View>
 
-          {/* Rating badge */}
-          <View style={cardStyles.ratingBadge}>
-            <Text style={cardStyles.ratingText}>
-              ⭐ {party.rating}
-            </Text>
-            <Text style={cardStyles.reviewCount}>({party.reviews})</Text>
-          </View>
+          {/* Sold out badge */}
+          {party.isSoldOut && (
+            <View style={cardStyles.ratingBadge}>
+              <Text style={cardStyles.ratingText}>Sold Out</Text>
+            </View>
+          )}
         </View>
 
         {/* CTA */}
@@ -347,10 +280,7 @@ const cardStyles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  reviewCount: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
-  },
+
   ctaButton: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 30,
@@ -507,13 +437,14 @@ const dpStyles = StyleSheet.create({
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
-  const [selectedParty, setSelectedParty] = useState<Party | null>(null);
+  const { parties, loadParties } = useExplore();
+  const [selectedParty, setSelectedParty] = useState<PartyMapItem | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const cameraRef = useRef<MapboxGL.Camera>(null);
 
-  // Request location permission and fly to user on mount
+  // Request location permission, fly to user, and load nearby parties
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -522,6 +453,7 @@ export default function ExploreScreen() {
       const coords: [number, number] = [loc.coords.longitude, loc.coords.latitude];
       setUserCoords(coords);
       cameraRef.current?.flyTo(coords, 800);
+      loadParties(loc.coords.latitude, loc.coords.longitude);
     })();
   }, []);
 
@@ -578,7 +510,7 @@ export default function ExploreScreen() {
         <MapboxGL.UserLocation visible androidRenderMode="compass" />
 
         {/* Party markers */}
-        {MOCK_PARTIES.map((party) => (
+        {parties.map((party) => (
           <PartyMarker
             key={party.id}
             party={party}

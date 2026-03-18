@@ -1,9 +1,13 @@
 name: EAS Build
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - home-pc-setup
+    paths:
+      - 'FindMyParty/src/Clients/FindMyParty.MobileApp/eas.json'
+      - 'FindMyParty/src/Clients/FindMyParty.MobileApp/app.json'
 
 jobs:
   build:

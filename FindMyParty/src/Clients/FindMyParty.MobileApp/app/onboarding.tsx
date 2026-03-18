@@ -1,8 +1,10 @@
 import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
@@ -198,6 +200,25 @@ export default function OnboardingPage() {
           </Text>
         </TouchableOpacity>
 
+        {/* Admin portal entry */}
+        <TouchableOpacity
+          activeOpacity={0.82}
+          onPress={() => router.push('/admin')}
+          style={styles.adminBtnWrapper}
+        >
+          <BlurView intensity={20} tint="dark" style={styles.adminBtnBlur}>
+            <LinearGradient
+              colors={['#3D0080', '#7E0AFA', '#FF6E00']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.adminBtnGradient}
+            >
+              <Ionicons name="shield-checkmark-outline" size={17} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.adminBtnText}>Transfer to Admin Portal</Text>
+            </LinearGradient>
+          </BlurView>
+        </TouchableOpacity>
+
         {/* Legal */}
         <Text style={styles.legal}>
           {'By continuing you automatically accept our '}
@@ -336,5 +357,29 @@ const styles = StyleSheet.create({
   },
   legalUnderline: {
     textDecorationLine: 'underline',
+  },
+  adminBtnWrapper: {
+    width: '100%',
+    height: 42,
+    borderRadius: 48,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  adminBtnBlur: {
+    flex: 1,
+  },
+  adminBtnGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  adminBtnText: {
+    color: 'rgba(255,255,255,0.88)',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });
