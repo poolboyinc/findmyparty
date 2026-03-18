@@ -48,6 +48,10 @@ function PartyCard({ party }: { party: HostPartyResponse }) {
   const isDraft = party.status?.toLowerCase() === 'draft';
 
   return (
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() => router.push({ pathname: '/admin/party-bookings', params: { partyId: party.id, partyTitle: party.title } })}
+    >
     <BlurView intensity={12} tint="dark" style={styles.card}>
       {/* Image area */}
       <View style={styles.imageArea}>
@@ -85,9 +89,11 @@ function PartyCard({ party }: { party: HostPartyResponse }) {
         <View style={styles.infoRight}>
           <Text style={styles.infoMeta}>Entrance: €{party.price}</Text>
           <Text style={styles.infoMeta}>RSVPs: {party.ticketsSold}</Text>
+          <Text style={styles.viewBookings}>View bookings →</Text>
         </View>
       </View>
     </BlurView>
+    </TouchableOpacity>
   );
 }
 
@@ -281,5 +287,11 @@ const styles = StyleSheet.create({
   infoMeta: {
     color: 'rgba(255,255,255,0.75)',
     fontSize: 14,
+  },
+  viewBookings: {
+    color: '#9B5EFA',
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
   },
 });

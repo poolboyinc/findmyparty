@@ -20,6 +20,7 @@ import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { partyService } from '@/services/partyService';
+import { bookingService } from '@/services/bookingService';
 import type { PartyDetail } from '@/types/parties';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -123,6 +124,7 @@ export default function PartyDetailScreen() {
   const [party, setParty] = useState<PartyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [booking, setBooking] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -152,6 +154,23 @@ export default function PartyDetailScreen() {
   }
 
   const mapsUrl = `https://maps.google.com/?q=${party.latitude},${party.longitude}`;
+
+  const handleReserve = async () => {
+    if (party.isSoldOut) return;
+    setBooking(true);
+    try {
+      const ok = await bookingService.createBooking(party.id, 1);
+      if (ok) {
+        Alert.alert('You\'re in!', 'Your spot has been reserved. Check your bookings for details.');
+      } else {
+        Alert.alert('Could not reserve', 'Something went wrong. Please try again.');
+      }
+    } catch {
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setBooking(false);
+    }
+  };
 
   const handleImagePress = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -306,14 +325,25 @@ export default function PartyDetailScreen() {
         )}
 
         {/* ── Reserve / Tickets — liquid glass purple ── */}
-        <TouchableOpacity style={styles.reserveBtn} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={[styles.reserveBtn, (party.isSoldOut || booking) && { opacity: 0.5 }]}
+          activeOpacity={0.85}
+          onPress={handleReserve}
+          disabled={party.isSoldOut || booking}
+        >
           <BlurView
             intensity={Platform.OS === 'ios' ? 40 : 60}
             tint="dark"
             style={StyleSheet.absoluteFill}
           />
           <View style={[StyleSheet.absoluteFill, styles.reserveOverlay]} />
-          <Text style={styles.reserveText}>Reserve / Tickets</Text>
+          {booking ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.reserveText}>
+              {party.isSoldOut ? 'Sold Out' : 'Reserve / Tickets'}
+            </Text>
+          )}
         </TouchableOpacity>
 
         {/* ── Other Dates — liquid glass white ── */}

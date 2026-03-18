@@ -1,10 +1,16 @@
 using FindMyParty.Bookings.API.Application.Commands;
 using FindMyParty.Bookings.API.Application.Common;
+using FindMyParty.Bookings.API.Application.IntegrationEvents;
 using FindMyParty.Bookings.API.Infrastructure.Data;
+using FindMyParty.Bookings.API.Infrastructure.Outbox;
+using System.Text.Json;
 
 namespace FindMyParty.Bookings.API.Application.Handlers;
 
-public class CancelBookingCommandHandler(BookingsDbContext db, ICurrentUserService currentUser)
+public class CancelBookingCommandHandler(
+    BookingsDbContext db,
+    ICurrentUserService currentUser,
+    IOutboxSignal outboxSignal)
 {
     public async Task Handle(CancelBookingCommand command)
     {
@@ -15,6 +21,22 @@ public class CancelBookingCommandHandler(BookingsDbContext db, ICurrentUserServi
             throw new UnauthorizedAccessException();
 
         booking.Cancel();
+
+        db.OutboxMessages.Add(new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            OccurredOnUtc = DateTime.UtcNow,
+            Type = typeof(BookingCancelledIntegrationEvent).FullName!,
+            Payload = JsonSerializer.Serialize(
+                new BookingCancelledIntegrationEvent(
+                    booking.Id,
+                    booking.PartyId,
+                    booking.UserId,
+                    booking.TicketCount))
+        });
+
         await db.SaveChangesAsync();
+
+        outboxSignal.Notify();
     }
 }
