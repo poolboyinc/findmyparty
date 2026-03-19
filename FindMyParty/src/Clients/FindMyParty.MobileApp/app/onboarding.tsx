@@ -39,7 +39,7 @@ export default function OnboardingPage() {
       ellipseBorderRadius: ellipseW / 2,
       // Logo sits at the top — fixed proportion of screen height
       logoSize:          H * 0.284,
-      logoMarginBottom:  H * 0.190,
+      logoMarginBottom:  H * 0.148,
       appNameMarginTop:  H * -0.036,
       // Safe-area padding
       paddingTop:        H * 0.028,
