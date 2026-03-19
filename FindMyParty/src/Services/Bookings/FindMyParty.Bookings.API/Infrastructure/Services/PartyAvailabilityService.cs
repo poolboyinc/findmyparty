@@ -22,7 +22,7 @@ namespace FindMyParty.Bookings.API.Infrastructure.Services
                 throw new InvalidOperationException("Party not found");
 
             if (result.RemainingCapacity < requestedTickets)
-                return result with { IsAvailable = false };
+                return result with { IsSoldOut = true };
 
             return result;
         }

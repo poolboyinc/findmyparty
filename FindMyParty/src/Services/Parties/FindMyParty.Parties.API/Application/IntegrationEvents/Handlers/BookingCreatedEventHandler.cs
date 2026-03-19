@@ -39,8 +39,11 @@ namespace FindMyParty.Parties.API.Application.IntegrationEvents.Handlers
 
             await db.SaveChangesAsync();
 
-            // Invalidate availability cache so next read reflects updated ticket count
-            await cache.RemoveAsync(CacheKeys.Availability(@event.PartyId));
+            // Invalidate availability + list caches so next read reflects updated ticket count
+            await Task.WhenAll(
+                cache.RemoveAsync(CacheKeys.Availability(@event.PartyId)),
+                cache.SetStringAsync(CacheKeys.ListVersion, Guid.NewGuid().ToString())
+            );
         }
     }
 }

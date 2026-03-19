@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useProfile } from '@/hooks/useProfile';
+import { s, vs, ms } from '@/constants/responsive';
 
 // ─── Stat item ────────────────────────────────────────────────────────────────
 function StatItem({
@@ -32,7 +33,7 @@ function StatItem({
     <View style={statStyles.wrapper}>
       <View style={statStyles.item}>
         <View style={statStyles.iconWrapper}>
-          <Ionicons name={icon} size={22} color="#A855F7" />
+          <Ionicons name={icon} size={ms(22)} color="#A855F7" />
         </View>
         <Text style={statStyles.value}>{value}</Text>
         <Text style={statStyles.label}>{label}</Text>
@@ -51,12 +52,12 @@ const statStyles = StyleSheet.create({
   item: {
     flex: 1,
     alignItems: 'center',
-    gap: 4,
+    gap: vs(4),
   },
   iconWrapper: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: s(46),
+    height: vs(46),
+    borderRadius: s(23),
     backgroundColor: 'rgba(125,8,250,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -68,7 +69,7 @@ const statStyles = StyleSheet.create({
         shadowColor: '#A600FF',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.6,
-        shadowRadius: 10,
+        shadowRadius: s(10),
       },
       android: {
         elevation: 6,
@@ -77,19 +78,19 @@ const statStyles = StyleSheet.create({
   },
   value: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: ms(20),
     fontWeight: '800',
   },
   label: {
     color: 'rgba(255,255,255,0.55)',
-    fontSize: 11,
+    fontSize: ms(11),
     fontWeight: '500',
     textAlign: 'center',
-    lineHeight: 14,
+    lineHeight: vs(14),
   },
   separator: {
     width: 1,
-    height: 52,
+    height: vs(52),
     backgroundColor: 'rgba(255,255,255,0.18)',
   },
 });
@@ -134,7 +135,7 @@ export default function ProfileScreen() {
       />
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + vs(24), paddingBottom: insets.bottom + vs(24) }]}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Avatar ── */}
@@ -164,13 +165,13 @@ export default function ProfileScreen() {
           />
           <StatItem
             icon="trophy-outline"
-            value="8"
+            value="—"
             label={'Achieve-\nments'}
             showSeparator
           />
           <StatItem
             icon="heart-outline"
-            value="47"
+            value="—"
             label={'Favorites'}
           />
         </View>
@@ -190,7 +191,7 @@ export default function ProfileScreen() {
               style={styles.actionBtnGradient}
             >
               <View style={styles.actionBtnBorder}>
-                <Ionicons name="bookmark-outline" size={18} color="#FFF" />
+                <Ionicons name="bookmark-outline" size={ms(18)} color="#FFF" />
                 <Text style={styles.actionBtnText}>Saved Events</Text>
               </View>
             </LinearGradient>
@@ -209,7 +210,7 @@ export default function ProfileScreen() {
               style={styles.actionBtnGradient}
             >
               <View style={[styles.actionBtnBorder, { borderColor: '#7E0AFA' }]}>
-                <Ionicons name="pencil-outline" size={18} color="#FFF" />
+                <Ionicons name="pencil-outline" size={ms(18)} color="#FFF" />
                 <Text style={styles.actionBtnText}>Edit Profile</Text>
               </View>
             </LinearGradient>
@@ -239,7 +240,7 @@ export default function ProfileScreen() {
             end={{ x: 1, y: 0 }}
             style={styles.signOutGradient}
           >
-            <Ionicons name="log-out-outline" size={20} color="rgba(255,255,255,0.85)" />
+            <Ionicons name="log-out-outline" size={ms(20)} color="rgba(255,255,255,0.85)" />
             <Text style={styles.signOutText}>Sign Out</Text>
           </LinearGradient>
         </TouchableOpacity>
@@ -261,10 +262,10 @@ function MenuItem({
   return (
     <TouchableOpacity style={menuStyles.item} onPress={onPress} activeOpacity={0.7}>
       <View style={menuStyles.iconWrapper}>
-        <Ionicons name={icon} size={20} color="#CA99FF" />
+        <Ionicons name={icon} size={ms(20)} color="#CA99FF" />
       </View>
       <Text style={menuStyles.label}>{label}</Text>
-      <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
+      <Ionicons name="chevron-forward" size={ms(16)} color="rgba(255,255,255,0.3)" />
     </TouchableOpacity>
   );
 }
@@ -273,16 +274,16 @@ const menuStyles = StyleSheet.create({
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 4,
-    gap: 14,
+    paddingVertical: vs(14),
+    paddingHorizontal: s(4),
+    gap: s(14),
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.07)',
   },
   iconWrapper: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: s(38),
+    height: vs(38),
+    borderRadius: s(19),
     backgroundColor: 'rgba(125,8,250,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -290,7 +291,7 @@ const menuStyles = StyleSheet.create({
   label: {
     flex: 1,
     color: 'rgba(255,255,255,0.8)',
-    fontSize: 15,
+    fontSize: ms(15),
     fontWeight: '500',
   },
 });
@@ -302,12 +303,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
   },
   content: {
-    paddingHorizontal: 24,
+    paddingHorizontal: s(24),
     alignItems: 'center',
   },
   // Avatar
   avatarSection: {
-    marginBottom: 20,
+    marginBottom: vs(20),
   },
   avatarGlow: {
     // width/height/borderRadius applied inline via useWindowDimensions
@@ -319,7 +320,7 @@ const styles = StyleSheet.create({
         shadowColor: '#A600FF',
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.8,
-        shadowRadius: 30,
+        shadowRadius: s(30),
       },
       android: {
         elevation: 20,
@@ -328,14 +329,14 @@ const styles = StyleSheet.create({
   },
   avatarRing: {
     // width/height/borderRadius applied inline via useWindowDimensions
-    padding: 3,
+    padding: s(3),
     backgroundColor: 'rgba(125,8,250,0.4)',
     borderWidth: 2,
     borderColor: 'rgba(125,8,250,0.6)',
   },
   avatarInner: {
     flex: 1,
-    borderRadius: 80,
+    borderRadius: s(80),
     backgroundColor: '#3D0880',
     alignItems: 'center',
     justifyContent: 'center',
@@ -343,18 +344,18 @@ const styles = StyleSheet.create({
   // Name
   nameSection: {
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 28,
+    gap: vs(6),
+    marginBottom: vs(28),
   },
   name: {
     color: '#FFF',
-    fontSize: 32,
+    fontSize: ms(32),
     fontWeight: '800',
     letterSpacing: -0.5,
   },
   username: {
     color: '#CA99FF',
-    fontSize: 18,
+    fontSize: ms(18),
     fontWeight: '600',
     letterSpacing: 0.2,
   },
@@ -363,25 +364,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     width: '100%',
     backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 24,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    marginBottom: 24,
+    borderRadius: s(24),
+    paddingVertical: vs(20),
+    paddingHorizontal: s(16),
+    marginBottom: vs(24),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
   // Action buttons
   actionRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: s(12),
     width: '100%',
-    marginBottom: 24,
+    marginBottom: vs(24),
   },
   actionBtnWrapper: {
     flex: 1,
-    borderRadius: 30,
+    borderRadius: s(30),
     overflow: 'hidden',
-    height: 54,
+    height: vs(54),
   },
   actionBtnGradient: {
     flex: 1,
@@ -391,15 +392,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    borderRadius: 30,
+    gap: s(6),
+    borderRadius: s(30),
     borderWidth: 1.5,
     borderColor: '#FF26E2',
     margin: 1.5,
   },
   actionBtnText: {
     color: '#FFF',
-    fontSize: 13,
+    fontSize: ms(13),
     fontWeight: '700',
   },
   // Divider
@@ -407,18 +408,18 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    marginBottom: 8,
+    marginBottom: vs(8),
   },
   // Menu
   menuSection: {
     width: '100%',
-    marginBottom: 24,
+    marginBottom: vs(24),
   },
   // Sign out
   signOutWrapper: {
     width: '100%',
-    height: 54,
-    borderRadius: 30,
+    height: vs(54),
+    borderRadius: s(30),
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: 'rgba(112,58,250,0.35)',
@@ -428,11 +429,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: s(8),
   },
   signOutText: {
     color: 'rgba(255,255,255,0.9)',
-    fontSize: 16,
+    fontSize: ms(16),
     fontWeight: '700',
   },
 });

@@ -35,8 +35,11 @@ namespace FindMyParty.Parties.API.Application.IntegrationEvents.Handlers
 
             await db.SaveChangesAsync();
 
-            // Invalidate availability cache so the freed capacity is visible immediately
-            await cache.RemoveAsync(CacheKeys.Availability(@event.PartyId));
+            // Invalidate availability + list caches so the freed capacity is visible immediately
+            await Task.WhenAll(
+                cache.RemoveAsync(CacheKeys.Availability(@event.PartyId)),
+                cache.SetStringAsync(CacheKeys.ListVersion, Guid.NewGuid().ToString())
+            );
         }
     }
 }

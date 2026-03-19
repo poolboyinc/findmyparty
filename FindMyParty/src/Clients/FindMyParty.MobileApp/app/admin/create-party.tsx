@@ -24,6 +24,7 @@ import { partyService } from '@/services/partyService';
 import { adminService } from '@/services/adminService';
 import type { CreatePartyRequest } from '@/types/parties';
 import type { HostProfile } from '@/types/auth';
+import { s, vs, ms } from '@/constants/responsive';
 
 function combineDateTime(date: Date, time: Date): string {
   const combined = new Date(date);
@@ -103,9 +104,14 @@ export default function CreatePartyScreen() {
       quality: 0.85,
     });
     if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+        Alert.alert('Image too large', 'Please choose an image under 10 MB.');
+        return;
+      }
       setImages(prev => {
         const next = [...prev];
-        next[index] = result.assets[0].uri;
+        next[index] = asset.uri;
         return next;
       });
     }
@@ -116,12 +122,18 @@ export default function CreatePartyScreen() {
       Alert.alert('Missing info', 'Party name is required.');
       return;
     }
-    if (!price.trim() || isNaN(parseFloat(price))) {
-      Alert.alert('Missing info', 'Please enter a valid price.');
+    const parsedPrice = parseFloat(price);
+    if (!price.trim() || isNaN(parsedPrice) || parsedPrice < 0) {
+      Alert.alert('Missing info', 'Please enter a valid price (0 or more).');
       return;
     }
-    if (!capacity.trim() || isNaN(parseInt(capacity))) {
-      Alert.alert('Missing info', 'Please enter a valid capacity.');
+    const parsedCapacity = parseInt(capacity);
+    if (!capacity.trim() || isNaN(parsedCapacity) || parsedCapacity < 1 || parsedCapacity > 50000) {
+      Alert.alert('Missing info', 'Capacity must be between 1 and 50,000.');
+      return;
+    }
+    if (description.trim().length > 2000) {
+      Alert.alert('Too long', 'Description must be under 2,000 characters.');
       return;
     }
 
@@ -145,8 +157,8 @@ export default function CreatePartyScreen() {
       const request: CreatePartyRequest = {
         title,
         description: desc,
-        price: parseFloat(price),
-        capacity: parseInt(capacity),
+        price: parsedPrice,
+        capacity: parsedCapacity,
         startsAt: combineDateTime(partyDate, startTime),
         endsAt: getEndsAt(partyDate, startTime, endTime),
         latitude: hostProfile.latitude,
@@ -194,7 +206,7 @@ export default function CreatePartyScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={28} color="#FFF" />
+          <Ionicons name="arrow-back" size={ms(28)} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Create party</Text>
       </View>
@@ -286,14 +298,14 @@ export default function CreatePartyScreen() {
         </View>
 
         {/* ─── Section 2: Date & Time ─── */}
-        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Date &amp; Time</Text>
+        <Text style={[styles.sectionTitle, { marginTop: vs(24) }]}>Date &amp; Time</Text>
 
         <Text style={styles.fieldLabel}>Party Date</Text>
         <TouchableOpacity onPress={() => setShowDatePicker(true)} activeOpacity={0.85}>
           <BlurView intensity={10} tint="dark" style={styles.inputBox}>
             <View style={styles.rowSpaced}>
               <Text style={styles.inputText}>{formatDate(partyDate)}</Text>
-              <Ionicons name="calendar-outline" size={26} color="rgba(255,255,255,0.7)" />
+              <Ionicons name="calendar-outline" size={ms(26)} color="rgba(255,255,255,0.7)" />
             </View>
           </BlurView>
         </TouchableOpacity>
@@ -319,7 +331,7 @@ export default function CreatePartyScreen() {
               <BlurView intensity={10} tint="dark" style={styles.inputBox}>
                 <View style={styles.rowSpaced}>
                   <Text style={styles.inputText}>{formatTime(startTime)}</Text>
-                  <Ionicons name="time-outline" size={26} color="rgba(255,255,255,0.7)" />
+                  <Ionicons name="time-outline" size={ms(26)} color="rgba(255,255,255,0.7)" />
                 </View>
               </BlurView>
             </TouchableOpacity>
@@ -330,7 +342,7 @@ export default function CreatePartyScreen() {
               <BlurView intensity={10} tint="dark" style={styles.inputBox}>
                 <View style={styles.rowSpaced}>
                   <Text style={styles.inputText}>{formatTime(endTime)}</Text>
-                  <Ionicons name="time-outline" size={26} color="rgba(255,255,255,0.7)" />
+                  <Ionicons name="time-outline" size={ms(26)} color="rgba(255,255,255,0.7)" />
                 </View>
               </BlurView>
             </TouchableOpacity>
@@ -364,7 +376,7 @@ export default function CreatePartyScreen() {
         )}
 
         {/* ─── Section 3: Party Images ─── */}
-        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Party Images</Text>
+        <Text style={[styles.sectionTitle, { marginTop: vs(24) }]}>Party Images</Text>
         <View style={styles.row}>
           {[0, 1].map(i => (
             <TouchableOpacity key={i} onPress={() => pickImage(i)} activeOpacity={0.8} style={styles.halfCol}>
@@ -372,11 +384,11 @@ export default function CreatePartyScreen() {
                 {images[i] ? (
                   // eslint-disable-next-line @typescript-eslint/no-require-imports
                   <View style={styles.imagePreview}>
-                    <Ionicons name="checkmark-circle" size={36} color="#7D08FA" />
+                    <Ionicons name="checkmark-circle" size={ms(36)} color="#7D08FA" />
                     <Text style={styles.imagePreviewText}>Image {i + 1}</Text>
                   </View>
                 ) : (
-                  <Ionicons name="image-outline" size={40} color="rgba(255,255,255,0.5)" />
+                  <Ionicons name="image-outline" size={ms(40)} color="rgba(255,255,255,0.5)" />
                 )}
               </BlurView>
             </TouchableOpacity>
@@ -384,11 +396,11 @@ export default function CreatePartyScreen() {
         </View>
 
         {/* ─── Section 4: Featured Party ─── */}
-        <View style={[styles.featuredRow, { marginTop: 24 }]}>
+        <View style={[styles.featuredRow, { marginTop: vs(24) }]}>
           <View style={styles.featuredLeft}>
             <View style={styles.featuredTitleRow}>
               <Text style={styles.sectionTitle}>Featured Party</Text>
-              <Ionicons name="information-circle-outline" size={22} color="rgba(255,255,255,0.7)" style={{ marginLeft: 8 }} />
+              <Ionicons name="information-circle-outline" size={ms(22)} color="rgba(255,255,255,0.7)" style={{ marginLeft: s(8) }} />
             </View>
             <Text style={styles.featuredDesc}>
               Featured parties appear at the top of search results
@@ -461,71 +473,71 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-    gap: 8,
+    paddingHorizontal: s(8),
+    paddingBottom: vs(12),
+    gap: s(8),
   },
-  backBtn: { padding: 8 },
+  backBtn: { padding: s(8) },
   headerTitle: {
     color: '#FFF',
-    fontSize: 30,
+    fontSize: ms(30),
     fontWeight: '600',
     flex: 1,
     textAlign: 'center',
-    marginRight: 44, // balance back button
+    marginRight: s(44), // balance back button
   },
   scroll: { flex: 1 },
   scrollContent: {
-    paddingHorizontal: 16,
-    gap: 8,
+    paddingHorizontal: s(16),
+    gap: vs(8),
   },
   sectionTitle: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: ms(20),
     fontWeight: '600',
-    marginBottom: 4,
-    marginTop: 8,
+    marginBottom: vs(4),
+    marginTop: vs(8),
   },
   fieldLabel: {
     color: 'rgba(255,255,255,0.75)',
-    fontSize: 13,
+    fontSize: ms(13),
     fontWeight: '400',
-    marginBottom: 4,
-    marginLeft: 4,
+    marginBottom: vs(4),
+    marginLeft: s(4),
   },
   inputBox: {
-    borderRadius: 15,
+    borderRadius: s(15),
     overflow: 'hidden',
     backgroundColor: 'rgba(43,43,43,0.85)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    height: 55,
+    height: vs(55),
     justifyContent: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: s(14),
   },
   inputText: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: ms(18),
     fontWeight: '400',
   },
   textareaBox: {
-    height: 92,
+    height: vs(92),
     justifyContent: 'flex-start',
-    paddingVertical: 12,
+    paddingVertical: vs(12),
   },
   textareaText: {
-    height: 68,
+    height: vs(68),
   },
   row: {
     flexDirection: 'row',
-    gap: 8,
+    gap: s(8),
   },
   halfBox: {
     flex: 1,
   },
   halfCol: {
     flex: 1,
-    gap: 4,
+    gap: vs(4),
   },
   rowSpaced: {
     flexDirection: 'row',
@@ -534,7 +546,7 @@ const styles = StyleSheet.create({
   },
   imageBox: {
     // height applied inline via useWindowDimensions
-    borderRadius: 15,
+    borderRadius: s(15),
     overflow: 'hidden',
     backgroundColor: 'rgba(43,43,43,0.85)',
     borderWidth: 1,
@@ -544,22 +556,22 @@ const styles = StyleSheet.create({
   },
   imagePreview: {
     alignItems: 'center',
-    gap: 6,
+    gap: vs(6),
   },
   imagePreviewText: {
     color: '#FFF',
-    fontSize: 13,
+    fontSize: ms(13),
     fontWeight: '500',
   },
   featuredRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: s(12),
   },
   featuredLeft: {
     flex: 1,
-    gap: 4,
+    gap: vs(4),
   },
   featuredTitleRow: {
     flexDirection: 'row',
@@ -567,19 +579,19 @@ const styles = StyleSheet.create({
   },
   featuredDesc: {
     color: 'rgba(255,255,255,0.75)',
-    fontSize: 14,
+    fontSize: ms(14),
     fontWeight: '400',
-    lineHeight: 20,
+    lineHeight: vs(20),
   },
   buttonsArea: {
-    gap: 12,
-    marginTop: 24,
+    gap: vs(12),
+    marginTop: vs(24),
     alignItems: 'center',
   },
   actionBtnWrapper: {
     width: '100%',
-    height: 50,
-    borderRadius: 48,
+    height: vs(50),
+    borderRadius: s(48),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
@@ -592,7 +604,7 @@ const styles = StyleSheet.create({
   },
   actionBtnText: {
     color: '#FFF',
-    fontSize: 22,
+    fontSize: ms(22),
     fontWeight: '700',
   },
 });

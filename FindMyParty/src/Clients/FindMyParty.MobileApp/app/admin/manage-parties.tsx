@@ -7,6 +7,7 @@ import {
   StatusBar,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { partyService } from '@/services/partyService';
 import type { HostPartyResponse } from '@/types/parties';
+import { s, vs, ms } from '@/constants/responsive';
 
 function formatDateHeader(isoString: string): string {
   return new Date(isoString).toLocaleDateString('en-GB', {
@@ -76,7 +78,7 @@ function PartyCard({ party }: { party: HostPartyResponse }) {
           onPress={() => {/* TODO: navigate to edit screen */}}
         >
           <BlurView intensity={30} tint="light" style={styles.editBtnBlur}>
-            <Ionicons name="create-outline" size={22} color="#FFF" />
+            <Ionicons name="create-outline" size={ms(22)} color="#FFF" />
           </BlurView>
         </TouchableOpacity>
       </View>
@@ -104,13 +106,19 @@ export default function ManagePartiesScreen() {
   const insets = useSafeAreaInsets();
   const [parties, setParties] = useState<HostPartyResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadParties = () => partyService.getMyParties().then(setParties);
 
   useEffect(() => {
-    partyService.getMyParties().then(data => {
-      setParties(data);
-      setLoading(false);
-    });
+    loadParties().finally(() => setLoading(false));
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadParties();
+    setRefreshing(false);
+  };
 
   const groups = groupByDate(parties);
 
@@ -126,7 +134,7 @@ export default function ManagePartiesScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={28} color="#FFF" />
+          <Ionicons name="arrow-back" size={ms(28)} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Parties</Text>
       </View>
@@ -137,7 +145,7 @@ export default function ManagePartiesScreen() {
         </View>
       ) : parties.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="calendar-outline" size={60} color="rgba(255,255,255,0.25)" />
+          <Ionicons name="calendar-outline" size={ms(60)} color="rgba(255,255,255,0.25)" />
           <Text style={styles.emptyText}>No parties yet</Text>
           <Text style={styles.emptySubtext}>Tap "Create party" to get started</Text>
         </View>
@@ -146,6 +154,9 @@ export default function ManagePartiesScreen() {
           style={styles.scroll}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 30 }]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D08FA" colors={['#7D08FA']} />
+          }
         >
           {groups.map((group, gi) => (
             <View key={gi} style={styles.group}>
@@ -166,18 +177,18 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-    gap: 8,
+    paddingHorizontal: s(8),
+    paddingBottom: vs(12),
+    gap: s(8),
   },
-  backBtn: { padding: 8 },
+  backBtn: { padding: s(8) },
   headerTitle: {
     color: '#FFF',
-    fontSize: 30,
+    fontSize: ms(30),
     fontWeight: '600',
     flex: 1,
     textAlign: 'center',
-    marginRight: 44,
+    marginRight: s(44),
   },
   loader: {
     flex: 1,
@@ -188,33 +199,33 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: vs(12),
   },
   emptyText: {
     color: 'rgba(255,255,255,0.6)',
-    fontSize: 22,
+    fontSize: ms(22),
     fontWeight: '600',
   },
   emptySubtext: {
     color: 'rgba(255,255,255,0.4)',
-    fontSize: 15,
+    fontSize: ms(15),
   },
   scroll: { flex: 1 },
   scrollContent: {
-    paddingHorizontal: 12,
-    gap: 4,
+    paddingHorizontal: s(12),
+    gap: vs(4),
   },
   group: {
-    gap: 8,
-    marginBottom: 20,
+    gap: vs(8),
+    marginBottom: vs(20),
   },
   dateLabel: {
     color: '#FFF',
-    fontSize: 19,
+    fontSize: ms(19),
     fontWeight: '500',
   },
   card: {
-    borderRadius: 15,
+    borderRadius: s(15),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
@@ -228,25 +239,25 @@ const styles = StyleSheet.create({
   },
   draftBadge: {
     position: 'absolute',
-    top: 10,
-    left: 10,
+    top: vs(10),
+    left: s(10),
     backgroundColor: '#7D08FA',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    borderRadius: s(10),
+    paddingHorizontal: s(10),
+    paddingVertical: vs(3),
   },
   draftBadgeText: {
     color: '#FFF',
-    fontSize: 13,
+    fontSize: ms(13),
     fontWeight: '500',
   },
   editBtn: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    top: vs(8),
+    right: s(8),
+    width: s(40),
+    height: vs(40),
+    borderRadius: s(20),
     overflow: 'hidden',
   },
   editBtnBlur: {
@@ -258,43 +269,43 @@ const styles = StyleSheet.create({
   infoStrip: {
     flexDirection: 'row',
     backgroundColor: '#2B2B2B',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingHorizontal: s(10),
+    paddingVertical: vs(10),
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    minHeight: 80,
+    minHeight: vs(80),
   },
   infoLeft: {
     flex: 1,
-    gap: 4,
+    gap: vs(4),
   },
   infoTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: s(8),
     flexWrap: 'wrap',
   },
   infoTitle: {
     color: '#FFF',
-    fontSize: 22,
+    fontSize: ms(22),
     fontWeight: '600',
   },
   infoTime: {
     color: 'rgba(255,255,255,0.75)',
-    fontSize: 14,
+    fontSize: ms(14),
   },
   infoRight: {
     alignItems: 'flex-end',
-    gap: 4,
+    gap: vs(4),
   },
   infoMeta: {
     color: 'rgba(255,255,255,0.75)',
-    fontSize: 14,
+    fontSize: ms(14),
   },
   viewBookings: {
     color: '#9B5EFA',
-    fontSize: 12,
+    fontSize: ms(12),
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: vs(2),
   },
 });

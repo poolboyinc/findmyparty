@@ -8,7 +8,6 @@ import {
   Image,
   StatusBar,
   ActivityIndicator,
-  Dimensions,
   Linking,
   Alert,
   Platform,
@@ -23,8 +22,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { partyService } from '@/services/partyService';
 import { bookingService } from '@/services/bookingService';
 import type { PartyDetail } from '@/types/parties';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { s, vs, ms } from '@/constants/responsive';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(iso: string): string {
@@ -52,7 +50,7 @@ function priceTier(price: number): string {
 
 // ─── Liquid Glass button ───────────────────────────────────────────────────────
 function GlassButton({
-  size = 48,
+  size = ms(48),
   tint = 'dark',
   children,
   onPress,
@@ -111,7 +109,7 @@ function Divider() {
       style={{
         height: 1,
         backgroundColor: 'rgba(255,255,255,0.12)',
-        marginHorizontal: 18,
+        marginHorizontal: s(18),
       }}
     />
   );
@@ -158,11 +156,11 @@ export default function PartyDetailScreen() {
   const mapsUrl = `https://maps.google.com/?q=${party.latitude},${party.longitude}`;
 
   const handleReserve = async () => {
-    if (party.isSoldOut) return;
+    if (party.isSoldOut || booking) return;
     setBooking(true);
     try {
-      const ok = await bookingService.createBooking(party.id, 1);
-      if (ok) {
+      const bookingId = await bookingService.createBooking(party.id, 1);
+      if (bookingId) {
         Alert.alert('You\'re in!', 'Your spot has been reserved. Check your bookings for details.');
       } else {
         Alert.alert('Could not reserve', 'Something went wrong. Please try again.');
@@ -187,6 +185,11 @@ export default function PartyDetailScreen() {
       aspect: [16, 9],
     });
     if (result.canceled) return;
+    const asset = result.assets[0];
+    if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
+      Alert.alert('Image too large', 'Please choose an image under 10 MB.');
+      return;
+    }
     setUploading(true);
     const imageUrl = await partyService.uploadPartyImage(party.id, result.assets[0].uri);
     setUploading(false);
@@ -233,7 +236,7 @@ export default function PartyDetailScreen() {
           )}
           {!party.imageUrl && !uploading && (
             <View style={styles.uploadHint}>
-              <Ionicons name="camera" size={28} color="rgba(255,255,255,0.7)" />
+              <Ionicons name="camera" size={ms(28)} color="rgba(255,255,255,0.7)" />
               <Text style={styles.uploadHintText}>Tap to add image</Text>
             </View>
           )}
@@ -248,19 +251,19 @@ export default function PartyDetailScreen() {
           {/* Back button — liquid glass */}
           <GlassButton
             size={44}
-            style={{ position: 'absolute', left: 16, top: insets.top + 12 }}
+            style={{ position: 'absolute', left: s(16), top: insets.top + vs(12) }}
             onPress={() => router.back()}
           >
-            <Ionicons name="chevron-back" size={22} color="#FFF" />
+            <Ionicons name="chevron-back" size={ms(22)} color="#FFF" />
           </GlassButton>
 
           {/* Heart + Share — liquid glass */}
-          <View style={[styles.actionRow, { top: insets.top + 12 }]}>
+          <View style={[styles.actionRow, { top: insets.top + vs(12) }]}>
             <GlassButton size={48}>
-              <Ionicons name="heart-outline" size={22} color="#FFF" />
+              <Ionicons name="heart-outline" size={ms(22)} color="#FFF" />
             </GlassButton>
             <GlassButton size={48}>
-              <Ionicons name="share-outline" size={22} color="#FFF" />
+              <Ionicons name="share-outline" size={ms(22)} color="#FFF" />
             </GlassButton>
           </View>
 
@@ -284,7 +287,7 @@ export default function PartyDetailScreen() {
         <View style={styles.infoCard}>
           {/* Date & time */}
           <View style={styles.infoRow}>
-            <Ionicons name="calendar-outline" size={26} color="#FFF" />
+            <Ionicons name="calendar-outline" size={ms(26)} color="#FFF" />
             <Text style={styles.infoText}>{formatDate(party.startsAt)}</Text>
             <Text style={styles.infoSep}>{'  |  '}</Text>
             <Text style={styles.infoTextBold}>
@@ -296,7 +299,7 @@ export default function PartyDetailScreen() {
 
           {/* Location */}
           <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={26} color="#FFF" />
+            <Ionicons name="location-outline" size={ms(26)} color="#FFF" />
             <Text style={[styles.infoText, { flex: 1 }]} numberOfLines={1}>
               {party.latitude.toFixed(3)}, {party.longitude.toFixed(3)}
             </Text>
@@ -309,7 +312,7 @@ export default function PartyDetailScreen() {
 
           {/* Price */}
           <View style={styles.infoRow}>
-            <Ionicons name="cash-outline" size={26} color="rgba(255,255,255,0.4)" />
+            <Ionicons name="cash-outline" size={ms(26)} color="rgba(255,255,255,0.4)" />
             <Text style={styles.priceGray}>{priceTier(party.price)}</Text>
             {party.price > 0 && (
               <Text style={styles.infoText}>
@@ -359,7 +362,7 @@ export default function PartyDetailScreen() {
           <Text style={styles.otherDatesText}>Other Dates</Text>
         </TouchableOpacity>
 
-        <View style={{ height: insets.bottom + 24 }} />
+        <View style={{ height: insets.bottom + vs(24) }} />
       </ScrollView>
     </View>
   );
@@ -376,17 +379,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
+    gap: vs(16),
   },
   errorText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: ms(16),
   },
   backFallback: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
+    paddingHorizontal: s(24),
+    paddingVertical: vs(12),
     backgroundColor: '#7D08FA',
-    borderRadius: 30,
+    borderRadius: s(30),
   },
   backFallbackText: {
     color: '#FFF',
@@ -397,11 +400,11 @@ const styles = StyleSheet.create({
   heroWrapper: {
     // height applied inline from useWindowDimensions
     overflow: 'hidden',
-    borderBottomLeftRadius: 6,
-    borderBottomRightRadius: 6,
+    borderBottomLeftRadius: s(6),
+    borderBottomRightRadius: s(6),
   },
   heroImage: {
-    width: SCREEN_WIDTH,
+    width: '100%',
     // height applied inline from useWindowDimensions
   },
   uploadOverlay: {
@@ -409,24 +412,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: vs(12),
   },
   uploadText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: ms(16),
     fontWeight: '600',
   },
   uploadHint: {
     position: 'absolute',
-    bottom: 70,
+    bottom: vs(70),
     left: 0,
     right: 0,
     alignItems: 'center',
-    gap: 6,
+    gap: vs(6),
   },
   uploadHintText: {
     color: 'rgba(255,255,255,0.7)',
-    fontSize: 14,
+    fontSize: ms(14),
     fontWeight: '500',
   },
   heroFade: {
@@ -438,32 +441,32 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     position: 'absolute',
-    right: 16,
+    right: s(16),
     flexDirection: 'row',
-    gap: 8,
+    gap: s(8),
   },
   heroOverlay: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 32,
+    bottom: vs(32),
     alignItems: 'center',
-    gap: 10,
+    gap: vs(10),
   },
   clubName: {
     color: '#FFF',
-    fontSize: 36,
+    fontSize: ms(36),
     fontWeight: '800',
     textAlign: 'center',
     textShadowColor: 'rgba(0,0,0,0.7)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: s(16),
   },
   ratingBadge: {
-    height: 28,
-    paddingHorizontal: 16,
-    borderRadius: 30,
+    height: vs(28),
+    paddingHorizontal: s(16),
+    borderRadius: s(30),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -471,15 +474,15 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: ms(14),
     fontWeight: '700',
   },
 
   // ── Info glass card ──
   infoCard: {
-    marginHorizontal: 10,
-    marginTop: 14,
-    borderRadius: 34,
+    marginHorizontal: s(10),
+    marginTop: vs(14),
+    borderRadius: s(34),
     overflow: 'hidden',
     backgroundColor: 'rgba(38,38,38,0.92)',
     borderWidth: 1,
@@ -488,53 +491,53 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
+    gap: s(8),
+    paddingVertical: vs(16),
+    paddingHorizontal: s(18),
     flexWrap: 'wrap',
   },
   infoText: {
     color: '#FFF',
-    fontSize: 17,
+    fontSize: ms(17),
     fontWeight: '400',
   },
   infoTextBold: {
     color: '#FFF',
-    fontSize: 17,
+    fontSize: ms(17),
     fontWeight: '700',
   },
   infoSep: {
     color: 'rgba(255,255,255,0.4)',
-    fontSize: 17,
+    fontSize: ms(17),
   },
   openMaps: {
     color: 'rgba(255,255,255,0.55)',
-    fontSize: 13,
+    fontSize: ms(13),
     textDecorationLine: 'underline',
   },
   priceGray: {
     color: 'rgba(255,255,255,0.4)',
-    fontSize: 17,
+    fontSize: ms(17),
     fontWeight: '500',
   },
 
   // Description
   descBlock: {
-    marginHorizontal: 14,
-    marginTop: 16,
+    marginHorizontal: s(14),
+    marginTop: vs(16),
   },
   descText: {
     color: 'rgba(255,255,255,0.65)',
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: ms(15),
+    lineHeight: vs(22),
   },
 
   // ── Reserve / Tickets — liquid glass purple ──
   reserveBtn: {
-    marginHorizontal: 10,
-    marginTop: 28,
-    height: 52,
-    borderRadius: 30,
+    marginHorizontal: s(10),
+    marginTop: vs(28),
+    height: vs(52),
+    borderRadius: s(30),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.28)',
@@ -542,21 +545,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   reserveOverlay: {
-    borderRadius: 30,
+    borderRadius: s(30),
     backgroundColor: 'rgba(125,8,250,0.45)',
   },
   reserveText: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: ms(20),
     fontWeight: '700',
   },
 
   // ── Other Dates — liquid glass white ──
   otherDatesBtn: {
-    marginHorizontal: 10,
-    marginTop: 12,
-    height: 52,
-    borderRadius: 30,
+    marginHorizontal: s(10),
+    marginTop: vs(12),
+    height: vs(52),
+    borderRadius: s(30),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.22)',
@@ -564,12 +567,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   otherDatesOverlay: {
-    borderRadius: 30,
+    borderRadius: s(30),
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
   otherDatesText: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: ms(20),
     fontWeight: '700',
   },
 });

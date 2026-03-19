@@ -8,7 +8,10 @@ namespace FindMyParty.Bookings.API.Infrastructure.Services
     }
 
     public record PartyAvailabilityResult(
-        bool IsAvailable,
+        bool IsSoldOut,
         int RemainingCapacity,
-        decimal PricePerTicket);
+        decimal PricePerTicket)
+    {
+        public bool IsAvailable => !IsSoldOut;
+    };
 }

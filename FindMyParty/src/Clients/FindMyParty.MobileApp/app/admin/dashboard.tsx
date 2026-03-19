@@ -6,6 +6,7 @@ import {
   StyleSheet,
   StatusBar,
   ScrollView,
+  Alert,
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,6 +14,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { s, vs, ms } from '@/constants/responsive';
 import { authService } from '@/services/authService';
 
 export default function AdminDashboardScreen() {
@@ -20,11 +22,18 @@ export default function AdminDashboardScreen() {
   const { height: H } = useWindowDimensions();
   const avatarSize = H * 0.186;   // 157/844
   const avatarInnerSize = H * 0.175;  // 148/844
-  const [userName, setUserName] = useState('Morrison Pub');
+  const [userName, setUserName] = useState('');
 
   useEffect(() => {
     authService.getUserInfo().then(info => {
       if (info?.userName) setUserName(info.userName);
+      if (info && info.role !== 'Host' && info.role !== 'Admin') {
+        Alert.alert(
+          'Access denied',
+          'You need a Host account to access the admin portal.',
+          [{ text: 'Go back', onPress: () => router.replace('/onboarding') }]
+        );
+      }
     });
   }, []);
 
@@ -59,7 +68,7 @@ export default function AdminDashboardScreen() {
       >
         {/* Top-right hamburger */}
         <TouchableOpacity style={styles.menuBtn} activeOpacity={0.7}>
-          <Ionicons name="menu" size={30} color="rgba(255,255,255,0.9)" />
+          <Ionicons name="menu" size={ms(30)} color="rgba(255,255,255,0.9)" />
         </TouchableOpacity>
 
         {/* Avatar + Name */}
@@ -161,7 +170,7 @@ export default function AdminDashboardScreen() {
           style={styles.fabGradient}
         >
           <BlurView intensity={10} tint="light" style={StyleSheet.absoluteFill} />
-          <Ionicons name="chatbubble-outline" size={32} color="#FFF" />
+          <Ionicons name="chatbubble-outline" size={ms(32)} color="#FFF" />
         </LinearGradient>
       </TouchableOpacity>
     </View>
@@ -176,22 +185,22 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     alignItems: 'center',
-    paddingHorizontal: 36,
-    gap: 10,
+    paddingHorizontal: s(36),
+    gap: vs(10),
   },
   menuBtn: {
     alignSelf: 'flex-end',
-    padding: 8,
-    marginBottom: 10,
+    padding: s(8),
+    marginBottom: vs(10),
   },
   profileSection: {
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 24,
+    gap: vs(10),
+    marginBottom: vs(24),
   },
   avatarRing: {
     // width/height/borderRadius applied inline via useWindowDimensions
-    padding: 3,
+    padding: s(3),
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -205,25 +214,25 @@ const styles = StyleSheet.create({
   },
   avatarInitials: {
     color: '#FFF',
-    fontSize: 48,
+    fontSize: ms(48),
     fontWeight: '700',
   },
   venueName: {
     color: '#FFF',
-    fontSize: 32,
+    fontSize: ms(32),
     fontWeight: '700',
     textAlign: 'center',
   },
   buttonsArea: {
     width: '100%',
     alignItems: 'center',
-    gap: 14,
-    marginTop: 10,
+    gap: vs(14),
+    marginTop: vs(10),
   },
   btnWrapper: {
     width: '100%',
-    height: 57,
-    borderRadius: 48,
+    height: vs(57),
+    borderRadius: s(48),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
@@ -238,18 +247,18 @@ const styles = StyleSheet.create({
   },
   btnText: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: ms(20),
     fontWeight: '700',
     letterSpacing: 0.2,
   },
   logoutWrapper: {
     width: '100%',
-    height: 51,
-    borderRadius: 48,
+    height: vs(51),
+    borderRadius: s(48),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
-    marginTop: 40,
+    marginTop: vs(40),
   },
   logoutBlur: {
     flex: 1,
@@ -261,17 +270,17 @@ const styles = StyleSheet.create({
   },
   fab: {
     position: 'absolute',
-    right: 20,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    right: s(20),
+    width: s(64),
+    height: vs(64),
+    borderRadius: s(32),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
     shadowColor: '#7D08FA',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: vs(4) },
     shadowOpacity: 0.5,
-    shadowRadius: 12,
+    shadowRadius: s(12),
     elevation: 10,
   },
   fabGradient: {

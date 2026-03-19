@@ -8,8 +8,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { s, vs, ms } from '@/constants/responsive';
 import { authService } from '../services/authService';
 
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
@@ -86,8 +87,9 @@ export default function OnboardingPage() {
 
       const success = await authService.externalSignIn('google', tokens.id_token);
       if (success) router.replace('/(tabs)');
+      else Alert.alert('Sign-in failed', 'Could not sign in with Google. Please try again.');
     } catch {
-      // silent — user stays on onboarding
+      Alert.alert('Connection error', 'Could not complete Google sign-in. Check your internet connection.');
     } finally {
       setLoading(null);
     }
@@ -117,8 +119,11 @@ export default function OnboardingPage() {
 
       const success = await authService.externalSignIn('apple', identityToken, name);
       if (success) router.replace('/(tabs)');
+      else Alert.alert('Sign-in failed', 'Could not sign in with Apple. Please try again.');
     } catch (e: any) {
-      if (e.code !== 'ERR_REQUEST_CANCELED') console.error('Apple sign-in:', e);
+      if (e.code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert('Sign-in error', 'Something went wrong with Apple sign-in. Please try again.');
+      }
     } finally {
       setLoading(null);
     }
@@ -250,7 +255,7 @@ export default function OnboardingPage() {
                 end={{ x: 1, y: 0 }}
                 style={styles.adminBtnGradient}
               >
-                <Ionicons name="shield-checkmark-outline" size={17} color="rgba(255,255,255,0.85)" />
+                <Ionicons name="shield-checkmark-outline" size={ms(17)} color="rgba(255,255,255,0.85)" />
                 <Text style={styles.adminBtnText}>Transfer to Admin Portal</Text>
               </LinearGradient>
             </BlurView>
@@ -297,7 +302,7 @@ const styles = StyleSheet.create({
   },
   appName: {
     color: '#FFFFFF',
-    fontSize: 30,
+    fontSize: ms(30),
     fontWeight: '800',
     letterSpacing: 0.5,
     // marginTop applied inline via `rs`
@@ -308,33 +313,33 @@ const styles = StyleSheet.create({
   },
   buttonsSection: {
     width: '100%',
-    gap: 14,
+    gap: vs(14),
   },
   googleButton: {
     width: '100%',
-    height: 44,
+    height: vs(44),
     backgroundColor: '#FFFFFF',
-    borderRadius: 48,
+    borderRadius: s(48),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#646464',
-    gap: 10,
+    gap: s(10),
   },
   googleLogo: {
-    width: 20,
-    height: 20,
+    width: s(20),
+    height: vs(20),
   },
   googleButtonText: {
     color: '#3C4043',
-    fontSize: 15,
+    fontSize: ms(15),
     fontWeight: '600',
   },
   socialButtonLoading: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 48,
-    height: 44,
+    borderRadius: s(48),
+    height: vs(44),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -342,12 +347,12 @@ const styles = StyleSheet.create({
   },
   appleButton: {
     width: '100%',
-    height: 44,
+    height: vs(44),
   },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 2,
+    marginVertical: vs(2),
   },
   dividerLine: {
     flex: 1,
@@ -356,25 +361,25 @@ const styles = StyleSheet.create({
   },
   dividerText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: ms(12),
     fontWeight: '100',
-    marginHorizontal: 12,
+    marginHorizontal: s(12),
   },
   signUpButton: {
     backgroundColor: '#7E0AFA',
-    borderRadius: 48,
-    height: 44,
+    borderRadius: s(48),
+    height: vs(44),
     alignItems: 'center',
     justifyContent: 'center',
   },
   signUpText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: ms(16),
     fontWeight: '700',
   },
   loginText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: ms(16),
     fontWeight: '400',
     textAlign: 'center',
   },
@@ -384,17 +389,17 @@ const styles = StyleSheet.create({
   },
   legal: {
     color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
+    fontSize: ms(11),
     textAlign: 'center',
-    lineHeight: 17,
+    lineHeight: vs(17),
   },
   legalUnderline: {
     textDecorationLine: 'underline',
   },
   adminBtnWrapper: {
     width: '100%',
-    height: 42,
-    borderRadius: 48,
+    height: vs(42),
+    borderRadius: s(48),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
@@ -407,11 +412,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: s(8),
   },
   adminBtnText: {
     color: 'rgba(255,255,255,0.88)',
-    fontSize: 14,
+    fontSize: ms(14),
     fontWeight: '600',
     letterSpacing: 0.3,
   },

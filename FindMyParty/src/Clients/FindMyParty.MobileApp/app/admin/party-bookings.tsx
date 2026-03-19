@@ -7,6 +7,7 @@ import {
   StatusBar,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -16,6 +17,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { bookingService } from '@/services/bookingService';
 import type { BookingItem } from '@/types/bookings';
 import { getStatusColor, getStatusBackgroundColor } from '@/types/bookings';
+import { s, vs, ms } from '@/constants/responsive';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-GB', {
@@ -31,14 +33,22 @@ export default function PartyBookingsScreen() {
 
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const loadBookings = () => {
+    if (!partyId) return Promise.resolve();
+    return bookingService.getPartyBookings(partyId).then(setBookings);
+  };
 
   useEffect(() => {
-    if (!partyId) return;
-    bookingService.getPartyBookings(partyId).then(data => {
-      setBookings(data);
-      setLoading(false);
-    });
+    loadBookings().finally(() => setLoading(false));
   }, [partyId]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadBookings();
+    setRefreshing(false);
+  };
 
   const totalTickets = bookings
     .filter(b => b.status !== 'Cancelled')
@@ -60,7 +70,7 @@ export default function PartyBookingsScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={28} color="#FFF" />
+          <Ionicons name="arrow-back" size={ms(28)} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>Bookings</Text>
       </View>
@@ -75,7 +85,7 @@ export default function PartyBookingsScreen() {
         </View>
       ) : bookings.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="ticket-outline" size={60} color="rgba(255,255,255,0.25)" />
+          <Ionicons name="ticket-outline" size={ms(60)} color="rgba(255,255,255,0.25)" />
           <Text style={styles.emptyText}>No bookings yet</Text>
         </View>
       ) : (
@@ -83,6 +93,9 @@ export default function PartyBookingsScreen() {
           style={styles.scroll}
           contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 30 }]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D08FA" colors={['#7D08FA']} />
+          }
         >
           {/* Summary strip */}
           <BlurView intensity={10} tint="dark" style={styles.summaryRow}>
@@ -114,8 +127,8 @@ export default function PartyBookingsScreen() {
                 </View>
                 <View style={styles.cardRight}>
                   <Text style={styles.cardPrice}>€{b.totalPrice.toFixed(2)}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusBackgroundColor(b) }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(b) }]}>{b.status}</Text>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusBackgroundColor(b.status) }]}>
+                    <Text style={[styles.statusText, { color: getStatusColor(b.status) }]}>{b.status}</Text>
                   </View>
                 </View>
               </View>
@@ -132,25 +145,25 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 4,
-    gap: 8,
+    paddingHorizontal: s(8),
+    paddingBottom: vs(4),
+    gap: s(8),
   },
-  backBtn: { padding: 8 },
+  backBtn: { padding: s(8) },
   headerTitle: {
     color: '#FFF',
-    fontSize: 30,
+    fontSize: ms(30),
     fontWeight: '600',
     flex: 1,
     textAlign: 'center',
-    marginRight: 44,
+    marginRight: s(44),
   },
   partyTitle: {
     color: 'rgba(255,255,255,0.55)',
-    fontSize: 14,
+    fontSize: ms(14),
     textAlign: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 12,
+    paddingHorizontal: s(20),
+    marginBottom: vs(12),
   },
   loader: {
     flex: 1,
@@ -161,48 +174,48 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: vs(12),
   },
   emptyText: {
     color: 'rgba(255,255,255,0.6)',
-    fontSize: 22,
+    fontSize: ms(22),
     fontWeight: '600',
   },
   scroll: { flex: 1 },
   scrollContent: {
-    paddingHorizontal: 12,
-    gap: 8,
+    paddingHorizontal: s(12),
+    gap: vs(8),
   },
   summaryRow: {
-    borderRadius: 15,
+    borderRadius: s(15),
     overflow: 'hidden',
     backgroundColor: 'rgba(43,43,43,0.85)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     flexDirection: 'row',
-    paddingVertical: 16,
-    marginBottom: 8,
+    paddingVertical: vs(16),
+    marginBottom: vs(8),
   },
   summaryItem: {
     flex: 1,
     alignItems: 'center',
-    gap: 4,
+    gap: vs(4),
   },
   summaryValue: {
     color: '#FFF',
-    fontSize: 22,
+    fontSize: ms(22),
     fontWeight: '700',
   },
   summaryLabel: {
     color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
+    fontSize: ms(12),
   },
   summaryDivider: {
     width: 1,
     backgroundColor: 'rgba(255,255,255,0.1)',
   },
   card: {
-    borderRadius: 15,
+    borderRadius: s(15),
     overflow: 'hidden',
     backgroundColor: 'rgba(43,43,43,0.85)',
     borderWidth: 1,
@@ -212,35 +225,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingHorizontal: s(14),
+    paddingVertical: vs(14),
   },
-  cardLeft: { gap: 4 },
+  cardLeft: { gap: vs(4) },
   cardTickets: {
     color: '#FFF',
-    fontSize: 17,
+    fontSize: ms(17),
     fontWeight: '600',
   },
   cardDate: {
     color: 'rgba(255,255,255,0.45)',
-    fontSize: 13,
+    fontSize: ms(13),
   },
   cardRight: {
     alignItems: 'flex-end',
-    gap: 6,
+    gap: vs(6),
   },
   cardPrice: {
     color: '#FFF',
-    fontSize: 17,
+    fontSize: ms(17),
     fontWeight: '700',
   },
   statusBadge: {
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    borderRadius: s(20),
+    paddingHorizontal: s(10),
+    paddingVertical: vs(3),
   },
   statusText: {
-    fontSize: 12,
+    fontSize: ms(12),
     fontWeight: '600',
   },
 });

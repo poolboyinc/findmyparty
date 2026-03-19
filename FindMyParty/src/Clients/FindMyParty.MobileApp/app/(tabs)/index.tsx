@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import MapboxGL from '@rnmapbox/maps';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { ApiConstants } from '@/constants/api';
+import { s, vs, ms } from '@/constants/responsive';
 import { useExplore } from '@/hooks/useExplore';
 import type { PartyMapItem } from '@/types/parties';
 
@@ -31,7 +32,7 @@ function formatTime(isoString: string): string {
 }
 
 // ─── Party Marker ─────────────────────────────────────────────────────────────
-function PartyMarker({
+const PartyMarker = React.memo(function PartyMarker({
   party,
   onPress,
   isActive,
@@ -53,7 +54,7 @@ function PartyMarker({
               colors={['#9B20FF', '#6500D2']}
               style={markerStyles.gradient}
             >
-              <Ionicons name="flame" size={18} color="#FFF" />
+              <Ionicons name="flame" size={ms(18)} color="#FFF" />
             </LinearGradient>
           </View>
           <View style={[markerStyles.pinTip, isActive && markerStyles.pinTipActive]} />
@@ -61,7 +62,7 @@ function PartyMarker({
       </TouchableOpacity>
     </MapboxGL.MarkerView>
   );
-}
+});
 
 const markerStyles = StyleSheet.create({
   container: {
@@ -71,9 +72,9 @@ const markerStyles = StyleSheet.create({
     transform: [{ scale: 1.15 }],
   },
   pinBody: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: s(44),
+    height: s(44),
+    borderRadius: s(22),
     overflow: 'hidden',
     borderWidth: 2.5,
     borderColor: '#FFF',
@@ -91,9 +92,9 @@ const markerStyles = StyleSheet.create({
   pinTip: {
     width: 0,
     height: 0,
-    borderLeftWidth: 7,
-    borderRightWidth: 7,
-    borderTopWidth: 12,
+    borderLeftWidth: s(7),
+    borderRightWidth: s(7),
+    borderTopWidth: s(12),
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderTopColor: '#6500D2',
@@ -126,7 +127,7 @@ function PartyCard({
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <Ionicons name="musical-notes" size={48} color="rgba(255,255,255,0.3)" />
+          <Ionicons name="musical-notes" size={ms(48)} color="rgba(255,255,255,0.3)" />
         </LinearGradient>
 
         {/* Dot indicators */}
@@ -139,10 +140,10 @@ function PartyCard({
         {/* Heart + Close buttons */}
         <View style={cardStyles.imageActions}>
           <TouchableOpacity style={cardStyles.actionBtn} activeOpacity={0.8}>
-            <Ionicons name="heart-outline" size={20} color="#7D08FA" />
+            <Ionicons name="heart-outline" size={ms(20)} color="#7D08FA" />
           </TouchableOpacity>
           <TouchableOpacity style={cardStyles.actionBtn} onPress={onClose} activeOpacity={0.8}>
-            <Ionicons name="close" size={20} color="#333" />
+            <Ionicons name="close" size={ms(20)} color="#333" />
           </TouchableOpacity>
         </View>
       </View>
@@ -188,10 +189,10 @@ function PartyCard({
 const cardStyles = StyleSheet.create({
   container: {
     position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 100,
-    borderRadius: 24,
+    left: s(16),
+    right: s(16),
+    bottom: vs(100),
+    borderRadius: s(24),
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -210,34 +211,34 @@ const cardStyles = StyleSheet.create({
   },
   dotsRow: {
     position: 'absolute',
-    bottom: 10,
+    bottom: vs(10),
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 6,
+    gap: s(6),
   },
   dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: s(6),
+    height: s(6),
+    borderRadius: s(3),
     backgroundColor: 'rgba(255,255,255,0.4)',
   },
   dotActive: {
     backgroundColor: '#FFF',
-    width: 18,
+    width: s(18),
   },
   imageActions: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: s(12),
+    right: s(12),
     flexDirection: 'row',
-    gap: 8,
+    gap: s(8),
   },
   actionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: s(36),
+    height: s(36),
+    borderRadius: s(18),
     backgroundColor: '#FFF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -248,10 +249,10 @@ const cardStyles = StyleSheet.create({
     elevation: 4,
   },
   infoSection: {
-    paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 18,
-    gap: 12,
+    paddingHorizontal: s(18),
+    paddingTop: vs(14),
+    paddingBottom: vs(18),
+    gap: vs(12),
   },
   infoRow: {
     flexDirection: 'row',
@@ -260,39 +261,39 @@ const cardStyles = StyleSheet.create({
   },
   infoLeft: {
     flex: 1,
-    marginRight: 12,
-    gap: 4,
+    marginRight: s(12),
+    gap: vs(4),
   },
   partyName: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: ms(18),
     fontWeight: '700',
     letterSpacing: 0.2,
   },
   partyMeta: {
     color: 'rgba(255,255,255,0.85)',
-    fontSize: 14,
+    fontSize: ms(14),
     fontWeight: '400',
   },
   ratingBadge: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: s(20),
+    paddingHorizontal: s(10),
+    paddingVertical: vs(6),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
   },
   ratingText: {
     color: '#FFF',
-    fontSize: 13,
+    fontSize: ms(13),
     fontWeight: '700',
   },
 
   ctaButton: {
     backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 30,
-    height: 44,
+    borderRadius: s(30),
+    height: vs(44),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -300,7 +301,7 @@ const cardStyles = StyleSheet.create({
   },
   ctaText: {
     color: '#FFF',
-    fontSize: 15,
+    fontSize: ms(15),
     fontWeight: '700',
   },
 });
@@ -326,7 +327,7 @@ function DatePickerModal({
           <View style={dpStyles.header}>
             <Text style={dpStyles.title}>Select Date</Text>
             <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
-              <Ionicons name="close" size={22} color="rgba(255,255,255,0.7)" />
+              <Ionicons name="close" size={ms(22)} color="rgba(255,255,255,0.7)" />
             </TouchableOpacity>
           </View>
 
@@ -384,21 +385,21 @@ const dpStyles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#1A1620',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 20,
-    paddingBottom: 40,
-    paddingHorizontal: 24,
+    borderTopLeftRadius: s(28),
+    borderTopRightRadius: s(28),
+    paddingTop: vs(20),
+    paddingBottom: vs(40),
+    paddingHorizontal: s(24),
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: vs(16),
   },
   title: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: ms(18),
     fontWeight: '700',
   },
   picker: {
@@ -407,13 +408,13 @@ const dpStyles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
+    gap: s(12),
+    marginTop: vs(20),
   },
   clearBtn: {
     flex: 1,
-    height: 50,
-    borderRadius: 30,
+    height: vs(50),
+    borderRadius: s(30),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
@@ -421,13 +422,13 @@ const dpStyles = StyleSheet.create({
   },
   clearText: {
     color: 'rgba(255,255,255,0.7)',
-    fontSize: 16,
+    fontSize: ms(16),
     fontWeight: '600',
   },
   confirmBtn: {
     flex: 2,
-    height: 50,
-    borderRadius: 30,
+    height: vs(50),
+    borderRadius: s(30),
     overflow: 'hidden',
   },
   confirmGradient: {
@@ -437,7 +438,7 @@ const dpStyles = StyleSheet.create({
   },
   confirmText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: ms(16),
     fontWeight: '700',
   },
 });
@@ -450,19 +451,27 @@ export default function ExploreScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
+  const [locationDenied, setLocationDenied] = useState(false);
   const cameraRef = useRef<MapboxGL.Camera>(null);
 
   // Request location permission, fly to user, and load nearby parties
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      if (status !== 'granted') {
+        setLocationDenied(true);
+        return;
+      }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const coords: [number, number] = [loc.coords.longitude, loc.coords.latitude];
       setUserCoords(coords);
       cameraRef.current?.flyTo(coords, 800);
       loadParties(loc.coords.latitude, loc.coords.longitude);
     })();
+  }, []);
+
+  const handleMarkerPress = useCallback((party: PartyMapItem) => {
+    setSelectedParty(party);
   }, []);
 
   // Card slide-up animation
@@ -523,22 +532,36 @@ export default function ExploreScreen() {
             key={party.id}
             party={party}
             isActive={selectedParty?.id === party.id}
-            onPress={() => setSelectedParty(party)}
+            onPress={handleMarkerPress.bind(null, party)}
           />
         ))}
       </MapboxGL.MapView>
 
       {/* ── Header bar ── */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={17} color="rgba(255,255,255,0.6)" />
+        <TouchableOpacity
+          style={styles.searchBar}
+          activeOpacity={0.8}
+          onPress={() => router.push('/(tabs)/explore')}
+        >
+          <Ionicons name="search" size={ms(17)} color="rgba(255,255,255,0.6)" />
           <View style={styles.dividerV} />
           <Text style={styles.searchPlaceholder}>Search parties, venues...</Text>
-        </View>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.filterBtn} activeOpacity={0.8}>
-          <Ionicons name="options" size={20} color="rgba(255,255,255,0.9)" />
+          <Ionicons name="options" size={ms(20)} color="rgba(255,255,255,0.9)" />
         </TouchableOpacity>
       </View>
+
+      {/* ── Location denied banner ── */}
+      {locationDenied && (
+        <View style={styles.locationBanner}>
+          <Ionicons name="location-outline" size={ms(18)} color="rgba(255,255,255,0.85)" />
+          <Text style={styles.locationBannerText}>
+            Enable location to discover parties near you
+          </Text>
+        </View>
+      )}
 
       {/* ── Date picker FAB ── */}
       <TouchableOpacity
@@ -548,7 +571,7 @@ export default function ExploreScreen() {
       >
         <BlurView intensity={60} tint="light" style={styles.fabBlur}>
           <View style={styles.fabInner}>
-            <Ionicons name="calendar" size={20} color="rgba(255,255,255,0.92)" />
+            <Ionicons name="calendar" size={ms(20)} color="rgba(255,255,255,0.92)" />
             {selectedDate && (
               <View style={styles.fabDot} />
             )}
@@ -587,47 +610,67 @@ const styles = StyleSheet.create({
   map: {
     flex: 1,
   },
+  // Location banner
+  locationBanner: {
+    position: 'absolute',
+    left: s(16),
+    right: s(16),
+    bottom: vs(90),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s(8),
+    backgroundColor: 'rgba(125,8,250,0.85)',
+    borderRadius: s(16),
+    paddingHorizontal: s(14),
+    paddingVertical: vs(12),
+  },
+  locationBannerText: {
+    color: '#FFF',
+    fontSize: ms(13),
+    fontWeight: '500',
+    flex: 1,
+  },
   // Header
   header: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
+    paddingHorizontal: s(16),
+    paddingBottom: vs(14),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: s(10),
     backgroundColor: 'rgba(17,15,20,0.82)',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: s(20),
+    borderBottomRightRadius: s(20),
   },
   searchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 22,
-    height: 44,
-    paddingHorizontal: 14,
-    gap: 10,
+    borderRadius: s(22),
+    height: vs(44),
+    paddingHorizontal: s(14),
+    gap: s(10),
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
   dividerV: {
     width: 1,
-    height: 18,
+    height: vs(18),
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
   searchPlaceholder: {
     color: 'rgba(255,255,255,0.45)',
-    fontSize: 14,
+    fontSize: ms(14),
     flex: 1,
   },
   filterBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: s(44),
+    height: s(44),
+    borderRadius: s(22),
     backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -637,11 +680,11 @@ const styles = StyleSheet.create({
   // Date picker FAB
   datePickerFab: {
     position: 'absolute',
-    right: 20,
-    bottom: 24,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    right: s(20),
+    bottom: vs(24),
+    width: s(52),
+    height: s(52),
+    borderRadius: s(26),
     overflow: 'hidden',
     // Liquid glass border
     borderWidth: 1,
@@ -664,11 +707,11 @@ const styles = StyleSheet.create({
   },
   fabDot: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+    top: s(10),
+    right: s(10),
+    width: s(7),
+    height: s(7),
+    borderRadius: s(4),
     backgroundColor: '#A855F7',
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.7)',

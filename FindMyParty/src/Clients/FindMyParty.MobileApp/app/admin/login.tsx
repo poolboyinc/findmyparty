@@ -18,6 +18,7 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { s, vs, ms } from '@/constants/responsive';
 import { authService } from '@/services/authService';
 
 export default function AdminLoginScreen() {
@@ -94,7 +95,7 @@ export default function AdminLoginScreen() {
             {/* Username / Email field */}
             <BlurView intensity={12} tint="dark" style={styles.fieldBlur}>
               <View style={styles.fieldRow}>
-                <Ionicons name="person-outline" size={26} color="rgba(255,255,255,0.75)" />
+                <Ionicons name="person-outline" size={ms(26)} color="rgba(255,255,255,0.75)" />
                 <TextInput
                   style={styles.input}
                   placeholder="Username"
@@ -110,9 +111,9 @@ export default function AdminLoginScreen() {
             </BlurView>
 
             {/* Password field */}
-            <BlurView intensity={12} tint="dark" style={[styles.fieldBlur, { marginTop: 24 }]}>
+            <BlurView intensity={12} tint="dark" style={[styles.fieldBlur, { marginTop: vs(24) }]}>
               <View style={styles.fieldRow}>
-                <Ionicons name="lock-closed-outline" size={26} color="rgba(255,255,255,0.75)" />
+                <Ionicons name="lock-closed-outline" size={ms(26)} color="rgba(255,255,255,0.75)" />
                 <TextInput
                   style={styles.input}
                   placeholder="Password"
@@ -126,7 +127,7 @@ export default function AdminLoginScreen() {
                 <TouchableOpacity onPress={() => setShowPassword(v => !v)} activeOpacity={0.7}>
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={22}
+                    size={ms(22)}
                     color="rgba(255,255,255,0.5)"
                   />
                 </TouchableOpacity>
@@ -175,16 +176,16 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 36,
-    gap: 40,
+    paddingHorizontal: s(36),
+    gap: vs(40),
   },
   logoArea: {
     alignItems: 'center',
-    gap: 10,
+    gap: vs(10),
   },
   brandName: {
     color: '#FFF',
-    fontSize: 26,
+    fontSize: ms(26),
     fontWeight: '800',
     letterSpacing: 0.3,
   },
@@ -193,41 +194,41 @@ const styles = StyleSheet.create({
   },
   fieldBlur: {
     overflow: 'hidden',
-    borderRadius: 4,
+    borderRadius: s(4),
   },
   fieldRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    gap: 14,
+    paddingHorizontal: s(8),
+    paddingVertical: vs(10),
+    gap: s(14),
   },
   input: {
     flex: 1,
     color: '#FFF',
-    fontSize: 22,
+    fontSize: ms(22),
     fontWeight: '300',
   },
   fieldUnderline: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.45)',
-    marginHorizontal: 8,
+    marginHorizontal: s(8),
   },
   errorText: {
     color: '#FF6B6B',
-    fontSize: 14,
+    fontSize: ms(14),
     fontWeight: '500',
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: vs(16),
   },
   btnWrapper: {
     width: '100%',
-    height: 51,
-    borderRadius: 48,
+    height: vs(51),
+    borderRadius: s(48),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(157,157,157,0.6)',
-    marginBottom: 10,
+    marginBottom: vs(10),
   },
   btnBlur: {
     flex: 1,
@@ -239,7 +240,7 @@ const styles = StyleSheet.create({
   },
   btnText: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: ms(20),
     fontWeight: '700',
   },
 });

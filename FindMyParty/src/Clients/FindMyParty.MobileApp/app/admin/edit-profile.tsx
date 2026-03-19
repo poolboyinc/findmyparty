@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { s, vs, ms } from '@/constants/responsive';
 import { adminService } from '@/services/adminService';
 import type { HostProfile } from '@/types/auth';
 
@@ -75,7 +76,7 @@ export default function EditProfileScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={28} color="#FFF" />
+          <Ionicons name="arrow-back" size={ms(28)} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
       </View>
@@ -105,14 +106,14 @@ export default function EditProfileScreen() {
           <Text style={styles.venueName}>{hostProfile?.venueName ?? '—'}</Text>
           <TouchableOpacity style={styles.editRow} activeOpacity={0.7}>
             <Text style={styles.editLabel}>Edit</Text>
-            <Ionicons name="create-outline" size={20} color="rgba(255,255,255,0.5)" />
+            <Ionicons name="create-outline" size={ms(20)} color="rgba(255,255,255,0.5)" />
           </TouchableOpacity>
         </View>
 
         {/* ─── Venue Location (read-only, set by FindMyParty team) ─── */}
         <Text style={styles.sectionTitle}>Venue Location</Text>
         <BlurView intensity={10} tint="dark" style={styles.locationBox}>
-          <Ionicons name="location-outline" size={22} color="rgba(255,255,255,0.6)" />
+          <Ionicons name="location-outline" size={ms(22)} color="rgba(255,255,255,0.6)" />
           <View style={styles.locationText}>
             {hostProfile ? (
               <>
@@ -125,14 +126,14 @@ export default function EditProfileScreen() {
               <Text style={styles.locationAddress}>Loading venue location…</Text>
             )}
           </View>
-          <Ionicons name="lock-closed-outline" size={18} color="rgba(255,255,255,0.35)" />
+          <Ionicons name="lock-closed-outline" size={ms(18)} color="rgba(255,255,255,0.35)" />
         </BlurView>
         <Text style={styles.locationHint}>
           Location is managed by the FindMyParty team. Contact support to update it.
         </Text>
 
         {/* ─── Working Hours ─── */}
-        <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Working Hours</Text>
+        <Text style={[styles.sectionTitle, { marginTop: vs(16) }]}>Working Hours</Text>
         <View style={styles.row}>
           <View style={styles.halfCol}>
             <Text style={styles.fieldLabel}>Open</Text>
@@ -140,7 +141,7 @@ export default function EditProfileScreen() {
               <BlurView intensity={10} tint="dark" style={styles.inputBox}>
                 <View style={styles.rowSpaced}>
                   <Text style={styles.inputText}>{formatTime(openTime)}</Text>
-                  <Ionicons name="time-outline" size={26} color="rgba(255,255,255,0.7)" />
+                  <Ionicons name="time-outline" size={ms(26)} color="rgba(255,255,255,0.7)" />
                 </View>
               </BlurView>
             </TouchableOpacity>
@@ -151,7 +152,7 @@ export default function EditProfileScreen() {
               <BlurView intensity={10} tint="dark" style={styles.inputBox}>
                 <View style={styles.rowSpaced}>
                   <Text style={styles.inputText}>{formatTime(closeTime)}</Text>
-                  <Ionicons name="time-outline" size={26} color="rgba(255,255,255,0.7)" />
+                  <Ionicons name="time-outline" size={ms(26)} color="rgba(255,255,255,0.7)" />
                 </View>
               </BlurView>
             </TouchableOpacity>
@@ -179,7 +180,7 @@ export default function EditProfileScreen() {
         )}
 
         {/* ─── Working Days ─── */}
-        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Working Days</Text>
+        <Text style={[styles.sectionTitle, { marginTop: vs(24) }]}>Working Days</Text>
         <View style={styles.daysRow}>
           {DAYS.map(day => {
             const active = activeDays.has(day);
@@ -236,32 +237,32 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-    gap: 8,
+    paddingHorizontal: s(8),
+    paddingBottom: vs(12),
+    gap: s(8),
   },
-  backBtn: { padding: 8 },
+  backBtn: { padding: s(8) },
   headerTitle: {
     color: '#FFF',
-    fontSize: 28,
+    fontSize: ms(28),
     fontWeight: '600',
     flex: 1,
     textAlign: 'center',
-    marginRight: 44,
+    marginRight: s(44),
   },
   scroll: { flex: 1 },
   scrollContent: {
-    paddingHorizontal: 16,
-    gap: 10,
+    paddingHorizontal: s(16),
+    gap: vs(10),
   },
   profileSection: {
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
+    gap: vs(8),
+    marginBottom: vs(16),
   },
   avatarRing: {
     // width/height/borderRadius applied inline via useWindowDimensions
-    padding: 3,
+    padding: s(3),
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -274,90 +275,90 @@ const styles = StyleSheet.create({
   },
   avatarInitials: {
     color: '#FFF',
-    fontSize: 48,
+    fontSize: ms(48),
     fontWeight: '700',
   },
   venueName: {
     color: '#FFF',
-    fontSize: 30,
+    fontSize: ms(30),
     fontWeight: '700',
     textAlign: 'center',
   },
   editRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: s(6),
   },
   editLabel: {
     color: 'rgba(255,255,255,0.5)',
-    fontSize: 22,
+    fontSize: ms(22),
     fontWeight: '400',
   },
   sectionTitle: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: ms(20),
     fontWeight: '600',
-    marginBottom: 4,
-    marginTop: 8,
+    marginBottom: vs(4),
+    marginTop: vs(8),
   },
   locationBox: {
-    borderRadius: 15,
+    borderRadius: s(15),
     overflow: 'hidden',
     backgroundColor: 'rgba(43,43,43,0.85)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: s(14),
+    paddingVertical: vs(12),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: s(10),
   },
   locationText: {
     flex: 1,
-    gap: 2,
+    gap: vs(2),
   },
   locationAddress: {
     color: '#FFF',
-    fontSize: 15,
+    fontSize: ms(15),
     fontWeight: '400',
   },
   locationCoords: {
     color: 'rgba(255,255,255,0.45)',
-    fontSize: 12,
+    fontSize: ms(12),
   },
   locationHint: {
     color: 'rgba(255,255,255,0.4)',
-    fontSize: 12,
-    marginLeft: 4,
-    marginTop: 4,
+    fontSize: ms(12),
+    marginLeft: s(4),
+    marginTop: vs(4),
   },
   fieldLabel: {
     color: 'rgba(255,255,255,0.6)',
-    fontSize: 13,
-    marginBottom: 4,
-    marginLeft: 4,
+    fontSize: ms(13),
+    marginBottom: vs(4),
+    marginLeft: s(4),
   },
   row: {
     flexDirection: 'row',
-    gap: 8,
+    gap: s(8),
   },
   halfCol: {
     flex: 1,
-    gap: 4,
+    gap: vs(4),
   },
   inputBox: {
-    borderRadius: 15,
+    borderRadius: s(15),
     overflow: 'hidden',
     backgroundColor: 'rgba(43,43,43,0.85)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    height: 55,
+    height: vs(55),
     justifyContent: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: s(14),
   },
   inputText: {
     color: '#FFF',
-    fontSize: 18,
+    fontSize: ms(18),
     fontWeight: '400',
   },
   rowSpaced: {
@@ -367,19 +368,19 @@ const styles = StyleSheet.create({
   },
   daysRow: {
     flexDirection: 'row',
-    gap: 2,
+    gap: s(2),
   },
   dayBtnWrapper: {
     flex: 1,
-    height: 55,
-    borderRadius: 10,
+    height: vs(55),
+    borderRadius: s(10),
     overflow: 'hidden',
   },
   dayBtn: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+    borderRadius: s(10),
   },
   dayBtnInactive: {
     flex: 1,
@@ -388,23 +389,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(43,43,43,0.85)',
     borderWidth: 1,
     borderColor: 'rgba(112,112,112,0.5)',
-    borderRadius: 10,
+    borderRadius: s(10),
   },
   dayText: {
     color: '#FFF',
-    fontSize: 13,
+    fontSize: ms(13),
     fontWeight: '300',
   },
   saveBtnWrapper: {
     width: '100%',
-    height: 54,
-    borderRadius: 48,
+    height: vs(54),
+    borderRadius: s(48),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.35)',
-    marginTop: 32,
+    marginTop: vs(32),
     alignSelf: 'center',
-    maxWidth: 331,
+    maxWidth: s(331),
   },
   btnBlur: { flex: 1 },
   saveBtnGradient: {
@@ -414,7 +415,7 @@ const styles = StyleSheet.create({
   },
   saveBtnText: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: ms(20),
     fontWeight: '700',
   },
 });

@@ -1,5 +1,6 @@
-import { authService } from './authService';
+import { authService, fetchWithTimeout } from './authService';
 import { ApiConstants } from '../constants/api';
+import { Alert } from 'react-native';
 import type {
   CreatePartyRequest,
   HostPartyResponse,
@@ -13,48 +14,67 @@ export const partyService = {
   // ── Public ────────────────────────────────────────────────────────────────
 
   async getParties(lat?: number, lng?: number, date?: string): Promise<PartyMapItem[]> {
-    const params = new URLSearchParams({ page: '1', pageSize: '100' });
-    if (lat != null) params.set('lat', String(lat));
-    if (lng != null) params.set('lng', String(lng));
-    if (date) params.set('date', date);
+    try {
+      const params = new URLSearchParams({ page: '1', pageSize: '100' });
+      if (lat != null) params.set('lat', String(lat));
+      if (lng != null) params.set('lng', String(lng));
+      if (date) params.set('date', date);
 
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/parties?${params}`);
-    if (!response.ok) return [];
-    return response.json();
+      const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties?${params}`, {});
+      if (!response.ok) return [];
+      return response.json();
+    } catch {
+      Alert.alert('Connection error', 'Could not load parties. Check your internet connection.');
+      return [];
+    }
   },
 
   async getPartyById(partyId: string): Promise<PartyDetail | null> {
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}`);
-    if (!response.ok) return null;
-    return response.json();
+    try {
+      const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}`, {});
+      if (!response.ok) return null;
+      return response.json();
+    } catch {
+      Alert.alert('Connection error', 'Could not load party details.');
+      return null;
+    }
   },
 
   async getPartyAvailability(partyId: string): Promise<PartyAvailability | null> {
-    const response = await fetch(
-      `${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/availability`
-    );
-    if (!response.ok) return null;
-    return response.json();
+    try {
+      const response = await fetchWithTimeout(
+        `${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/availability`, {}
+      );
+      if (!response.ok) return null;
+      return response.json();
+    } catch {
+      return null;
+    }
   },
 
   // ── Host ──────────────────────────────────────────────────────────────────
 
   async getMyParties(): Promise<HostPartyResponse[]> {
-    const token = await authService.getToken();
-    if (!token) return [];
+    try {
+      const token = await authService.getToken();
+      if (!token) return [];
 
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/parties/mine`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) return [];
-    return response.json();
+      const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/mine`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return [];
+      return response.json();
+    } catch {
+      Alert.alert('Connection error', 'Could not load your parties.');
+      return [];
+    }
   },
 
   async createParty(request: CreatePartyRequest): Promise<string | null> {
     const token = await authService.getToken();
     if (!token) return null;
 
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/parties`, {
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -64,7 +84,6 @@ export const partyService = {
     });
     if (!response.ok) return null;
 
-    // Returns the created party id from the Location header or body
     const location = response.headers.get('Location');
     if (location) return location.split('/').pop() ?? null;
 
@@ -76,7 +95,7 @@ export const partyService = {
     const token = await authService.getToken();
     if (!token) return false;
 
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/publish`,
       {
         method: 'POST',
@@ -90,7 +109,7 @@ export const partyService = {
     const token = await authService.getToken();
     if (!token) return false;
 
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}`, {
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -105,7 +124,7 @@ export const partyService = {
     const token = await authService.getToken();
     if (!token) return false;
 
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/cancel`,
       {
         method: 'POST',
@@ -125,7 +144,7 @@ export const partyService = {
     const formData = new FormData();
     formData.append('file', { uri: imageUri, name: filename, type: `image/${ext}` } as any);
 
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/image`, {
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/image`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
@@ -139,7 +158,7 @@ export const partyService = {
     const token = await authService.getToken();
     if (!token) return false;
 
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}`, {
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });

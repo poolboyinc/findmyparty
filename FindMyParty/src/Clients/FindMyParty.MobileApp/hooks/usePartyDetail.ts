@@ -40,8 +40,8 @@ export function usePartyDetail() {
     setLoading(true);
     setStatusMessage('');
     try {
-      const success = await bookingService.createBooking(party.id, ticketCount);
-      if (success) {
+      const bookingId = await bookingService.createBooking(party.id, ticketCount);
+      if (bookingId) {
         setBookingSuccess(true);
         setStatusMessage(
           `You're in! ${ticketCount} ticket${ticketCount > 1 ? 's' : ''} booked.`

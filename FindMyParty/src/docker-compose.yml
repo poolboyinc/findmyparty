@@ -40,7 +40,7 @@ services:
       dockerfile: Dockerfile
     container_name: fmp-gateway
     ports:
-      - "80:8080"
+      - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
     depends_on:
@@ -87,6 +87,8 @@ services:
       - PartyPublisher__Password=${RABBITMQ_PASS:-guest}
       - PartyPublisher__ExchangeName=party.events
       - Redis__ConnectionString=redis:6379
+    volumes:
+      - parties_images:/app/wwwroot/images
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -121,3 +123,4 @@ services:
 volumes:
   rabbitmq_data:
   redis_data:
+  parties_images:

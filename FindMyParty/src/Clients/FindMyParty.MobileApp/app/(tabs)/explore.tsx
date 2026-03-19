@@ -9,6 +9,8 @@ import {
   Image,
   StatusBar,
   ActivityIndicator,
+  RefreshControl,
+  TextInput,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +20,7 @@ import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { partyService } from '@/services/partyService';
 import type { PartyMapItem } from '@/types/parties';
+import { s, vs, ms } from '@/constants/responsive';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatTime(iso: string): string {
@@ -91,12 +94,12 @@ function PartyCard({ item }: { item: PartyMapItem }) {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <Ionicons name="flame" size={36} color="rgba(255,255,255,0.25)" />
+            <Ionicons name="flame" size={ms(36)} color="rgba(255,255,255,0.25)" />
           </LinearGradient>
         )}
         {/* Heart */}
         <TouchableOpacity style={cardStyles.heartBtn} activeOpacity={0.8}>
-          <Ionicons name="heart-outline" size={18} color="#FFF" />
+          <Ionicons name="heart-outline" size={ms(18)} color="#FFF" />
         </TouchableOpacity>
       </View>
 
@@ -126,11 +129,11 @@ function PartyCard({ item }: { item: PartyMapItem }) {
 const cardStyles = StyleSheet.create({
   container: {
     // width applied inline via useWindowDimensions
-    marginLeft: 14,
+    marginLeft: s(14),
   },
   imageWrapper: {
     // height applied inline via useWindowDimensions
-    borderRadius: 30,
+    borderRadius: s(30),
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#9E47FB',
@@ -146,11 +149,11 @@ const cardStyles = StyleSheet.create({
   },
   heartBtn: {
     position: 'absolute',
-    top: 8,
-    right: 10,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: vs(8),
+    right: s(10),
+    width: s(28),
+    height: vs(28),
+    borderRadius: s(14),
     backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -159,29 +162,29 @@ const cardStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 10,
-    paddingRight: 2,
+    marginTop: vs(10),
+    paddingRight: s(2),
   },
   infoLeft: {
     flex: 1,
-    marginRight: 8,
-    gap: 4,
+    marginRight: s(8),
+    gap: vs(4),
   },
   clubName: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: ms(20),
     fontWeight: '700',
   },
   meta: {
     color: '#FFF',
-    fontSize: 15,
+    fontSize: ms(15),
     fontWeight: '400',
     opacity: 0.85,
   },
   ratingBadge: {
-    height: 24,
-    paddingHorizontal: 10,
-    borderRadius: 30,
+    height: vs(24),
+    paddingHorizontal: s(10),
+    borderRadius: s(30),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -189,7 +192,7 @@ const cardStyles = StyleSheet.create({
   },
   ratingText: {
     color: '#FFF',
-    fontSize: 13,
+    fontSize: ms(13),
     fontWeight: '700',
   },
 });
@@ -233,16 +236,16 @@ function FilterRow({
 
 const filterStyles = StyleSheet.create({
   row: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 10,
+    paddingHorizontal: s(14),
+    paddingVertical: vs(10),
+    gap: s(10),
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 30,
-    paddingHorizontal: 14,
-    borderRadius: 30,
+    height: vs(30),
+    paddingHorizontal: s(14),
+    borderRadius: s(30),
     borderWidth: 1,
     borderColor: '#9739FB',
     backgroundColor: 'rgba(255,255,255,0.08)',
@@ -253,7 +256,7 @@ const filterStyles = StyleSheet.create({
   },
   chipText: {
     color: '#FFF',
-    fontSize: 13,
+    fontSize: ms(13),
     fontWeight: '500',
   },
 });
@@ -285,27 +288,36 @@ export default function PartiesScreen() {
   const { height: H } = useWindowDimensions();
   const [parties, setParties] = useState<PartyMapItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
+  const loadParties = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    let lat: number | undefined;
+    let lng: number | undefined;
+    if (status === 'granted') {
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      lat = loc.coords.latitude;
+      lng = loc.coords.longitude;
+      setUserCoords({ lat, lng });
+    }
+    const data = await partyService.getParties(lat, lng);
+    setParties(data);
+  };
+
   useEffect(() => {
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      let lat: number | undefined;
-      let lng: number | undefined;
-      if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        lat = loc.coords.latitude;
-        lng = loc.coords.longitude;
-        setUserCoords({ lat, lng });
-      }
-      const data = await partyService.getParties(lat, lng);
-      setParties(data);
-      setLoading(false);
-    })();
+    loadParties().finally(() => setLoading(false));
   }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadParties();
+    setRefreshing(false);
+  };
 
   // Sort all parties by distance if we have location
   const sortedByDistance = userCoords
@@ -316,30 +328,37 @@ export default function PartiesScreen() {
       )
     : parties;
 
+  // Apply text search first
+  const searchFiltered = searchQuery.trim()
+    ? sortedByDistance.filter((p) =>
+        p.title.toLowerCase().includes(searchQuery.trim().toLowerCase())
+      )
+    : sortedByDistance;
+
   // Apply active filter
   const filtered: PartyMapItem[] = (() => {
     switch (activeFilter) {
       case 'tonight':
-        return sortedByDistance.filter((p) => isTonight(p.startsAt));
+        return searchFiltered.filter((p) => isTonight(p.startsAt));
       case 'free':
-        return sortedByDistance.filter((p) => p.price === 0);
+        return searchFiltered.filter((p) => p.price === 0);
       case 'weekend':
-        return sortedByDistance.filter((p) => isThisWeekend(p.startsAt));
+        return searchFiltered.filter((p) => isThisWeekend(p.startsAt));
       case 'premium':
-        return sortedByDistance.filter((p) => p.price > 25);
+        return searchFiltered.filter((p) => p.price > 25);
       default:
-        return sortedByDistance;
+        return searchFiltered;
     }
   })();
 
   // Category sections for "All" view
-  const nearby = sortedByDistance.slice(0, 10);
-  const tonight = sortedByDistance.filter((p) => isTonight(p.startsAt));
-  const freeEntry = sortedByDistance.filter((p) => p.price === 0);
-  const thisWeekend = sortedByDistance.filter(
+  const nearby = searchFiltered.slice(0, 10);
+  const tonight = searchFiltered.filter((p) => isTonight(p.startsAt));
+  const freeEntry = searchFiltered.filter((p) => p.price === 0);
+  const thisWeekend = searchFiltered.filter(
     (p) => isThisWeekend(p.startsAt) && !isTonight(p.startsAt)
   );
-  const premium = sortedByDistance.filter((p) => p.price > 25);
+  const premium = searchFiltered.filter((p) => p.price > 25);
 
   return (
     <View style={styles.root}>
@@ -355,16 +374,33 @@ export default function PartiesScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 20 }]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D08FA" colors={['#7D08FA']} />
+        }
       >
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <TouchableOpacity style={styles.searchBar} activeOpacity={0.8}>
-            <Ionicons name="search" size={20} color="rgba(255,255,255,0.8)" />
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={ms(20)} color="rgba(255,255,255,0.8)" />
             <View style={styles.searchDivider} />
-            <Text style={styles.searchPlaceholder}>Search...</Text>
-          </TouchableOpacity>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search..."
+              placeholderTextColor="rgba(255,255,255,0.7)"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+                <Ionicons name="close-circle" size={ms(18)} color="rgba(255,255,255,0.6)" />
+              </TouchableOpacity>
+            )}
+          </View>
           <TouchableOpacity style={styles.bellBtn} activeOpacity={0.8}>
-            <Ionicons name="notifications-outline" size={22} color="#FFF" />
+            <Ionicons name="notifications-outline" size={ms(22)} color="#FFF" />
           </TouchableOpacity>
         </View>
 
@@ -430,54 +466,55 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingBottom: 4,
-    gap: 10,
+    paddingHorizontal: s(14),
+    paddingBottom: vs(4),
+    gap: s(10),
   },
   searchBar: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    height: 40,
-    borderRadius: 30,
+    height: vs(40),
+    borderRadius: s(30),
     borderWidth: 1,
     borderColor: '#FFF',
-    paddingHorizontal: 14,
-    gap: 10,
+    paddingHorizontal: s(14),
+    gap: s(10),
     backgroundColor: 'rgba(126,10,250,0.55)',
   },
   searchDivider: {
-    width: 1,
-    height: 20,
+    width: s(1),
+    height: vs(20),
     backgroundColor: 'rgba(255,255,255,0.4)',
   },
-  searchPlaceholder: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 18,
-    fontWeight: '100',
+  searchInput: {
+    color: '#FFF',
+    fontSize: ms(18),
+    fontWeight: '300',
     flex: 1,
+    paddingVertical: 0,
   },
   bellBtn: {
-    width: 32,
-    height: 32,
+    width: s(32),
+    height: vs(32),
     alignItems: 'center',
     justifyContent: 'center',
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginLeft: 14,
-    marginTop: 14,
-    marginBottom: 12,
+    gap: s(6),
+    marginLeft: s(14),
+    marginTop: vs(14),
+    marginBottom: vs(12),
   },
   sectionTitle: {
     color: '#FFF',
-    fontSize: 22,
+    fontSize: ms(22),
     fontWeight: '700',
   },
   horizontalList: {
-    paddingRight: 14,
+    paddingRight: s(14),
   },
   loadingRow: {
     // height applied inline via useWindowDimensions
@@ -486,8 +523,8 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: 'rgba(255,255,255,0.4)',
-    fontSize: 14,
-    marginLeft: 14,
-    marginBottom: 8,
+    fontSize: ms(14),
+    marginLeft: s(14),
+    marginBottom: vs(8),
   },
 });

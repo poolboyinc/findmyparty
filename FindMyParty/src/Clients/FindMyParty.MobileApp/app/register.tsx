@@ -15,6 +15,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { useRegister } from '@/hooks/useAuth';
+import { s, vs, ms } from '@/constants/responsive';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -23,7 +24,7 @@ function PwHint({ met, label }: { met: boolean; label: string }) {
     <View style={styles.pwHintRow}>
       <Ionicons
         name={met ? 'checkmark-circle' : 'ellipse-outline'}
-        size={14}
+        size={ms(14)}
         color={met ? '#A8F0C6' : 'rgba(255,255,255,0.5)'}
       />
       <Text style={[styles.pwHintText, met && styles.pwHintTextMet]}>{label}</Text>
@@ -47,8 +48,9 @@ export default function RegisterPage() {
     lower: /[a-z]/.test(password),
   };
 
+  const nameValid = userName.trim().length >= 2;
   const formValid =
-    userName.trim().length > 0 &&
+    nameValid &&
     EMAIL_REGEX.test(email.trim()) &&
     pwChecks.length && pwChecks.digit && pwChecks.lower;
 
@@ -81,7 +83,7 @@ export default function RegisterPage() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={26} color="#FFF" />
+          <Ionicons name="arrow-back" size={ms(26)} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.title}>Sign Up</Text>
         <View style={styles.backBtn} />
@@ -91,7 +93,7 @@ export default function RegisterPage() {
       <View style={styles.form}>
         {/* Name */}
         <View style={styles.fieldRow}>
-          <Ionicons name="person-outline" size={28} color="#FFF" style={styles.fieldIcon} />
+          <Ionicons name="person-outline" size={ms(28)} color="#FFF" style={styles.fieldIcon} />
           <TextInput
             style={styles.fieldInput}
             placeholder="Name"
@@ -106,7 +108,7 @@ export default function RegisterPage() {
 
         {/* Email */}
         <View style={styles.fieldRow}>
-          <Ionicons name="mail-outline" size={28} color="#FFF" style={styles.fieldIcon} />
+          <Ionicons name="mail-outline" size={ms(28)} color="#FFF" style={styles.fieldIcon} />
           <TextInput
             style={styles.fieldInput}
             placeholder="Email"
@@ -126,7 +128,7 @@ export default function RegisterPage() {
 
         {/* Password */}
         <View style={styles.fieldRow}>
-          <Ionicons name="lock-closed-outline" size={28} color="#FFF" style={styles.fieldIcon} />
+          <Ionicons name="lock-closed-outline" size={ms(28)} color="#FFF" style={styles.fieldIcon} />
           <TextInput
             style={styles.fieldInput}
             placeholder="Password"
@@ -140,7 +142,7 @@ export default function RegisterPage() {
           <TouchableOpacity onPress={() => setPasswordVisible(v => !v)} activeOpacity={0.7}>
             <Ionicons
               name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
-              size={28}
+              size={ms(28)}
               color="#FFF"
             />
           </TouchableOpacity>
@@ -196,86 +198,86 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: s(20),
+    paddingBottom: vs(16),
   },
   backBtn: {
-    width: 48,
-    height: 48,
+    width: s(48),
+    height: vs(48),
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
     color: '#FFF',
-    fontSize: 32,
+    fontSize: ms(32),
     fontWeight: '600',
     letterSpacing: 0.2,
   },
   form: {
     flex: 1,
-    paddingHorizontal: 28,
+    paddingHorizontal: s(28),
     paddingTop: '12%',
-    gap: 28,
+    gap: vs(28),
   },
   fieldRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: s(16),
   },
   fieldIcon: {
-    width: 32,
+    width: s(32),
   },
   fieldInput: {
     flex: 1,
     color: '#FFF',
-    fontSize: 22,
+    fontSize: ms(22),
     fontWeight: '300',
-    paddingVertical: 4,
+    paddingVertical: vs(4),
   },
   fieldLine: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.6)',
-    marginTop: -20,
+    marginTop: vs(-20),
   },
   errorText: {
     color: '#FFD0D0',
-    fontSize: 13,
+    fontSize: ms(13),
     textAlign: 'center',
-    marginTop: -12,
+    marginTop: vs(-12),
   },
   fieldLineError: {
     backgroundColor: '#FFD0D0',
   },
   fieldError: {
     color: '#FFD0D0',
-    fontSize: 12,
-    marginTop: -20,
+    fontSize: ms(12),
+    marginTop: vs(-20),
   },
   pwHints: {
-    gap: 6,
-    marginTop: -20,
+    gap: vs(6),
+    marginTop: vs(-20),
   },
   pwHintRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: s(6),
   },
   pwHintText: {
     color: 'rgba(255,255,255,0.5)',
-    fontSize: 12,
+    fontSize: ms(12),
   },
   pwHintTextMet: {
     color: '#A8F0C6',
   },
   button: {
     backgroundColor: '#9B989D',
-    borderRadius: 48,
-    height: 51,
+    borderRadius: s(48),
+    height: vs(51),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#646464',
-    marginTop: 8,
+    marginTop: vs(8),
   },
   buttonActive: {
     backgroundColor: '#7D08FA',
@@ -283,12 +285,12 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#FFF',
-    fontSize: 20,
+    fontSize: ms(20),
     fontWeight: '700',
   },
   linkText: {
     color: 'rgba(255,255,255,0.85)',
-    fontSize: 15,
+    fontSize: ms(15),
     textAlign: 'center',
   },
   linkHighlight: {

@@ -13,7 +13,7 @@ const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'auth_refresh_token';
 const FETCH_TIMEOUT_MS = 8000;
 
-async function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
+export async function fetchWithTimeout(url: string, options: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -135,11 +135,20 @@ export const authService = {
     ]);
   },
 
+  // Deduplicates concurrent refresh calls
+  _refreshPromise: null as Promise<boolean> | null,
+
   async getToken(): Promise<string | null> {
     const token = await SecureStore.getItemAsync(TOKEN_KEY);
     if (!token) return null;
     if (isTokenExpired(token)) {
-      const refreshed = await authService.refresh();
+      // If a refresh is already in-flight, wait for it instead of starting another
+      if (!authService._refreshPromise) {
+        authService._refreshPromise = authService.refresh().finally(() => {
+          authService._refreshPromise = null;
+        });
+      }
+      const refreshed = await authService._refreshPromise;
       if (!refreshed) return null;
       return SecureStore.getItemAsync(TOKEN_KEY);
     }
@@ -147,7 +156,7 @@ export const authService = {
   },
 
   async getUserInfo(): Promise<UserInfo | null> {
-    const token = await SecureStore.getItemAsync(TOKEN_KEY);
+    const token = await authService.getToken();
     if (!token) return null;
 
     const payload = decodeJwtPayload(token);

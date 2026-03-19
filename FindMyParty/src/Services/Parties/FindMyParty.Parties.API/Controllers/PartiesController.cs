@@ -190,7 +190,7 @@ public class PartiesController(
         var result = new
         {
             remainingCapacity = party.Capacity - party.TicketsSold,
-            isAvailable = party.TicketsSold < party.Capacity,
+            isSoldOut = party.TicketsSold >= party.Capacity,
             pricePerTicket = party.Price
         };
 

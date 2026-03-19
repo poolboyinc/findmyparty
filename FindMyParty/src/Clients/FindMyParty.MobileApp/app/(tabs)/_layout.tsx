@@ -4,6 +4,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { s, vs, ms } from '@/constants/responsive';
 
 // ─── Tab definitions ───────────────────────────────────────────────────────────
 const TABS = [
@@ -49,7 +50,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             accessibilityState={isFocused ? { selected: true } : {}}
             accessibilityLabel={tab.label}
           >
-            <Ionicons name={tab.icon} size={26} color={color} />
+            <Ionicons name={tab.icon} size={ms(26)} color={color} />
             <Text style={[styles.tabLabel, { color }]}>{tab.label}</Text>
             {isFocused && <View style={styles.activeIndicator} />}
           </TouchableOpacity>
@@ -82,10 +83,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#110F14',
     borderTopColor: 'rgba(255,255,255,0.15)',
     borderTopWidth: 1,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 14,
-    paddingHorizontal: 8,
+    borderTopLeftRadius: s(24),
+    borderTopRightRadius: s(24),
+    paddingTop: vs(14),
+    paddingHorizontal: s(8),
     // Shadow for depth
     ...Platform.select({
       ios: {
@@ -108,16 +109,16 @@ const styles = StyleSheet.create({
     paddingBottom: 2,
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: ms(11),
     fontWeight: '600',
     letterSpacing: 0.2,
   },
   activeIndicator: {
     position: 'absolute',
-    top: -14,
-    width: 32,
-    height: 3,
-    borderRadius: 2,
+    top: vs(-14),
+    width: s(32),
+    height: vs(3),
+    borderRadius: s(2),
     backgroundColor: '#7D08FA',
   },
 });

@@ -1,4 +1,4 @@
-import { authService } from './authService';
+import { authService, fetchWithTimeout } from './authService';
 import { ApiConstants } from '../constants/api';
 import type { AssignRoleRequest, HostProfile, UpdateSubscriptionRequest, UserListItem } from '../types/auth';
 
@@ -8,7 +8,7 @@ export const adminService = {
     if (!token) return [];
 
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/users?${params}`, {
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/users?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) return [];
@@ -19,7 +19,7 @@ export const adminService = {
     const token = await authService.getToken();
     if (!token) return false;
 
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/users/${userId}/roles`, {
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/users/${userId}/roles`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -34,7 +34,7 @@ export const adminService = {
     const token = await authService.getToken();
     if (!token) return false;
 
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${ApiConstants.GatewayBaseUrl}/api/users/${userId}/roles/${role}`,
       {
         method: 'DELETE',
@@ -48,7 +48,7 @@ export const adminService = {
     const token = await authService.getToken();
     if (!token) return null;
 
-    const response = await fetch(`${ApiConstants.GatewayBaseUrl}/api/hosts/profile`, {
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/hosts/profile`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) return null;
@@ -59,7 +59,7 @@ export const adminService = {
     const token = await authService.getToken();
     if (!token) return false;
 
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${ApiConstants.GatewayBaseUrl}/api/users/${userId}/subscription`,
       {
         method: 'PUT',

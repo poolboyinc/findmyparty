@@ -23,6 +23,8 @@ export function useProfile() {
   }, []);
 
   const logout = useCallback(async () => {
+    setUserInfo(null);
+    setBookingCount(0);
     await authService.logout();
   }, []);
 
