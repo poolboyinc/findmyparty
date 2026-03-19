@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Platform,
   useWindowDimensions,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -178,7 +179,12 @@ export default function CreatePartyScreen() {
       );
 
       if (publish) {
-        await partyService.publishParty(partyId);
+        const published = await partyService.publishParty(partyId);
+        if (!published) {
+          Alert.alert('Saved as Draft', 'Party was created but could not be published. You can publish it from Manage Parties.');
+          router.back();
+          return;
+        }
         Alert.alert('Posted!', 'Your party is now live on the map.', [
           { text: 'OK', onPress: () => router.back() },
         ]);
@@ -382,11 +388,16 @@ export default function CreatePartyScreen() {
             <TouchableOpacity key={i} onPress={() => pickImage(i)} activeOpacity={0.8} style={styles.halfCol}>
               <BlurView intensity={10} tint="dark" style={[styles.imageBox, { height: imageBoxHeight }]}>
                 {images[i] ? (
-                  // eslint-disable-next-line @typescript-eslint/no-require-imports
-                  <View style={styles.imagePreview}>
-                    <Ionicons name="checkmark-circle" size={ms(36)} color="#7D08FA" />
-                    <Text style={styles.imagePreviewText}>Image {i + 1}</Text>
-                  </View>
+                  <>
+                    <Image
+                      source={{ uri: images[i]! }}
+                      style={StyleSheet.absoluteFill}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.imageCheckBadge}>
+                      <Ionicons name="checkmark-circle" size={ms(24)} color="#FFF" />
+                    </View>
+                  </>
                 ) : (
                   <Ionicons name="image-outline" size={ms(40)} color="rgba(255,255,255,0.5)" />
                 )}
@@ -554,14 +565,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  imagePreview: {
-    alignItems: 'center',
-    gap: vs(6),
-  },
-  imagePreviewText: {
-    color: '#FFF',
-    fontSize: ms(13),
-    fontWeight: '500',
+  imageCheckBadge: {
+    position: 'absolute',
+    bottom: vs(6),
+    right: s(6),
+    backgroundColor: '#7D08FA',
+    borderRadius: ms(12),
+    padding: ms(2),
   },
   featuredRow: {
     flexDirection: 'row',

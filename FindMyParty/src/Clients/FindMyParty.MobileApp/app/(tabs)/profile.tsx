@@ -111,7 +111,7 @@ export default function ProfileScreen() {
   );
 
   const handleSavedEvents = () => {
-    // TODO: navigate to saved events
+    router.push('/my-bookings');
   };
 
   const handleEditProfile = () => {

@@ -27,7 +27,8 @@ export default function AdminDashboardScreen() {
   useEffect(() => {
     authService.getUserInfo().then(info => {
       if (info?.userName) setUserName(info.userName);
-      if (info && info.role !== 'Host' && info.role !== 'Admin') {
+      const roles = info?.roles ?? [];
+      if (info && !roles.includes('Host') && !roles.includes('Admin')) {
         Alert.alert(
           'Access denied',
           'You need a Host account to access the admin portal.',

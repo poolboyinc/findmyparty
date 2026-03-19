@@ -45,8 +45,8 @@ export default function AdminLoginScreen() {
         return;
       }
       const userInfo = await authService.getUserInfo();
-      const role = userInfo?.role ?? '';
-      if (role === 'Host' || role === 'Admin') {
+      const roles = userInfo?.roles ?? [];
+      if (roles.includes('Host') || roles.includes('Admin')) {
         router.replace('/admin/dashboard');
       } else {
         await authService.logout();

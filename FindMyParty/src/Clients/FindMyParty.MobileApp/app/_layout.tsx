@@ -26,7 +26,7 @@ function useProtectedRoute() {
     if (root === 'splash' || root === undefined) return;
 
     // Auth and onboarding screens are always accessible
-    const publicRoutes = ['onboarding', 'login', 'register'];
+    const publicRoutes = ['onboarding', 'login', 'register', 'admin'];
     if (publicRoutes.includes(root)) {
       setChecked(true);
       return;
@@ -57,6 +57,7 @@ export default function RootLayout() {
         <Stack.Screen name="register" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="party/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="my-bookings" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="admin" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>

@@ -27,32 +27,47 @@ namespace FindMyParty.Identity.API.Controllers
                 return NotFound("User not found.");
 
             var alreadyHost = await userManager.IsInRoleAsync(user, "Host");
-            if (alreadyHost)
+            var existingProfile = await db.VenueProfiles.FirstOrDefaultAsync(v => v.UserId == userId);
+
+            if (alreadyHost && existingProfile is not null)
                 return Conflict("User is already a host.");
 
-            // Assign Host role
-            var roleResult = await userManager.AddToRoleAsync(user, "Host");
-            if (!roleResult.Succeeded)
-                return BadRequest(roleResult.Errors);
+            if (!alreadyHost)
+            {
+                var roleResult = await userManager.AddToRoleAsync(user, "Host");
+                if (!roleResult.Succeeded)
+                    return BadRequest(roleResult.Errors);
+            }
 
-            // Create venue profile — if this fails, roll back the role assignment
+            // Create venue profile — if this fails and we just assigned the role, roll it back
             try
             {
-                db.VenueProfiles.Add(new VenueProfile
+                if (existingProfile is null)
                 {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    VenueName = request.VenueName,
-                    Address = request.Address,
-                    Latitude = request.Latitude,
-                    Longitude = request.Longitude
-                });
+                    db.VenueProfiles.Add(new VenueProfile
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = userId,
+                        VenueName = request.VenueName,
+                        Address = request.Address,
+                        Latitude = request.Latitude,
+                        Longitude = request.Longitude
+                    });
+                }
+                else
+                {
+                    existingProfile.VenueName = request.VenueName;
+                    existingProfile.Address = request.Address;
+                    existingProfile.Latitude = request.Latitude;
+                    existingProfile.Longitude = request.Longitude;
+                }
 
                 await db.SaveChangesAsync();
             }
             catch
             {
-                await userManager.RemoveFromRoleAsync(user, "Host");
+                if (!alreadyHost)
+                    await userManager.RemoveFromRoleAsync(user, "Host");
                 throw;
             }
 

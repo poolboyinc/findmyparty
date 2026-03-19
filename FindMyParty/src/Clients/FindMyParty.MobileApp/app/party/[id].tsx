@@ -20,6 +20,7 @@ import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { partyService } from '@/services/partyService';
+import { resolveMediaUrl } from '@/constants/api';
 import { bookingService } from '@/services/bookingService';
 import type { PartyDetail } from '@/types/parties';
 import { s, vs, ms } from '@/constants/responsive';
@@ -194,7 +195,7 @@ export default function PartyDetailScreen() {
     const imageUrl = await partyService.uploadPartyImage(party.id, result.assets[0].uri);
     setUploading(false);
     if (imageUrl) {
-      setParty((p) => (p ? { ...p, imageUrl } : p));
+      setParty((p) => (p ? { ...p, imageUrl: resolveMediaUrl(imageUrl) ?? imageUrl } : p));
     } else {
       Alert.alert('Upload failed', 'Could not upload image. Make sure you are the host of this party.');
     }
@@ -212,9 +213,9 @@ export default function PartyDetailScreen() {
           activeOpacity={0.9}
           onPress={handleImagePress}
         >
-          {party.imageUrl ? (
+          {resolveMediaUrl(party.imageUrl) ? (
             <Image
-              source={{ uri: party.imageUrl }}
+              source={{ uri: resolveMediaUrl(party.imageUrl)! }}
               style={[styles.heroImage, { height: HERO_HEIGHT }]}
               resizeMode="cover"
             />

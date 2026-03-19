@@ -57,6 +57,13 @@ function getStringClaim(payload: Record<string, unknown>, key: string): string {
   return String(value ?? '');
 }
 
+function getArrayClaim(payload: Record<string, unknown>, key: string): string[] {
+  const value = payload[key];
+  if (Array.isArray(value)) return value.map(String);
+  if (value) return [String(value)];
+  return [];
+}
+
 async function storeTokens(response: LoginResponse): Promise<void> {
   await Promise.all([
     SecureStore.setItemAsync(TOKEN_KEY, response.accessToken),
@@ -170,6 +177,7 @@ export const authService = {
       getStringClaim(payload, 'name') ||
       getStringClaim(payload, 'userName') ||
       email.split('@')[0];
+    const roles = getArrayClaim(payload, ROLE_CLAIM_KEY);
 
     return {
       userId,
@@ -177,7 +185,17 @@ export const authService = {
       userName,
       subscription: getStringClaim(payload, 'subscription'),
       role: getStringClaim(payload, ROLE_CLAIM_KEY),
+      roles,
     };
+  },
+
+  async hasRole(...roles: string[]): Promise<boolean> {
+    const token = await authService.getToken();
+    if (!token) return false;
+    const payload = decodeJwtPayload(token);
+    if (!payload) return false;
+    const userRoles = getArrayClaim(payload, ROLE_CLAIM_KEY);
+    return roles.some(r => userRoles.includes(r));
   },
 
   async externalSignIn(provider: string, idToken: string, name?: string): Promise<boolean> {

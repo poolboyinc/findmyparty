@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   StyleSheet,
   Animated,
@@ -18,13 +19,15 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import MapboxGL from '@rnmapbox/maps';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import { ApiConstants } from '@/constants/api';
+import { ApiConstants, resolveMediaUrl } from '@/constants/api';
 import { s, vs, ms } from '@/constants/responsive';
 import { useExplore } from '@/hooks/useExplore';
 import type { PartyMapItem } from '@/types/parties';
 
-// Set Mapbox access token once
-MapboxGL.setAccessToken(ApiConstants.MapboxPublicToken);
+// Set Mapbox access token once (only if present — missing token redirects to onboarding at runtime)
+if (ApiConstants.MapboxPublicToken) {
+  MapboxGL.setAccessToken(ApiConstants.MapboxPublicToken);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatTime(isoString: string): string {
@@ -121,21 +124,22 @@ function PartyCard({
     <Animated.View style={[cardStyles.container, { transform: [{ translateY }] }]}>
       {/* Image section */}
       <View style={[cardStyles.imageSection, { height: imageSectionHeight }]}>
-        <LinearGradient
-          colors={['#1a0030', '#3D0880', '#7D08FA']}
-          style={cardStyles.imagePlaceholder}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Ionicons name="musical-notes" size={ms(48)} color="rgba(255,255,255,0.3)" />
-        </LinearGradient>
-
-        {/* Dot indicators */}
-        <View style={cardStyles.dotsRow}>
-          {[0, 1, 2].map((i) => (
-            <View key={i} style={[cardStyles.dot, i === 0 && cardStyles.dotActive]} />
-          ))}
-        </View>
+        {resolveMediaUrl(party.imageUrl) ? (
+          <Image
+            source={{ uri: resolveMediaUrl(party.imageUrl)! }}
+            style={cardStyles.imagePlaceholder}
+            resizeMode="cover"
+          />
+        ) : (
+          <LinearGradient
+            colors={['#1a0030', '#3D0880', '#7D08FA']}
+            style={cardStyles.imagePlaceholder}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="musical-notes" size={ms(48)} color="rgba(255,255,255,0.3)" />
+          </LinearGradient>
+        )}
 
         {/* Heart + Close buttons */}
         <View style={cardStyles.imageActions}>
@@ -454,12 +458,20 @@ export default function ExploreScreen() {
   const [locationDenied, setLocationDenied] = useState(false);
   const cameraRef = useRef<MapboxGL.Camera>(null);
 
+  // Guard: redirect if Mapbox token is missing
+  useEffect(() => {
+    if (!ApiConstants.MapboxPublicToken) {
+      router.replace('/onboarding');
+    }
+  }, []);
+
   // Request location permission, fly to user, and load nearby parties
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         setLocationDenied(true);
+        loadParties(); // still load all parties without location filter
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });

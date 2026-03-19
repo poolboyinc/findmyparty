@@ -12,3 +12,14 @@ export const ApiConstants = {
     ? `http://${DEV_HOST}:5000`
     : 'https://api.findmyparty.com',
 };
+
+/**
+ * Rewrites localhost media URLs returned by backend services to use the
+ * actual dev host IP so the phone/emulator can reach them.
+ * In production, URLs are already absolute and pass through unchanged.
+ */
+export function resolveMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (!__DEV__) return url;
+  return url.replace(/http:\/\/localhost(:\d+)?/g, (_, port) => `http://${DEV_HOST}${port ?? ''}`);
+}

@@ -61,9 +61,10 @@ export default function OnboardingPage() {
   });
 
   useEffect(() => {
-    if (response?.type === 'success' && request?.codeVerifier) {
+    if (!response) return;
+    if (response.type === 'success' && request?.codeVerifier) {
       exchangeGoogleCode(response.params.code, request.codeVerifier);
-    } else if (response?.type === 'error' || response?.type === 'dismiss') {
+    } else if (response.type !== 'success') {
       setLoading(null);
     }
   }, [response]);

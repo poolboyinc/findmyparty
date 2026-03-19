@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Alert,
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -47,9 +48,29 @@ function groupByDate(parties: HostPartyResponse[]): { date: string; items: HostP
   }));
 }
 
-function PartyCard({ party }: { party: HostPartyResponse }) {
+function PartyCard({ party, onPublish, onDelete, onCancel }: {
+  party: HostPartyResponse;
+  onPublish: (id: string) => void;
+  onDelete: (id: string) => void;
+  onCancel: (id: string) => void;
+}) {
   const isDraft = party.status?.toLowerCase() === 'draft';
+  const isPublished = party.status?.toLowerCase() === 'published' || party.status?.toLowerCase() === 'soldout';
   const { height: H } = useWindowDimensions();
+
+  const handleEditPress = () => {
+    const options: { text: string; style?: 'destructive' | 'cancel' | 'default'; onPress?: () => void }[] = [];
+
+    if (isDraft) {
+      options.push({ text: 'Delete Draft', style: 'destructive', onPress: () => onDelete(party.id) });
+    }
+    if (isPublished) {
+      options.push({ text: 'Cancel Party', style: 'destructive', onPress: () => onCancel(party.id) });
+    }
+    options.push({ text: 'Dismiss', style: 'cancel' });
+
+    Alert.alert(party.title, undefined, options);
+  };
   const imageAreaHeight = H * 0.129;  // 109/844
 
   return (
@@ -75,7 +96,7 @@ function PartyCard({ party }: { party: HostPartyResponse }) {
         <TouchableOpacity
           style={styles.editBtn}
           activeOpacity={0.8}
-          onPress={() => {/* TODO: navigate to edit screen */}}
+          onPress={handleEditPress}
         >
           <BlurView intensity={30} tint="light" style={styles.editBtnBlur}>
             <Ionicons name="create-outline" size={ms(22)} color="#FFF" />
@@ -90,11 +111,20 @@ function PartyCard({ party }: { party: HostPartyResponse }) {
             <Text style={styles.infoTitle} numberOfLines={1}>{party.title}</Text>
           </View>
           <Text style={styles.infoTime}>{formatTimeRange(party.startsAt, party.endsAt)}</Text>
+          {isDraft && (
+            <TouchableOpacity
+              style={styles.publishBtn}
+              activeOpacity={0.8}
+              onPress={() => onPublish(party.id)}
+            >
+              <Text style={styles.publishBtnText}>Publish →</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={styles.infoRight}>
           <Text style={styles.infoMeta}>Entrance: €{party.price}</Text>
           <Text style={styles.infoMeta}>RSVPs: {party.ticketsSold}</Text>
-          <Text style={styles.viewBookings}>View bookings →</Text>
+          {!isDraft && <Text style={styles.viewBookings}>View bookings →</Text>}
         </View>
       </View>
     </BlurView>
@@ -112,6 +142,47 @@ export default function ManagePartiesScreen() {
 
   useEffect(() => {
     loadParties().finally(() => setLoading(false));
+  }, []);
+
+  const handlePublish = useCallback(async (partyId: string) => {
+    const success = await partyService.publishParty(partyId);
+    if (success) {
+      await loadParties();
+    } else {
+      Alert.alert('Failed', 'Could not publish the party. Please try again.');
+    }
+  }, []);
+
+  const handleDelete = useCallback((partyId: string) => {
+    Alert.alert('Delete Draft', 'This will permanently delete the draft. Continue?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          const success = await partyService.deleteParty(partyId);
+          if (success) {
+            await loadParties();
+          } else {
+            Alert.alert('Failed', 'Could not delete the party. Please try again.');
+          }
+        },
+      },
+    ]);
+  }, []);
+
+  const handleCancel = useCallback((partyId: string) => {
+    Alert.alert('Cancel Party', 'This will cancel the party and notify all attendees. Continue?', [
+      { text: 'Go back', style: 'cancel' },
+      {
+        text: 'Cancel Party', style: 'destructive', onPress: async () => {
+          const success = await partyService.cancelParty(partyId);
+          if (success) {
+            await loadParties();
+          } else {
+            Alert.alert('Failed', 'Could not cancel the party. Please try again.');
+          }
+        },
+      },
+    ]);
   }, []);
 
   const onRefresh = async () => {
@@ -162,7 +233,7 @@ export default function ManagePartiesScreen() {
             <View key={gi} style={styles.group}>
               <Text style={styles.dateLabel}>{formatDateHeader(group.date)}</Text>
               {group.items.map(party => (
-                <PartyCard key={party.id} party={party} />
+                <PartyCard key={party.id} party={party} onPublish={handlePublish} onDelete={handleDelete} onCancel={handleCancel} />
               ))}
             </View>
           ))}
@@ -307,5 +378,18 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     fontWeight: '500',
     marginTop: vs(2),
+  },
+  publishBtn: {
+    marginTop: vs(6),
+    backgroundColor: '#7D08FA',
+    borderRadius: s(8),
+    paddingHorizontal: s(10),
+    paddingVertical: vs(4),
+    alignSelf: 'flex-start',
+  },
+  publishBtnText: {
+    color: '#FFF',
+    fontSize: ms(13),
+    fontWeight: '600',
   },
 });

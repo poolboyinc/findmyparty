@@ -25,6 +25,7 @@ export interface UserInfo {
   userName: string;
   subscription: string;
   role: string;
+  roles: string[];
 }
 
 export interface ExternalAuthRequest {
