@@ -1,8 +1,11 @@
+using Amazon.S3;
+using Amazon.S3.Model;
 using FindMyParty.Parties.API.Application.Handlers;
 using FindMyParty.Parties.API.Application.IntegrationEvents.EventBus;
 using FindMyParty.Parties.API.Application.IntegrationEvents.Handlers;
 using FindMyParty.Parties.API.Infrastructure.Data;
 using FindMyParty.Parties.API.Infrastructure.Messaging;
+using FindMyParty.Parties.API.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -70,6 +73,14 @@ builder.Services.AddScoped<DeletePartyCommandHandler>();
 builder.Services.AddScoped<GetPublishedPartiesQueryHandler>();
 builder.Services.AddScoped<GetPartyByIdQueryHandler>();
 builder.Services.AddScoped<GetHostPartiesQueryHandler>();
+
+builder.Services.AddSingleton<IAmazonS3>(_ =>
+{
+    var region = Amazon.RegionEndpoint.GetBySystemName(
+        builder.Configuration["AWS:Region"] ?? "eu-central-1");
+    return new Amazon.S3.AmazonS3Client(region);
+});
+builder.Services.AddScoped<IS3ImageService, S3ImageService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();

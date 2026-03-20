@@ -3,6 +3,7 @@ using FindMyParty.Parties.API.Application.DTOs;
 using FindMyParty.Parties.API.Application.Handlers;
 using FindMyParty.Parties.API.Application.Queries;
 using FindMyParty.Parties.API.Infrastructure.Data;
+using FindMyParty.Parties.API.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
@@ -22,7 +23,7 @@ public class PartiesController(
     GetHostPartiesQueryHandler hostPartiesHandler,
     PartiesDbContext db,
     IDistributedCache cache,
-    IWebHostEnvironment env) : ControllerBase
+    IS3ImageService s3) : ControllerBase
 {
     [Authorize(Roles = "Host")]
     [HttpPost]
@@ -157,16 +158,12 @@ public class PartiesController(
         var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
         if (!allowed.Contains(ext)) return BadRequest("Only jpg, png and webp images are allowed.");
 
-        var imagesDir = Path.Combine(env.WebRootPath, "images", "parties");
-        Directory.CreateDirectory(imagesDir);
+        var contentType = file.ContentType;
+        var key = $"parties/{id}{ext}";
 
-        var fileName = $"{id}{ext}";
-        var filePath = Path.Combine(imagesDir, fileName);
+        using var stream = file.OpenReadStream();
+        var imageUrl = await s3.UploadAsync(stream, key, contentType);
 
-        using (var stream = System.IO.File.Create(filePath))
-            await file.CopyToAsync(stream);
-
-        var imageUrl = $"{Request.Scheme}://{Request.Host}/images/parties/{fileName}";
         party.SetImageUrl(imageUrl);
         await db.SaveChangesAsync();
 
