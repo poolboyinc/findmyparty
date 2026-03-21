@@ -27,7 +27,8 @@ namespace FindMyParty.Parties.API.Application.Handlers
                 return JsonSerializer.Deserialize<List<PartyResponse>>(cached)!;
 
             var dbQuery = db.Parties
-                .Where(p => p.Status == Domain.Enums.PartyStatus.Published && !p.IsDeleted);
+                .Where(p => p.Status == Domain.Enums.PartyStatus.Published && !p.IsDeleted)
+                .Where(p => p.EndsAt >= DateTime.UtcNow);
 
             if (query.Date.HasValue)
             {
