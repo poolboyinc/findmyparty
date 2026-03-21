@@ -10,7 +10,7 @@ export const ApiConstants = {
   // All traffic goes through the YARP gateway
   GatewayBaseUrl: __DEV__
     ? `http://${DEV_HOST}:5000`
-    : 'https://api.findmyparty.com',
+    : (process.env.EXPO_PUBLIC_API_URL ?? 'https://api.findmyparty.com'),
 };
 
 /**

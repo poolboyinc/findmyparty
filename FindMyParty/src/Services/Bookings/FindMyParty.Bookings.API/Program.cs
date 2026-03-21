@@ -84,7 +84,11 @@ builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
 
-app.UseHttpsRedirection();
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<BookingsDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();

@@ -61,6 +61,9 @@ services:
       - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
+      - ServiceUrls__Identity=http://identity-api:8080
+      - ServiceUrls__Parties=http://parties-api:8080
+      - ServiceUrls__Bookings=http://bookings-api:8080
     depends_on:
       - identity-api
       - parties-api
@@ -108,6 +111,10 @@ services:
       - PartyPublisher__Password=${RABBITMQ_PASS:-guest}
       - PartyPublisher__ExchangeName=party.events
       - Redis__ConnectionString=redis:6379
+      - AWS__Region=${AWS_REGION:-eu-north-1}
+      - AWS__AccessKey=${AWS_ACCESS_KEY:-}
+      - AWS__SecretKey=${AWS_SECRET_KEY:-}
+      - AWS__S3__BucketName=${AWS_S3_BUCKET:-findmyparty-images}
     volumes:
       - parties_images:/app/wwwroot/images
     depends_on:

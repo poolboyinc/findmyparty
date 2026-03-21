@@ -15,4 +15,5 @@ RUN dotnet publish "FindMyParty.Bookings.API.csproj" -c $BUILD_CONFIGURATION -o 
 FROM base AS final
 WORKDIR /app
 COPY --from=build /app/publish .
+ENV ASPNETCORE_URLS=http://+:${PORT:-8080}
 ENTRYPOINT ["dotnet", "FindMyParty.Bookings.API.dll"]

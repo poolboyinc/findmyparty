@@ -6,6 +6,7 @@ namespace FindMyParty.Parties.API.Infrastructure.Storage;
 public class S3ImageService(IAmazonS3 s3Client, IConfiguration configuration) : IS3ImageService
 {
     private readonly string _bucketName = configuration["AWS:S3:BucketName"]!;
+    private readonly string _region = configuration["AWS:Region"] ?? "eu-north-1";
 
     public async Task<string> UploadAsync(Stream fileStream, string key, string contentType)
     {
@@ -20,6 +21,6 @@ public class S3ImageService(IAmazonS3 s3Client, IConfiguration configuration) : 
 
         await s3Client.PutObjectAsync(request);
 
-        return $"https://{_bucketName}.s3.amazonaws.com/{key}";
+        return $"https://{_bucketName}.s3.{_region}.amazonaws.com/{key}";
     }
 }

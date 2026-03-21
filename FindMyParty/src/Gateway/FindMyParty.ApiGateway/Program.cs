@@ -3,6 +3,15 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Allow Railway env vars to override cluster addresses
+var identityUrl = builder.Configuration["ServiceUrls:Identity"] ?? "http://identity-api:8080";
+var partiesUrl = builder.Configuration["ServiceUrls:Parties"] ?? "http://parties-api:8080";
+var bookingsUrl = builder.Configuration["ServiceUrls:Bookings"] ?? "http://bookings-api:8080";
+
+builder.Configuration["ReverseProxy:Clusters:identity:Destinations:identity/d1:Address"] = identityUrl;
+builder.Configuration["ReverseProxy:Clusters:parties:Destinations:parties/d1:Address"] = partiesUrl;
+builder.Configuration["ReverseProxy:Clusters:bookings:Destinations:bookings/d1:Address"] = bookingsUrl;
+
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 

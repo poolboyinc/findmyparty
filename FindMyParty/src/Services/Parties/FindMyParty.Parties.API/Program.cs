@@ -77,8 +77,15 @@ builder.Services.AddScoped<GetHostPartiesQueryHandler>();
 builder.Services.AddSingleton<IAmazonS3>(_ =>
 {
     var region = Amazon.RegionEndpoint.GetBySystemName(
-        builder.Configuration["AWS:Region"] ?? "eu-central-1");
-    return new Amazon.S3.AmazonS3Client(region);
+        builder.Configuration["AWS:Region"] ?? "eu-north-1");
+
+    var accessKey = builder.Configuration["AWS:AccessKey"];
+    var secretKey = builder.Configuration["AWS:SecretKey"];
+
+    if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey))
+        return new AmazonS3Client(accessKey, secretKey, region);
+
+    return new AmazonS3Client(region);
 });
 builder.Services.AddScoped<IS3ImageService, S3ImageService>();
 
@@ -87,8 +94,11 @@ builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
 
-
-app.UseHttpsRedirection();
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<PartiesDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 app.UseStaticFiles();
 
