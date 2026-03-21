@@ -320,7 +320,7 @@ function DatePickerModal({
   visible: boolean;
   onClose: () => void;
   selectedDate: Date | null;
-  onDateChange: (date: Date) => void;
+  onDateChange: (date: Date | null) => void;
 }) {
   const [tempDate, setTempDate] = useState(selectedDate ?? new Date());
 
@@ -352,7 +352,7 @@ function DatePickerModal({
             <TouchableOpacity
               style={dpStyles.clearBtn}
               onPress={() => {
-                onDateChange(new Date());
+                onDateChange(null);
                 onClose();
               }}
               activeOpacity={0.8}
@@ -607,6 +607,12 @@ export default function ExploreScreen() {
         selectedDate={selectedDate}
         onDateChange={(date) => {
           setSelectedDate(date);
+          const dateStr = date ? date.toISOString().split('T')[0] : undefined;
+          if (userCoords) {
+            loadParties(userCoords[1], userCoords[0], dateStr);
+          } else {
+            loadParties(0, 0, dateStr);
+          }
         }}
       />
     </View>

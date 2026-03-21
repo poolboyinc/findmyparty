@@ -6,10 +6,10 @@ export function useExplore() {
   const [parties, setParties] = useState<PartyMapItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const loadParties = useCallback(async (lat: number, lng: number) => {
+  const loadParties = useCallback(async (lat: number, lng: number, date?: string) => {
     setLoading(true);
     try {
-      const data = await partyService.getParties(lat, lng);
+      const data = await partyService.getParties(lat, lng, date);
       setParties(data);
     } catch {
       setParties([]);

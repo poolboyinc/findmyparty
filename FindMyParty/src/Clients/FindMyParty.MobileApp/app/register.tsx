@@ -96,7 +96,7 @@ export default function RegisterPage() {
           <Ionicons name="person-outline" size={ms(28)} color="#FFF" style={styles.fieldIcon} />
           <TextInput
             style={styles.fieldInput}
-            placeholder="Name"
+            placeholder="Username"
             placeholderTextColor="rgba(255,255,255,0.75)"
             value={userName}
             onChangeText={setUserName}

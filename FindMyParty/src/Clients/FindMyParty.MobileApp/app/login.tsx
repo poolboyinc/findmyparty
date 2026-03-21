@@ -49,14 +49,16 @@ export default function LoginPage() {
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
 
-  const emailInvalid = emailTouched && email.length > 0 && !isValidEmail(email);
+  const identifierValid = email.trim().length >= 2;
+  const looksLikeEmail = email.includes('@');
+  const emailInvalid = emailTouched && looksLikeEmail && !isValidEmail(email);
   const pwChecks = {
     length: password.length >= 8,
     digit: /[0-9]/.test(password),
     lower: /[a-z]/.test(password),
   };
 
-  const formValid = isValidEmail(email) && pwChecks.length && pwChecks.digit && pwChecks.lower;
+  const formValid = identifierValid && (!looksLikeEmail || isValidEmail(email)) && pwChecks.length && pwChecks.digit && pwChecks.lower;
 
   const handleSignIn = async () => {
     if (!formValid) return;
@@ -97,15 +99,15 @@ export default function LoginPage() {
       <View style={styles.form}>
         {/* Email */}
         <View style={styles.fieldRow}>
-          <Ionicons name="mail-outline" size={ms(28)} color="#FFF" style={styles.fieldIcon} />
+          <Ionicons name="person-outline" size={ms(28)} color="#FFF" style={styles.fieldIcon} />
           <TextInput
             style={styles.fieldInput}
-            placeholder="Email"
+            placeholder="Email or Username"
             placeholderTextColor="rgba(255,255,255,0.75)"
             value={email}
             onChangeText={setEmail}
             onBlur={() => setEmailTouched(true)}
-            keyboardType="email-address"
+            keyboardType="default"
             autoCapitalize="none"
             autoCorrect={false}
           />
