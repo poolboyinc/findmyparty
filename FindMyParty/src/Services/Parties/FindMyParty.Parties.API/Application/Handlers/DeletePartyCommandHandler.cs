@@ -1,13 +1,15 @@
+using FindMyParty.Parties.API.Application.Cache;
 using FindMyParty.Parties.API.Application.Commands;
 using FindMyParty.Parties.API.Domain.Enums;
 using FindMyParty.Parties.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace FindMyParty.Parties.API.Application.Handlers
 {
     public enum DeletePartyResult { Success, NotFound, Forbidden, InvalidState }
 
-    public class DeletePartyCommandHandler(PartiesDbContext db)
+    public class DeletePartyCommandHandler(PartiesDbContext db, IDistributedCache cache)
     {
         public async Task<DeletePartyResult> Handle(DeletePartyCommand command)
         {
@@ -25,6 +27,11 @@ namespace FindMyParty.Parties.API.Application.Handlers
 
             party.Delete();
             await db.SaveChangesAsync();
+
+            await Task.WhenAll(
+                cache.RemoveAsync(CacheKeys.Availability(party.Id)),
+                cache.SetStringAsync(CacheKeys.ListVersion, Guid.NewGuid().ToString())
+            );
 
             return DeletePartyResult.Success;
         }

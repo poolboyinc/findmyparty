@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { s, vs, ms } from '@/constants/responsive';
+import { ApiConstants } from '@/constants/api';
 import { authService } from '../services/authService';
 
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
@@ -20,6 +21,25 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function OnboardingPage() {
   const [loading, setLoading] = useState<'google' | 'apple' | null>(null);
+  const [backendDown, setBackendDown] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(`${ApiConstants.GatewayBaseUrl}/health`, {
+          signal: controller.signal,
+        });
+        clearTimeout(id);
+        if (!cancelled) setBackendDown(!res.ok);
+      } catch {
+        if (!cancelled) setBackendDown(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const [fontsLoaded] = useFonts({
     Coolvetica: require('../assets/fonts/coolvetica.ttf'),
@@ -184,8 +204,18 @@ export default function OnboardingPage() {
 
         {/* Bottom group */}
         <View style={styles.bottomGroup}>
+          {/* Connection banner */}
+          {backendDown && (
+            <View style={styles.connectionBanner}>
+              <Ionicons name="cloud-offline-outline" size={ms(16)} color="#FFF" />
+              <Text style={styles.connectionBannerText}>
+                Unable to connect to server. Please check your connection.
+              </Text>
+            </View>
+          )}
+
           {/* Buttons */}
-          <View style={styles.buttonsSection}>
+          <View style={[styles.buttonsSection, backendDown && { opacity: 0.4 }]}>
             {loading === 'google' ? (
               <View style={styles.socialButtonLoading}>
                 <ActivityIndicator size="small" color="#000000" />
@@ -194,7 +224,7 @@ export default function OnboardingPage() {
               <TouchableOpacity
                 style={styles.googleButton}
                 onPress={handleGoogleSignIn}
-                disabled={loading !== null}
+                disabled={loading !== null || backendDown}
                 activeOpacity={0.85}
               >
                 <Image
@@ -226,7 +256,7 @@ export default function OnboardingPage() {
               <View style={styles.dividerLine} />
             </View>
 
-            <TouchableOpacity style={styles.signUpButton} onPress={() => router.push('/register')} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.signUpButton} onPress={() => router.push('/register')} activeOpacity={0.85} disabled={backendDown}>
               <Text style={styles.signUpText}>Sign Up</Text>
             </TouchableOpacity>
           </View>
@@ -235,6 +265,7 @@ export default function OnboardingPage() {
           <TouchableOpacity
             onPress={() => router.push('/login')}
             activeOpacity={0.7}
+            disabled={backendDown}
             style={{ marginTop: rs.loginMarginTop }}
           >
             <Text style={styles.loginText}>
@@ -247,6 +278,7 @@ export default function OnboardingPage() {
           <TouchableOpacity
             activeOpacity={0.82}
             onPress={() => router.push('/admin')}
+            disabled={backendDown}
             style={[styles.adminBtnWrapper, { marginTop: rs.adminMarginTop }]}
           >
             <BlurView intensity={20} tint="dark" style={styles.adminBtnBlur}>
@@ -307,6 +339,24 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
     // marginTop applied inline via `rs`
+  },
+  connectionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: s(8),
+    backgroundColor: 'rgba(255,60,60,0.75)',
+    borderRadius: s(10),
+    paddingVertical: vs(8),
+    paddingHorizontal: s(16),
+    marginBottom: vs(12),
+    width: '100%',
+  },
+  connectionBannerText: {
+    color: '#FFF',
+    fontSize: ms(12),
+    fontWeight: '500',
+    flexShrink: 1,
   },
   bottomGroup: {
     width: '100%',

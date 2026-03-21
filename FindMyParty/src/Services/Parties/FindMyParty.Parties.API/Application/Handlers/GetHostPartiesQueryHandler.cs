@@ -10,7 +10,7 @@ namespace FindMyParty.Parties.API.Application.Handlers
         public async Task<List<HostPartyResponse>> Handle(GetHostPartiesQuery query)
         {
             return await db.Parties
-                .Where(p => p.HostId == query.HostId && !p.IsDeleted)
+                .Where(p => p.HostId == query.HostId && !p.IsDeleted && p.Status != Domain.Enums.PartyStatus.Cancelled)
                 .OrderByDescending(p => p.StartsAt)
                 .Select(p => new HostPartyResponse
                 {

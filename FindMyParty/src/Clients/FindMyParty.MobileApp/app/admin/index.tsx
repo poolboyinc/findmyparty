@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   brandName: {
     color: '#FFF',
     fontSize: 32,
-    fontWeight: '800',
+    fontFamily: 'Coolvetica',
     letterSpacing: 0.3,
   },
   portalTitle: {

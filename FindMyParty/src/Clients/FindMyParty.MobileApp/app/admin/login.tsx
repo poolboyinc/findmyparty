@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   brandName: {
     color: '#FFF',
     fontSize: ms(26),
-    fontWeight: '800',
+    fontFamily: 'Coolvetica',
     letterSpacing: 0.3,
   },
   formArea: {

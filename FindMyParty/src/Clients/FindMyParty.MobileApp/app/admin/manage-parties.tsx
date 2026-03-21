@@ -176,7 +176,7 @@ export default function ManagePartiesScreen() {
         text: 'Cancel Party', style: 'destructive', onPress: async () => {
           const success = await partyService.cancelParty(partyId);
           if (success) {
-            await loadParties();
+            setParties(prev => prev.filter(p => p.id !== partyId));
           } else {
             Alert.alert('Failed', 'Could not cancel the party. Please try again.');
           }

@@ -10,10 +10,29 @@ import Animated, {
 import { router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { authService } from '@/services/authService';
+import { ApiConstants } from '@/constants/api';
+
+async function checkBackendHealth(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${ApiConstants.GatewayBaseUrl}/health`, {
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 async function getInitialRoute(): Promise<'/onboarding' | '/(tabs)'> {
   try {
-    const authenticated = await authService.isAuthenticated();
+    const [authenticated, backendUp] = await Promise.all([
+      authService.isAuthenticated(),
+      checkBackendHealth(),
+    ]);
+    if (!backendUp) return '/onboarding';
     return authenticated ? '/(tabs)' : '/onboarding';
   } catch {
     return '/onboarding';

@@ -55,6 +55,8 @@ var app = builder.Build();
 app.UseCors();
 app.UseRateLimiter();
 
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
 app.MapReverseProxy();
 
 app.Run();
