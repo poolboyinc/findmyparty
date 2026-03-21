@@ -43,7 +43,9 @@ namespace FindMyParty.Identity.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequest request)
         {
-            var user = await userManager.FindByEmailAsync(request.Email);
+            var user = request.Email.Contains('@')
+                ? await userManager.FindByEmailAsync(request.Email)
+                : await userManager.FindByNameAsync(request.Email);
             if (user == null)
                 return Unauthorized();
 
