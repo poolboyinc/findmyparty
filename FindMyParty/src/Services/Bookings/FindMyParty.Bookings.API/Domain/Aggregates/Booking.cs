@@ -16,10 +16,11 @@ namespace FindMyParty.Bookings.API.Domain.Aggregates
 
         public BookingStatus Status { get; private set; }
         public DateTime CreatedAt { get; private set; }
+        public DateTime PartyEndsAt { get; private set; }
 
         protected Booking() { }
 
-        public Booking(Guid userId, Guid partyId, int ticketCount, decimal pricePerTicket, string idemPotencyKey)
+        public Booking(Guid userId, Guid partyId, int ticketCount, decimal pricePerTicket, string idemPotencyKey, DateTime partyEndsAt)
         {
             if (ticketCount <= 0)
                 throw new ArgumentException("Ticket count must be positive");
@@ -32,6 +33,7 @@ namespace FindMyParty.Bookings.API.Domain.Aggregates
             Status = BookingStatus.Pending;
             CreatedAt = DateTime.UtcNow;
             IdempotencyKey = idemPotencyKey;
+            PartyEndsAt = partyEndsAt;
         }
 
         public void Confirm()

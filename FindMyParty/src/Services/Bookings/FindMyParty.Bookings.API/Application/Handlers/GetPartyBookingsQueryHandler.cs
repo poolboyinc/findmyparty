@@ -19,7 +19,8 @@ public class GetPartyBookingsQueryHandler(BookingsDbContext db)
                 TicketCount = b.TicketCount,
                 TotalPrice = b.TotalPrice,
                 Status = b.Status.ToString(),
-                CreatedAt = b.CreatedAt
+                CreatedAt = b.CreatedAt,
+                PartyEndsAt = b.PartyEndsAt
             })
             .ToListAsync();
     }

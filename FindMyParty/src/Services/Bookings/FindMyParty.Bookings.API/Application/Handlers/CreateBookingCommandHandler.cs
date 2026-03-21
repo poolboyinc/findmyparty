@@ -28,7 +28,8 @@ namespace FindMyParty.Bookings.API.Application.Handlers
                 command.PartyId,
                 command.TicketCount,
                 availability.PricePerTicket,
-                command.IdempotencyKey
+                command.IdempotencyKey,
+                availability.EndsAt
             );
 
             db.Bookings.Add(booking);

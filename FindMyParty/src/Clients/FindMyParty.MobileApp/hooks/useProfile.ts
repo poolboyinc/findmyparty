@@ -16,7 +16,11 @@ export function useProfile() {
         bookingService.getMyBookings(),
       ]);
       setUserInfo(user);
-      setBookingCount(bookings.length);
+      const now = new Date();
+      const attended = bookings.filter(
+        b => b.status !== 'Cancelled' && new Date(b.partyEndsAt) < now
+      );
+      setBookingCount(attended.length);
     } finally {
       setLoading(false);
     }

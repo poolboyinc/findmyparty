@@ -188,7 +188,8 @@ public class PartiesController(
         {
             remainingCapacity = party.Capacity - party.TicketsSold,
             isSoldOut = party.TicketsSold >= party.Capacity,
-            pricePerTicket = party.Price
+            pricePerTicket = party.Price,
+            endsAt = party.EndsAt
         };
 
         await cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(result),

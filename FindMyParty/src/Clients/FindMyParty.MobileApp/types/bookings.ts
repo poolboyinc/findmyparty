@@ -5,6 +5,7 @@ export interface BookingItem {
   totalPrice: number;
   status: string;
   createdAt: string;
+  partyEndsAt: string;
 }
 
 export function getStatusColor(status: string): string {

@@ -35,6 +35,9 @@ namespace FindMyParty.Bookings.API.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<DateTime>("PartyEndsAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<Guid>("PartyId")
                         .HasColumnType("uniqueidentifier");
 
