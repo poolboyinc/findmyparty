@@ -4,6 +4,24 @@ services:
 
   # ── Infrastructure ──────────────────────────────────────────────────────────
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: fmp-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: fmp-rabbitmq
@@ -64,6 +82,9 @@ services:
       - Jwt__Key=${JWT_KEY}
       - Jwt__Issuer=${JWT_ISSUER}
       - Jwt__Audience=${JWT_AUDIENCE}
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   parties-api:
@@ -90,6 +111,8 @@ services:
     volumes:
       - parties_images:/app/wwwroot/images
     depends_on:
+      postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       redis:
@@ -114,6 +137,8 @@ services:
       - RabbitMQ__Password=${RABBITMQ_PASS:-guest}
       - Services__PartiesBaseUrl=http://parties-api:8080
     depends_on:
+      postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       parties-api:
@@ -121,6 +146,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  postgres_data:
   rabbitmq_data:
   redis_data:
   parties_images:

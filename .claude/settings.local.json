@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find C:/Users/vukasin.macic/source/repos/findmyparty/FindMyParty/src/Clients/FindMyParty.MobileApp/app -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\) ! -path */node_modules/*)"
+      "Bash(find C:/Users/vukasin.macic/source/repos/findmyparty/FindMyParty/src/Clients/FindMyParty.MobileApp/app -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\) ! -path */node_modules/*)",
+      "Bash(dotnet ef:*)",
+      "Bash(dotnet build:*)"
     ]
   }
 }

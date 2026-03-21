@@ -33,9 +33,10 @@ namespace FindMyParty.Bookings.API.Infrastructure.Data
                 entity.Property(b => b.CreatedAt)
                       .IsRequired();
 
-                // Future-proofing for concurrency
-                entity.Property<byte[]>("RowVersion")
-                      .IsRowVersion();
+                entity.Property<uint>("xmin")
+                      .HasColumnType("xid")
+                      .ValueGeneratedOnAddOrUpdate()
+                      .IsConcurrencyToken();
 
                 entity.HasIndex(b => new { b.UserId, b.IdempotencyKey })
                       .IsUnique();

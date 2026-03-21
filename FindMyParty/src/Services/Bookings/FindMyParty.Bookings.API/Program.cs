@@ -15,11 +15,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<BookingsDbContext>(options =>
 {
-    options.UseSqlServer(
+    options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection"),
-        sqlOptions =>
+        npgsqlOptions =>
         {
-            sqlOptions.MigrationsAssembly(typeof(Program).Assembly.FullName);
+            npgsqlOptions.MigrationsAssembly(typeof(Program).Assembly.FullName);
         });
 });
 
