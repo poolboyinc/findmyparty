@@ -23,14 +23,28 @@ public class RabbitMqPartyEventConsumer(
     {
         var factory = new ConnectionFactory
         {
-            HostName = config["RabbitMQ:HostName"],
-            UserName = config["RabbitMQ:UserName"],
-            Password = config["RabbitMQ:Password"],
+            HostName = config["RabbitMQ:HostName"] ?? "localhost",
+            UserName = config["RabbitMQ:UserName"] ?? "guest",
+            Password = config["RabbitMQ:Password"] ?? "guest",
             ClientProvidedName = "findmyparty-bookings-party-consumer"
         };
 
-        _connection = await factory.CreateConnectionAsync(stoppingToken);
-        _channel = await _connection.CreateChannelAsync();
+        // Retry connection with backoff — RabbitMQ may not be ready yet
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                _connection = await factory.CreateConnectionAsync(stoppingToken);
+                _channel = await _connection.CreateChannelAsync();
+                break;
+            }
+            catch when (!stoppingToken.IsCancellationRequested)
+            {
+                var delay = Math.Min(attempt * 5, 30);
+                Console.WriteLine($"[RabbitMQ Consumer] Connection attempt {attempt} failed. Retrying in {delay}s...");
+                await Task.Delay(TimeSpan.FromSeconds(delay), stoppingToken);
+            }
+        }
 
         await _channel.ExchangeDeclareAsync(
             exchange: ExchangeName,
