@@ -25,6 +25,9 @@ namespace FindMyParty.Parties.API.Infrastructure.Messaging
         {
             var hostName = config["RabbitMQ:HostName"] ?? "localhost";
             var userName = config["RabbitMQ:UserName"] ?? "guest";
+            // Fallback: read env var directly if config system didn't pick it up
+            if (hostName == "localhost")
+                hostName = Environment.GetEnvironmentVariable("RabbitMQ__HostName") ?? hostName;
             Console.WriteLine($"[RabbitMQ Consumer] Connecting to {hostName} as {userName}");
 
             var factory = new ConnectionFactory
