@@ -23,10 +23,14 @@ namespace FindMyParty.Parties.API.Infrastructure.Messaging
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            var hostName = config["RabbitMQ:HostName"] ?? "localhost";
+            var userName = config["RabbitMQ:UserName"] ?? "guest";
+            Console.WriteLine($"[RabbitMQ Consumer] Connecting to {hostName} as {userName}");
+
             var factory = new ConnectionFactory
             {
-                HostName = config["RabbitMQ:HostName"] ?? "localhost",
-                UserName = config["RabbitMQ:UserName"] ?? "guest",
+                HostName = hostName,
+                UserName = userName,
                 Password = config["RabbitMQ:Password"] ?? "guest",
                 ClientProvidedName = "findmyparty-parties-consumer"
             };
