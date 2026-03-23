@@ -25,6 +25,15 @@ public class PartiesController(
     IDistributedCache cache,
     IS3ImageService s3) : ControllerBase
 {
+    // Temporary debug endpoint — remove after testing
+    [Authorize]
+    [HttpGet("debug-claims")]
+    public IActionResult DebugClaims()
+    {
+        var claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList();
+        return Ok(claims);
+    }
+
     [Authorize(Roles = "Host")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePartyRequest request)
