@@ -50,12 +50,12 @@ export default function PartyBookingsScreen() {
     setRefreshing(false);
   };
 
-  const totalTickets = bookings
-    .filter(b => b.status !== 'Cancelled')
+  const activeBookings = bookings.filter(b => b.status !== 'Cancelled');
+
+  const totalTickets = activeBookings
     .reduce((sum, b) => sum + b.ticketCount, 0);
 
-  const totalRevenue = bookings
-    .filter(b => b.status !== 'Cancelled')
+  const totalRevenue = activeBookings
     .reduce((sum, b) => sum + b.totalPrice, 0);
 
   return (
@@ -100,7 +100,7 @@ export default function PartyBookingsScreen() {
           {/* Summary strip */}
           <BlurView intensity={10} tint="dark" style={styles.summaryRow}>
             <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{bookings.length}</Text>
+              <Text style={styles.summaryValue}>{activeBookings.length}</Text>
               <Text style={styles.summaryLabel}>Bookings</Text>
             </View>
             <View style={styles.summaryDivider} />

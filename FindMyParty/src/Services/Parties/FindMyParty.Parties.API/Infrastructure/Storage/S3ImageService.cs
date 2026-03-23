@@ -15,8 +15,7 @@ public class S3ImageService(IAmazonS3 s3Client, IConfiguration configuration) : 
             BucketName = _bucketName,
             Key = key,
             InputStream = fileStream,
-            ContentType = contentType,
-            CannedACL = S3CannedACL.PublicRead
+            ContentType = contentType
         };
 
         await s3Client.PutObjectAsync(request);

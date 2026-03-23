@@ -31,9 +31,6 @@ function formatDate(iso: string): string {
 }
 
 function BookingCard({ booking, onCancel }: { booking: BookingItem; onCancel: (id: string) => void }) {
-  const isCancelled = booking.status === 'Cancelled';
-  const isPending = booking.status === 'Pending';
-
   return (
     <BlurView intensity={12} tint="dark" style={styles.card}>
       {/* Status strip */}
@@ -66,39 +63,23 @@ function BookingCard({ booking, onCancel }: { booking: BookingItem; onCancel: (i
       </View>
 
       {/* Actions */}
-      {!isCancelled && (
-        <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={styles.detailBtn}
-            activeOpacity={0.8}
-            onPress={() => router.push(`/party/${booking.partyId}`)}
-          >
-            <Text style={styles.detailBtnText}>View Party</Text>
-          </TouchableOpacity>
+      <View style={styles.cardActions}>
+        <TouchableOpacity
+          style={styles.detailBtn}
+          activeOpacity={0.8}
+          onPress={() => router.push(`/party/${booking.partyId}`)}
+        >
+          <Text style={styles.detailBtnText}>View Party</Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.cancelBtn}
-            activeOpacity={0.8}
-            onPress={() => onCancel(booking.id)}
-          >
-            <Text style={styles.cancelBtnText}>
-              {isPending ? 'Cancel' : 'Cancel Booking'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {isCancelled && (
-        <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={styles.detailBtn}
-            activeOpacity={0.8}
-            onPress={() => router.push(`/party/${booking.partyId}`)}
-          >
-            <Text style={styles.detailBtnText}>Book Again</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        <TouchableOpacity
+          style={styles.cancelBtn}
+          activeOpacity={0.8}
+          onPress={() => onCancel(booking.id)}
+        >
+          <Text style={styles.cancelBtnText}>Cancel Booking</Text>
+        </TouchableOpacity>
+      </View>
     </BlurView>
   );
 }
@@ -148,7 +129,6 @@ export default function MyBookingsScreen() {
   }, [load]);
 
   const active = bookings.filter(b => b.status !== 'Cancelled');
-  const cancelled = bookings.filter(b => b.status === 'Cancelled');
 
   return (
     <View style={styles.root}>
@@ -171,7 +151,7 @@ export default function MyBookingsScreen() {
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#7D08FA" />
         </View>
-      ) : bookings.length === 0 ? (
+      ) : active.length === 0 ? (
         <View style={styles.centered}>
           <Ionicons name="ticket-outline" size={ms(60)} color="rgba(255,255,255,0.2)" />
           <Text style={styles.emptyTitle}>No bookings yet</Text>
@@ -200,23 +180,9 @@ export default function MyBookingsScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D08FA" colors={['#7D08FA']} />
           }
         >
-          {active.length > 0 && (
-            <>
-              <Text style={styles.sectionLabel}>Active ({active.length})</Text>
-              {active.map(b => (
-                <BookingCard key={b.id} booking={b} onCancel={handleCancel} />
-              ))}
-            </>
-          )}
-
-          {cancelled.length > 0 && (
-            <>
-              <Text style={[styles.sectionLabel, { marginTop: vs(24) }]}>Cancelled ({cancelled.length})</Text>
-              {cancelled.map(b => (
-                <BookingCard key={b.id} booking={b} onCancel={handleCancel} />
-              ))}
-            </>
-          )}
+          {active.map(b => (
+            <BookingCard key={b.id} booking={b} onCancel={handleCancel} />
+          ))}
         </ScrollView>
       )}
     </View>
@@ -281,14 +247,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: s(16),
     gap: vs(12),
-  },
-  sectionLabel: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: ms(13),
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginBottom: vs(4),
   },
   card: {
     borderRadius: s(18),

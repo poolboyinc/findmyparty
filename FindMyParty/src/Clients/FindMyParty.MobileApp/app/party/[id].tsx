@@ -11,6 +11,7 @@ import {
   Linking,
   Alert,
   Platform,
+  Modal,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -126,6 +127,8 @@ export default function PartyDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [booking, setBooking] = useState(false);
+  const [ticketModalVisible, setTicketModalVisible] = useState(false);
+  const [ticketCount, setTicketCount] = useState(1);
 
   useEffect(() => {
     if (!id) return;
@@ -156,13 +159,22 @@ export default function PartyDetailScreen() {
 
   const mapsUrl = `https://maps.google.com/?q=${party.latitude},${party.longitude}`;
 
-  const handleReserve = async () => {
+  const remainingCapacity = party.capacity - (party.ticketsSold ?? 0);
+  const maxTickets = Math.min(remainingCapacity, 10);
+
+  const handleReserve = () => {
     if (party.isSoldOut || booking) return;
+    setTicketCount(1);
+    setTicketModalVisible(true);
+  };
+
+  const handleConfirmBooking = async () => {
+    setTicketModalVisible(false);
     setBooking(true);
     try {
-      const bookingId = await bookingService.createBooking(party.id, 1);
+      const bookingId = await bookingService.createBooking(party.id, ticketCount);
       if (bookingId) {
-        Alert.alert('You\'re in!', 'Your spot has been reserved. Check your bookings for details.');
+        Alert.alert('You\'re in!', `${ticketCount} ticket${ticketCount > 1 ? 's' : ''} reserved. Check your bookings for details.`);
       } else {
         Alert.alert('Could not reserve', 'Something went wrong. Please try again.');
       }
@@ -365,6 +377,69 @@ export default function PartyDetailScreen() {
 
         <View style={{ height: insets.bottom + vs(24) }} />
       </ScrollView>
+
+      {/* ── Ticket picker modal ── */}
+      <Modal
+        visible={ticketModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTicketModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>How many tickets?</Text>
+
+            <View style={styles.ticketRow}>
+              <TouchableOpacity
+                style={styles.ticketBtn}
+                onPress={() => setTicketCount(c => Math.max(1, c - 1))}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="remove" size={ms(24)} color="#FFF" />
+              </TouchableOpacity>
+
+              <Text style={styles.ticketNum}>{ticketCount}</Text>
+
+              <TouchableOpacity
+                style={styles.ticketBtn}
+                onPress={() => setTicketCount(c => Math.min(maxTickets, c + 1))}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add" size={ms(24)} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalTotal}>
+              Total: €{(ticketCount * party.price).toFixed(2)}
+            </Text>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setTicketModalVisible(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                onPress={handleConfirmBooking}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={['#7D08FA', '#FF6E00']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.modalConfirmGradient}
+                >
+                  <Text style={styles.modalConfirmText}>Confirm</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -574,6 +649,94 @@ const styles = StyleSheet.create({
   otherDatesText: {
     color: '#FFF',
     fontSize: ms(20),
+    fontWeight: '700',
+  },
+
+  // ── Ticket picker modal ──
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCard: {
+    width: '85%',
+    backgroundColor: '#1A1A2E',
+    borderRadius: s(24),
+    padding: s(24),
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  modalTitle: {
+    color: '#FFF',
+    fontSize: ms(20),
+    fontWeight: '700',
+    marginBottom: vs(20),
+  },
+  ticketRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: s(24),
+    marginBottom: vs(16),
+  },
+  ticketBtn: {
+    width: s(48),
+    height: s(48),
+    borderRadius: s(24),
+    backgroundColor: 'rgba(125,8,250,0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(125,8,250,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ticketNum: {
+    color: '#FFF',
+    fontSize: ms(36),
+    fontWeight: '800',
+    minWidth: s(50),
+    textAlign: 'center',
+  },
+  modalTotal: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: ms(16),
+    fontWeight: '600',
+    marginBottom: vs(24),
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: s(12),
+    width: '100%',
+  },
+  modalCancelBtn: {
+    flex: 1,
+    height: vs(46),
+    borderRadius: s(23),
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: ms(16),
+    fontWeight: '600',
+  },
+  modalConfirmBtn: {
+    flex: 1,
+    height: vs(46),
+    borderRadius: s(23),
+    overflow: 'hidden',
+  },
+  modalConfirmGradient: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalConfirmText: {
+    color: '#FFF',
+    fontSize: ms(16),
     fontWeight: '700',
   },
 });
