@@ -84,11 +84,18 @@ export const partyService = {
     });
     if (!response.ok) return null;
 
-    const location = response.headers.get('Location');
-    if (location) return location.split('/').pop() ?? null;
-
+    // Prefer body (reliable), fall back to Location header
     const data = await response.json().catch(() => null);
-    return data?.id ?? null;
+    if (data?.id) return data.id;
+
+    const location = response.headers.get('Location');
+    if (location) {
+      // Extract GUID from path like /api/parties/{id}
+      const match = location.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      if (match) return match[0];
+    }
+
+    return null;
   },
 
   async publishParty(partyId: string): Promise<boolean> {
