@@ -23,6 +23,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { partyService } from '@/services/partyService';
 import { resolveMediaUrl } from '@/constants/api';
 import { bookingService } from '@/services/bookingService';
+import { authService } from '@/services/authService';
 import type { PartyDetail } from '@/types/parties';
 import { s, vs, ms } from '@/constants/responsive';
 
@@ -129,6 +130,13 @@ export default function PartyDetailScreen() {
   const [booking, setBooking] = useState(false);
   const [ticketModalVisible, setTicketModalVisible] = useState(false);
   const [ticketCount, setTicketCount] = useState(1);
+  const [isHost, setIsHost] = useState(false);
+
+  useEffect(() => {
+    authService.getUserInfo().then(info => {
+      if (info?.roles?.includes('Host')) setIsHost(true);
+    });
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -222,8 +230,9 @@ export default function PartyDetailScreen() {
         {/* ── Hero ── */}
         <TouchableOpacity
           style={[styles.heroWrapper, { height: HERO_HEIGHT }]}
-          activeOpacity={0.9}
-          onPress={handleImagePress}
+          activeOpacity={isHost ? 0.9 : 1}
+          onPress={isHost ? handleImagePress : undefined}
+          disabled={!isHost}
         >
           {resolveMediaUrl(party.imageUrl) ? (
             <Image
@@ -247,7 +256,7 @@ export default function PartyDetailScreen() {
               <Text style={styles.uploadText}>Uploading...</Text>
             </View>
           )}
-          {!party.imageUrl && !uploading && (
+          {!party.imageUrl && !uploading && isHost && (
             <View style={styles.uploadHint}>
               <Ionicons name="camera" size={ms(28)} color="rgba(255,255,255,0.7)" />
               <Text style={styles.uploadHintText}>Tap to add image</Text>

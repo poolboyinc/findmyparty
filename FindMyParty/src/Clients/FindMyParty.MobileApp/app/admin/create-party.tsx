@@ -78,7 +78,7 @@ export default function CreatePartyScreen() {
   const [showEndPicker, setShowEndPicker] = useState(false);
 
   // ─── Images
-  const [images, setImages] = useState<(string | null)[]>([null, null]);
+  const [images, setImages] = useState<(string | null)[]>([null]);
 
   // ─── Featured
   const [featured, setFeatured] = useState(false);
@@ -172,11 +172,11 @@ export default function CreatePartyScreen() {
         return;
       }
 
-      // Upload any selected images
-      const selectedImages = images.filter(Boolean) as string[];
-      await Promise.all(
-        selectedImages.map(uri => partyService.uploadPartyImage(partyId, uri))
-      );
+      // Upload the first selected image (backend supports one image per party)
+      const firstImage = images.find(Boolean);
+      if (firstImage) {
+        await partyService.uploadPartyImage(partyId, firstImage);
+      }
 
       if (publish) {
         const published = await partyService.publishParty(partyId);
@@ -383,28 +383,24 @@ export default function CreatePartyScreen() {
 
         {/* ─── Section 3: Party Images ─── */}
         <Text style={[styles.sectionTitle, { marginTop: vs(24) }]}>Party Images</Text>
-        <View style={styles.row}>
-          {[0, 1].map(i => (
-            <TouchableOpacity key={i} onPress={() => pickImage(i)} activeOpacity={0.8} style={styles.halfCol}>
-              <BlurView intensity={10} tint="dark" style={[styles.imageBox, { height: imageBoxHeight }]}>
-                {images[i] ? (
-                  <>
-                    <Image
-                      source={{ uri: images[i]! }}
-                      style={StyleSheet.absoluteFill}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.imageCheckBadge}>
-                      <Ionicons name="checkmark-circle" size={ms(24)} color="#FFF" />
-                    </View>
-                  </>
-                ) : (
-                  <Ionicons name="image-outline" size={ms(40)} color="rgba(255,255,255,0.5)" />
-                )}
-              </BlurView>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <TouchableOpacity onPress={() => pickImage(0)} activeOpacity={0.8}>
+          <BlurView intensity={10} tint="dark" style={[styles.imageBox, { height: imageBoxHeight }]}>
+            {images[0] ? (
+              <>
+                <Image
+                  source={{ uri: images[0]! }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                />
+                <View style={styles.imageCheckBadge}>
+                  <Ionicons name="checkmark-circle" size={ms(24)} color="#FFF" />
+                </View>
+              </>
+            ) : (
+              <Ionicons name="image-outline" size={ms(40)} color="rgba(255,255,255,0.5)" />
+            )}
+          </BlurView>
+        </TouchableOpacity>
 
         {/* ─── Section 4: Featured Party ─── */}
         <View style={[styles.featuredRow, { marginTop: vs(24) }]}>

@@ -23,22 +23,6 @@ function isValidEmail(value: string) {
   return EMAIL_REGEX.test(value.trim());
 }
 
-function isValidPassword(value: string) {
-  return value.length >= 8 && /[0-9]/.test(value) && /[a-z]/.test(value);
-}
-
-function PwHint({ met, label }: { met: boolean; label: string }) {
-  return (
-    <View style={styles.pwHintRow}>
-      <Ionicons
-        name={met ? 'checkmark-circle' : 'ellipse-outline'}
-        size={ms(14)}
-        color={met ? '#A8F0C6' : 'rgba(255,255,255,0.5)'}
-      />
-      <Text style={[styles.pwHintText, met && styles.pwHintTextMet]}>{label}</Text>
-    </View>
-  );
-}
 
 export default function LoginPage() {
   const insets = useSafeAreaInsets();
@@ -47,18 +31,11 @@ export default function LoginPage() {
   const { email, setEmail, password, setPassword, error, loading, login } = useLogin();
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
-  const [passwordTouched, setPasswordTouched] = useState(false);
-
   const identifierValid = email.trim().length >= 2;
   const looksLikeEmail = email.includes('@');
   const emailInvalid = emailTouched && looksLikeEmail && !isValidEmail(email);
-  const pwChecks = {
-    length: password.length >= 8,
-    digit: /[0-9]/.test(password),
-    lower: /[a-z]/.test(password),
-  };
 
-  const formValid = identifierValid && (!looksLikeEmail || isValidEmail(email)) && pwChecks.length && pwChecks.digit && pwChecks.lower;
+  const formValid = identifierValid && (!looksLikeEmail || isValidEmail(email)) && password.length > 0;
 
   const handleSignIn = async () => {
     if (!formValid) return;
@@ -125,7 +102,7 @@ export default function LoginPage() {
             placeholder="Password"
             placeholderTextColor="rgba(255,255,255,0.75)"
             value={password}
-            onChangeText={(v) => { setPassword(v); setPasswordTouched(true); }}
+            onChangeText={setPassword}
             secureTextEntry={!passwordVisible}
             autoCapitalize="none"
             autoCorrect={false}
@@ -139,13 +116,6 @@ export default function LoginPage() {
           </TouchableOpacity>
         </View>
         <View style={styles.fieldLine} />
-        {passwordTouched && (
-          <View style={styles.pwHints}>
-            <PwHint met={pwChecks.length} label="At least 8 characters" />
-            <PwHint met={pwChecks.digit} label="At least 1 number" />
-            <PwHint met={pwChecks.lower} label="At least 1 lowercase letter" />
-          </View>
-        )}
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -243,22 +213,6 @@ const styles = StyleSheet.create({
     color: '#FFD0D0',
     fontSize: ms(12),
     marginTop: vs(-20),
-  },
-  pwHints: {
-    gap: vs(6),
-    marginTop: vs(-20),
-  },
-  pwHintRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s(6),
-  },
-  pwHintText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: ms(12),
-  },
-  pwHintTextMet: {
-    color: '#A8F0C6',
   },
   button: {
     backgroundColor: '#9B989D',

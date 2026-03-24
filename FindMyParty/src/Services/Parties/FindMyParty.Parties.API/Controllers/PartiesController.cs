@@ -35,7 +35,7 @@ public class PartiesController(
         var id = await createHandler.Handle(
             new CreatePartyCommand(hostId, request));
 
-        return CreatedAtAction(nameof(Get), new { id }, null);
+        return CreatedAtAction(nameof(GetById), new { id }, new { id });
     }
 
     [Authorize(Roles = "Host")]

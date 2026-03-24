@@ -1,8 +1,9 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Tabs, usePathname } from 'expo-router';
+import React, { useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { s, vs, ms } from '@/constants/responsive';
 
@@ -62,17 +63,49 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
 // ─── Layout ──────────────────────────────────────────────────────────────────────
 export default function TabLayout() {
+  const navRef = useRef<any>(null);
+
+  // Swipe between tabs — disabled on the map tab (index 0) to avoid
+  // conflicting with map pan gestures.
+  const swipe = Gesture.Pan()
+    .activeOffsetX([-30, 30])
+    .failOffsetY([-15, 15])
+    .onEnd((e) => {
+      const nav = navRef.current;
+      if (!nav) return;
+      const state = nav.getState();
+      if (!state) return;
+      const currentIndex = state.index;
+
+      // Don't allow swipe navigation FROM the map tab
+      if (currentIndex === 0) return;
+
+      if (e.translationX < -50 && currentIndex < TABS.length - 1) {
+        nav.navigate(TABS[currentIndex + 1].name);
+      } else if (e.translationX > 50 && currentIndex > 0) {
+        nav.navigate(TABS[currentIndex - 1].name);
+      }
+    });
+
   return (
-    <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      <Tabs.Screen name="index" />
-      <Tabs.Screen name="explore" />
-      <Tabs.Screen name="profile" />
-    </Tabs>
+    <GestureDetector gesture={swipe}>
+      <View style={{ flex: 1 }}>
+        <Tabs
+          tabBar={(props) => {
+            // Capture nav reference for gesture handler
+            if (!navRef.current) navRef.current = props.navigation;
+            return <CustomTabBar {...props} />;
+          }}
+          screenOptions={{
+            headerShown: false,
+          }}
+        >
+          <Tabs.Screen name="index" />
+          <Tabs.Screen name="explore" />
+          <Tabs.Screen name="profile" />
+        </Tabs>
+      </View>
+    </GestureDetector>
   );
 }
 

@@ -69,7 +69,7 @@ export default function RootLayout() {
         <Stack.Screen name="onboarding" options={{ headerShown: false, animation: 'fade' }} />
         <Stack.Screen name="login" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="register" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false, animation: 'none' }} />
         <Stack.Screen name="party/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="my-bookings" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="admin" options={{ headerShown: false }} />

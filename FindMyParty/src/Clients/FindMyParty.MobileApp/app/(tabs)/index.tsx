@@ -530,9 +530,9 @@ export default function ExploreScreen() {
         <MapboxGL.Camera
           ref={cameraRef}
           defaultSettings={{
-            centerCoordinate: userCoords ?? [20.462, 44.803],
             zoomLevel: 13.5,
           }}
+          followUserLocation={!userCoords}
           animationMode="flyTo"
           animationDuration={0}
         />
@@ -576,20 +576,22 @@ export default function ExploreScreen() {
       )}
 
       {/* ── Date picker FAB ── */}
-      <TouchableOpacity
-        style={styles.datePickerFab}
-        onPress={() => setShowDatePicker(true)}
-        activeOpacity={0.75}
-      >
-        <BlurView intensity={60} tint="light" style={styles.fabBlur}>
-          <View style={styles.fabInner}>
-            <Ionicons name="calendar" size={ms(20)} color="rgba(255,255,255,0.92)" />
-            {selectedDate && (
-              <View style={styles.fabDot} />
-            )}
-          </View>
-        </BlurView>
-      </TouchableOpacity>
+      {!selectedParty && (
+        <TouchableOpacity
+          style={styles.datePickerFab}
+          onPress={() => setShowDatePicker(true)}
+          activeOpacity={0.75}
+        >
+          <BlurView intensity={60} tint="light" style={styles.fabBlur}>
+            <View style={styles.fabInner}>
+              <Ionicons name="calendar" size={ms(20)} color="rgba(255,255,255,0.92)" />
+              {selectedDate && (
+                <View style={styles.fabDot} />
+              )}
+            </View>
+          </BlurView>
+        </TouchableOpacity>
+      )}
 
       {/* ── Party popup card ── */}
       {selectedParty && (
