@@ -195,7 +195,7 @@ const cardStyles = StyleSheet.create({
     position: 'absolute',
     left: s(16),
     right: s(16),
-    bottom: vs(100),
+    bottom: vs(16),
     borderRadius: s(24),
     overflow: 'hidden',
     shadowColor: '#000',
@@ -530,9 +530,9 @@ export default function ExploreScreen() {
         <MapboxGL.Camera
           ref={cameraRef}
           defaultSettings={{
+            centerCoordinate: userCoords ?? [19.2594, 42.4411],
             zoomLevel: 13.5,
           }}
-          followUserLocation={!userCoords}
           animationMode="flyTo"
           animationDuration={0}
         />
