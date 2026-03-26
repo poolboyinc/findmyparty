@@ -471,14 +471,39 @@ export default function ExploreScreen() {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         setLocationDenied(true);
-        loadParties(); // still load all parties without location filter
+        loadParties();
         return;
       }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const coords: [number, number] = [loc.coords.longitude, loc.coords.latitude];
-      setUserCoords(coords);
-      cameraRef.current?.flyTo(coords, 800);
-      loadParties(loc.coords.latitude, loc.coords.longitude);
+
+      // Use cached location for instant first load
+      const last = await Location.getLastKnownPositionAsync();
+      if (last) {
+        const coords: [number, number] = [last.coords.longitude, last.coords.latitude];
+        setUserCoords(coords);
+        cameraRef.current?.flyTo(coords, 800);
+        loadParties(last.coords.latitude, last.coords.longitude);
+      }
+
+      // Get accurate fix in background — only refetch if moved >~500m
+      const accurate = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const newCoords: [number, number] = [accurate.coords.longitude, accurate.coords.latitude];
+
+      if (!last) {
+        setUserCoords(newCoords);
+        cameraRef.current?.flyTo(newCoords, 800);
+        loadParties(accurate.coords.latitude, accurate.coords.longitude);
+      } else {
+        const dist = Math.hypot(
+          newCoords[0] - last.coords.longitude,
+          newCoords[1] - last.coords.latitude,
+        );
+        if (dist > 0.005) {
+          setUserCoords(newCoords);
+          loadParties(accurate.coords.latitude, accurate.coords.longitude);
+        }
+      }
     })();
   }, []);
 
