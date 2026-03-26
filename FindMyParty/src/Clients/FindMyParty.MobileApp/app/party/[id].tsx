@@ -19,11 +19,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { partyService } from '@/services/partyService';
 import { resolveMediaUrl } from '@/constants/api';
 import { bookingService } from '@/services/bookingService';
-import { authService } from '@/services/authService';
 import type { PartyDetail } from '@/types/parties';
 import { s, vs, ms } from '@/constants/responsive';
 
@@ -126,17 +124,10 @@ export default function PartyDetailScreen() {
   const HERO_HEIGHT = H * 0.42;   // 354/844
   const [party, setParty] = useState<PartyDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [booking, setBooking] = useState(false);
   const [ticketModalVisible, setTicketModalVisible] = useState(false);
   const [ticketCount, setTicketCount] = useState(1);
-  const [isHost, setIsHost] = useState(false);
-
-  useEffect(() => {
-    authService.getUserInfo().then(info => {
-      if (info?.roles?.includes('Host')) setIsHost(true);
-    });
-  }, []);
+  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -193,34 +184,6 @@ export default function PartyDetailScreen() {
     }
   };
 
-  const handleImagePress = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photo library.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.85,
-      allowsEditing: true,
-      aspect: [16, 9],
-    });
-    if (result.canceled) return;
-    const asset = result.assets[0];
-    if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
-      Alert.alert('Image too large', 'Please choose an image under 10 MB.');
-      return;
-    }
-    setUploading(true);
-    const imageUrl = await partyService.uploadPartyImage(party.id, result.assets[0].uri);
-    setUploading(false);
-    if (imageUrl) {
-      setParty((p) => (p ? { ...p, imageUrl: resolveMediaUrl(imageUrl) ?? imageUrl } : p));
-    } else {
-      Alert.alert('Upload failed', 'Could not upload image. Make sure you are the host of this party.');
-    }
-  };
-
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
@@ -230,9 +193,8 @@ export default function PartyDetailScreen() {
         {/* ── Hero ── */}
         <TouchableOpacity
           style={[styles.heroWrapper, { height: HERO_HEIGHT }]}
-          activeOpacity={isHost ? 0.9 : 1}
-          onPress={isHost ? handleImagePress : undefined}
-          disabled={!isHost}
+          activeOpacity={0.9}
+          onPress={resolveMediaUrl(party.imageUrl) ? () => setImagePreviewVisible(true) : undefined}
         >
           {resolveMediaUrl(party.imageUrl) ? (
             <Image
@@ -247,20 +209,6 @@ export default function PartyDetailScreen() {
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
-          )}
-
-          {/* Upload states */}
-          {uploading && (
-            <View style={styles.uploadOverlay}>
-              <ActivityIndicator size="large" color="#FFF" />
-              <Text style={styles.uploadText}>Uploading...</Text>
-            </View>
-          )}
-          {!party.imageUrl && !uploading && isHost && (
-            <View style={styles.uploadHint}>
-              <Ionicons name="camera" size={ms(28)} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.uploadHintText}>Tap to add image</Text>
-            </View>
           )}
 
           {/* Gradient fade to black */}
@@ -449,6 +397,29 @@ export default function PartyDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ── Fullscreen image preview ── */}
+      <Modal
+        visible={imagePreviewVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setImagePreviewVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.imagePreviewBackdrop}
+          activeOpacity={1}
+          onPress={() => setImagePreviewVisible(false)}
+        >
+          <BlurView intensity={Platform.OS === 'ios' ? 80 : 100} tint="dark" style={StyleSheet.absoluteFill} />
+          {resolveMediaUrl(party.imageUrl) && (
+            <Image
+              source={{ uri: resolveMediaUrl(party.imageUrl)! }}
+              style={styles.imagePreviewImage}
+              resizeMode="contain"
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -491,31 +462,6 @@ const styles = StyleSheet.create({
   heroImage: {
     width: '100%',
     // height applied inline from useWindowDimensions
-  },
-  uploadOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: vs(12),
-  },
-  uploadText: {
-    color: '#FFF',
-    fontSize: ms(16),
-    fontWeight: '600',
-  },
-  uploadHint: {
-    position: 'absolute',
-    bottom: vs(70),
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    gap: vs(6),
-  },
-  uploadHintText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: ms(14),
-    fontWeight: '500',
   },
   heroFade: {
     position: 'absolute',
@@ -747,5 +693,17 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: ms(16),
     fontWeight: '700',
+  },
+
+  // ── Fullscreen image preview ──
+  imagePreviewBackdrop: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePreviewImage: {
+    width: '92%',
+    height: '60%',
+    borderRadius: s(16),
   },
 });
