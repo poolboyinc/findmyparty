@@ -113,10 +113,14 @@ function PartyCard({
   party,
   onClose,
   translateY,
+  onDirections,
+  hasLocation,
 }: {
   party: PartyMapItem;
   onClose: () => void;
   translateY: Animated.Value;
+  onDirections?: () => void;
+  hasLocation?: boolean;
 }) {
   const { height: H } = useWindowDimensions();
   const imageSectionHeight = H * 0.213;  // 180/844
@@ -177,14 +181,25 @@ function PartyCard({
           )}
         </View>
 
-        {/* CTA */}
-        <TouchableOpacity
-          style={cardStyles.ctaButton}
-          activeOpacity={0.85}
-          onPress={() => router.push(`/party/${party.id}`)}
-        >
-          <Text style={cardStyles.ctaText}>View Details</Text>
-        </TouchableOpacity>
+        {/* CTA row */}
+        <View style={cardStyles.ctaRow}>
+          <TouchableOpacity
+            style={[cardStyles.ctaButton, { flex: 1 }]}
+            activeOpacity={0.85}
+            onPress={() => router.push(`/party/${party.id}`)}
+          >
+            <Text style={cardStyles.ctaText}>View Details</Text>
+          </TouchableOpacity>
+          {hasLocation && onDirections && (
+            <TouchableOpacity
+              style={cardStyles.directionsBtn}
+              activeOpacity={0.85}
+              onPress={onDirections}
+            >
+              <Ionicons name="navigate" size={ms(18)} color="#FFF" />
+            </TouchableOpacity>
+          )}
+        </View>
       </LinearGradient>
     </Animated.View>
   );
@@ -294,6 +309,11 @@ const cardStyles = StyleSheet.create({
     fontWeight: '700',
   },
 
+  ctaRow: {
+    flexDirection: 'row',
+    gap: s(10),
+    alignItems: 'center',
+  },
   ctaButton: {
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: s(30),
@@ -307,6 +327,16 @@ const cardStyles = StyleSheet.create({
     color: '#FFF',
     fontSize: ms(15),
     fontWeight: '700',
+  },
+  directionsBtn: {
+    width: vs(44),
+    height: vs(44),
+    borderRadius: vs(22),
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
   },
 });
 
@@ -447,6 +477,115 @@ const dpStyles = StyleSheet.create({
   },
 });
 
+// ─── Travel Mode Picker ──────────────────────────────────────────────────────
+function TravelModePicker({
+  visible,
+  onClose,
+  onSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (mode: 'driving' | 'walking') => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={modeStyles.overlay} activeOpacity={1} onPress={onClose}>
+        <View style={modeStyles.card}>
+          <Text style={modeStyles.title}>Get Directions</Text>
+          <View style={modeStyles.options}>
+            <TouchableOpacity
+              style={modeStyles.option}
+              activeOpacity={0.8}
+              onPress={() => { onSelect('driving'); onClose(); }}
+            >
+              <LinearGradient colors={['#9B20FF', '#6500D2']} style={modeStyles.optionGradient}>
+                <Ionicons name="car" size={ms(28)} color="#FFF" />
+                <Text style={modeStyles.optionText}>Driving</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={modeStyles.option}
+              activeOpacity={0.8}
+              onPress={() => { onSelect('walking'); onClose(); }}
+            >
+              <LinearGradient colors={['#9B20FF', '#6500D2']} style={modeStyles.optionGradient}>
+                <Ionicons name="walk" size={ms(28)} color="#FFF" />
+                <Text style={modeStyles.optionText}>Walking</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={modeStyles.cancelBtn}>
+            <Text style={modeStyles.cancelText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
+const modeStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  card: {
+    backgroundColor: '#1A1620',
+    borderRadius: s(24),
+    paddingTop: vs(24),
+    paddingBottom: vs(20),
+    paddingHorizontal: s(24),
+    width: '80%',
+    alignItems: 'center',
+  },
+  title: {
+    color: '#FFF',
+    fontSize: ms(20),
+    fontWeight: '700',
+    marginBottom: vs(20),
+  },
+  options: {
+    flexDirection: 'row',
+    gap: s(16),
+    marginBottom: vs(16),
+  },
+  option: {
+    flex: 1,
+    borderRadius: s(16),
+    overflow: 'hidden',
+  },
+  optionGradient: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: vs(20),
+    gap: vs(8),
+  },
+  optionText: {
+    color: '#FFF',
+    fontSize: ms(15),
+    fontWeight: '600',
+  },
+  cancelBtn: {
+    paddingVertical: vs(8),
+  },
+  cancelText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: ms(15),
+    fontWeight: '500',
+  },
+});
+
+// ─── Route line type ─────────────────────────────────────────────────────────
+type RouteGeoJSON = {
+  type: 'FeatureCollection';
+  features: Array<{
+    type: 'Feature';
+    properties: Record<string, unknown>;
+    geometry: { type: 'LineString'; coordinates: number[][] };
+  }>;
+};
+
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
@@ -457,6 +596,68 @@ export default function ExploreScreen() {
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [locationDenied, setLocationDenied] = useState(false);
   const cameraRef = useRef<MapboxGL.Camera>(null);
+
+  // Navigation / routing state
+  const [showModePicker, setShowModePicker] = useState(false);
+  const [travelMode, setTravelMode] = useState<'driving' | 'walking'>('driving');
+  const [routeGeoJSON, setRouteGeoJSON] = useState<RouteGeoJSON | null>(null);
+  const [navigating, setNavigating] = useState(false);
+  const [navigationTarget, setNavigationTarget] = useState<PartyMapItem | null>(null);
+
+  // Fetch route from Mapbox Directions API
+  const fetchRoute = useCallback(async (mode: 'driving' | 'walking', destination: PartyMapItem) => {
+    if (!userCoords || !ApiConstants.MapboxPublicToken) return;
+    try {
+      const url = `https://api.mapbox.com/directions/v5/mapbox/${mode}/${userCoords[0]},${userCoords[1]};${destination.longitude},${destination.latitude}?geometries=geojson&overview=full&access_token=${ApiConstants.MapboxPublicToken}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if (json.routes?.[0]?.geometry) {
+        const geoJSON: RouteGeoJSON = {
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            properties: {},
+            geometry: json.routes[0].geometry,
+          }],
+        };
+        setRouteGeoJSON(geoJSON);
+        setTravelMode(mode);
+        setNavigating(true);
+        setNavigationTarget(destination);
+        setSelectedParty(null);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch route:', e);
+    }
+  }, [userCoords]);
+
+  // Start directions from party card
+  const handleDirections = useCallback(() => {
+    if (!userCoords) return;
+    setShowModePicker(true);
+  }, [userCoords]);
+
+  // Handle mode selection
+  const handleModeSelect = useCallback((mode: 'driving' | 'walking') => {
+    if (selectedParty) {
+      fetchRoute(mode, selectedParty);
+    }
+  }, [selectedParty, fetchRoute]);
+
+  // Cancel navigation
+  const handleCancelNavigation = useCallback(() => {
+    setNavigating(false);
+    setRouteGeoJSON(null);
+    setNavigationTarget(null);
+    // Restore default zoom
+    if (userCoords) {
+      cameraRef.current?.setCamera({
+        centerCoordinate: userCoords,
+        zoomLevel: 13.5,
+        animationDuration: 800,
+      });
+    }
+  }, [userCoords]);
 
   // Guard: redirect if Mapbox token is missing
   useEffect(() => {
@@ -558,10 +759,37 @@ export default function ExploreScreen() {
             centerCoordinate: userCoords ?? [19.2594, 42.4411],
             zoomLevel: 13.5,
           }}
+          followUserLocation={navigating}
+          followZoomLevel={navigating ? 16.5 : undefined}
           animationMode="flyTo"
-          animationDuration={0}
+          animationDuration={navigating ? 1000 : 0}
         />
         <MapboxGL.UserLocation visible androidRenderMode="compass" />
+
+        {/* Route line */}
+        {routeGeoJSON && (
+          <MapboxGL.ShapeSource id="routeLine" shape={routeGeoJSON}>
+            <MapboxGL.LineLayer
+              id="routeLineLayer"
+              style={
+                travelMode === 'walking'
+                  ? {
+                      lineColor: '#B44AFF',
+                      lineWidth: 5,
+                      lineCap: 'round',
+                      lineJoin: 'round',
+                      lineDasharray: [1.5, 2],
+                    }
+                  : {
+                      lineColor: '#B44AFF',
+                      lineWidth: 5,
+                      lineCap: 'round',
+                      lineJoin: 'round',
+                    }
+              }
+            />
+          </MapboxGL.ShapeSource>
+        )}
 
         {/* Party markers */}
         {parties.map((party) => (
@@ -600,8 +828,19 @@ export default function ExploreScreen() {
         </View>
       )}
 
-      {/* ── Date picker FAB ── */}
-      {!selectedParty && (
+      {/* ── FAB: cancel navigation OR date picker ── */}
+      {!selectedParty && navigating && (
+        <TouchableOpacity
+          style={[styles.datePickerFab, styles.cancelNavFab]}
+          onPress={handleCancelNavigation}
+          activeOpacity={0.75}
+        >
+          <View style={styles.cancelNavInner}>
+            <Ionicons name="close" size={ms(24)} color="#FFF" />
+          </View>
+        </TouchableOpacity>
+      )}
+      {!selectedParty && !navigating && (
         <TouchableOpacity
           style={styles.datePickerFab}
           onPress={() => setShowDatePicker(true)}
@@ -624,8 +863,17 @@ export default function ExploreScreen() {
           party={selectedParty}
           onClose={handleCloseCard}
           translateY={cardAnim}
+          onDirections={handleDirections}
+          hasLocation={!!userCoords}
         />
       )}
+
+      {/* ── Travel mode picker ── */}
+      <TravelModePicker
+        visible={showModePicker}
+        onClose={() => setShowModePicker(false)}
+        onSelect={handleModeSelect}
+      />
 
       {/* ── Date picker modal ── */}
       <DatePickerModal
@@ -760,5 +1008,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#A855F7',
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.7)',
+  },
+  cancelNavFab: {
+    backgroundColor: 'rgba(220,50,50,0.9)',
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  cancelNavInner: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
