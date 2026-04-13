@@ -145,11 +145,10 @@ export const partyService = {
     const token = await authService.getToken();
     if (!token) return null;
 
-    const filename = imageUri.split('/').pop() ?? 'image.jpg';
-    const ext = filename.split('.').pop() ?? 'jpg';
-
     const formData = new FormData();
-    formData.append('file', { uri: imageUri, name: filename, type: `image/${ext}` } as any);
+    // Server validates and re-encodes to JPEG regardless of what we send here.
+    // Use a fixed content type — never derive it from the client filename.
+    formData.append('file', { uri: imageUri, name: 'upload.jpg', type: 'image/jpeg' } as any);
 
     const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/image`, {
       method: 'POST',

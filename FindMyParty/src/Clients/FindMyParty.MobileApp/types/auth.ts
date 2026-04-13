@@ -15,7 +15,6 @@ export interface RegisterRequest {
 }
 
 export interface RefreshTokenRequest {
-  userId: string;
   refreshToken: string;
 }
 

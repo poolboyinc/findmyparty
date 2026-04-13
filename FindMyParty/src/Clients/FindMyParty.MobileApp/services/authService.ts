@@ -35,6 +35,25 @@ function isTokenExpired(token: string): boolean {
   return Date.now() / 1000 > exp;
 }
 
+// Portable base64 decode that doesn't rely on atob (not guaranteed in all RN engines).
+function base64Decode(input: string): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+  let output = '';
+  let buffer = 0;
+  let bits = 0;
+  for (let i = 0; i < input.length; i++) {
+    const idx = chars.indexOf(input[i]);
+    if (idx === -1 || idx === 64) continue; // skip padding / unknown
+    buffer = (buffer << 6) | idx;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      output += String.fromCharCode((buffer >> bits) & 0xff);
+    }
+  }
+  return output;
+}
+
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   const parts = token.split('.');
   if (parts.length !== 3) return null;
@@ -45,7 +64,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   else if (padding === 3) payload += '=';
 
   try {
-    return JSON.parse(atob(payload));
+    return JSON.parse(base64Decode(payload));
   } catch {
     return null;
   }
@@ -105,25 +124,13 @@ export const authService = {
   },
 
   async refresh(): Promise<boolean> {
-    const [accessToken, refreshToken] = await Promise.all([
-      SecureStore.getItemAsync(TOKEN_KEY),
-      SecureStore.getItemAsync(REFRESH_TOKEN_KEY),
-    ]);
-
-    if (!accessToken || !refreshToken) return false;
-
-    const payload = decodeJwtPayload(accessToken);
-    if (!payload) return false;
-
-    const userId = getStringClaim(payload, NAMEID_CLAIM_KEY)
-      || getStringClaim(payload, 'sub');
-
-    if (!userId) return false;
+    const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+    if (!refreshToken) return false;
 
     const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, refreshToken } satisfies RefreshTokenRequest),
+      body: JSON.stringify({ refreshToken } satisfies RefreshTokenRequest),
     });
 
     if (!response.ok) return false;
