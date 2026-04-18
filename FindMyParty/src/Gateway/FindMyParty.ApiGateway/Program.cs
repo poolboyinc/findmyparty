@@ -1,7 +1,10 @@
+using FindMyParty.ServiceDefaults;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.MapRailwayEnvironment();
 
 // Allow Railway env vars to override cluster addresses
 var identityUrl = builder.Configuration["ServiceUrls:Identity"] ?? "http://identity-api:8080";
@@ -15,16 +18,37 @@ builder.Configuration["ReverseProxy:Clusters:bookings:Destinations:bookings/d1:A
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
-// TODO: Replace AllowAnyOrigin with specific production domains before going live
-// e.g. .WithOrigins("https://yourapp.com", "https://www.yourapp.com")
+// Honor X-Forwarded-For / X-Forwarded-Proto from Railway's edge proxy so the
+// real client IP (not the Railway proxy IP) is used for rate limiting.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+// CORS: the mobile app doesn't need CORS (native HTTP). Only browsers do.
+// In Development allow anything; in Production allow only explicitly configured origins.
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy
-            .AllowAnyOrigin()
-            .AllowAnyMethod()
-            .AllowAnyHeader();
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.SetIsOriginAllowed(_ => true)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        }
+        else if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        }
+        // else: no CORS policy — browsers will be blocked, native mobile traffic unaffected.
     });
 });
 
@@ -60,6 +84,9 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+
+// Must be first: rewrites RemoteIpAddress / scheme from proxy headers.
+app.UseForwardedHeaders();
 
 app.UseCors();
 app.UseRateLimiter();

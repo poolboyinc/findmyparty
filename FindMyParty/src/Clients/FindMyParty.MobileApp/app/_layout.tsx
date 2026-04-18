@@ -1,13 +1,15 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
+import { TamaguiProvider } from 'tamagui';
+import { PortalProvider } from '@tamagui/portal';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { authService } from '@/services/authService';
+import tamaguiConfig from '@/tamagui.config';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -48,8 +50,22 @@ function useProtectedRoute() {
   return checked;
 }
 
+// ULTRAVIOLET-tuned React Navigation theme — matches Tamagui tokens so
+// native stack transitions don't flash white.
+const UltraVioletNavTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: '#05020A', // $void
+    card:       '#0A0612', // $surfaceBase
+    text:       '#F5EBFF',
+    border:     'rgba(255,255,255,0.10)',
+    primary:    '#B026FF',
+    notification: '#FF2E93',
+  },
+};
+
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   useProtectedRoute();
 
   const [fontsLoaded] = useFonts({
@@ -63,19 +79,28 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack initialRouteName="splash">
-        <Stack.Screen name="splash" options={{ headerShown: false, animation: 'none' }} />
-        <Stack.Screen name="onboarding" options={{ headerShown: false, animation: 'fade' }} />
-        <Stack.Screen name="login" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="register" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false, animation: 'none' }} />
-        <Stack.Screen name="party/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="my-bookings" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="admin" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="light" />
-    </ThemeProvider>
+    <TamaguiProvider config={tamaguiConfig} defaultTheme="dark">
+      <PortalProvider shouldAddRootHost>
+        <ThemeProvider value={UltraVioletNavTheme}>
+          <Stack
+            initialRouteName="splash"
+            screenOptions={{
+              contentStyle: { backgroundColor: '#05020A' },
+            }}
+          >
+            <Stack.Screen name="splash" options={{ headerShown: false, animation: 'none' }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false, animation: 'fade' }} />
+            <Stack.Screen name="login" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="register" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false, animation: 'none' }} />
+            <Stack.Screen name="party/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="my-bookings" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="admin" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+          </Stack>
+          <StatusBar style="light" />
+        </ThemeProvider>
+      </PortalProvider>
+    </TamaguiProvider>
   );
 }

@@ -140,7 +140,7 @@ export default function PartyDetailScreen() {
   if (loading) {
     return (
       <View style={styles.loadingRoot}>
-        <ActivityIndicator size="large" color="#7D08FA" />
+        <ActivityIndicator size="large" color="#B026FF" />
       </View>
     );
   }
@@ -204,16 +204,16 @@ export default function PartyDetailScreen() {
             />
           ) : (
             <LinearGradient
-              colors={['#1a0030', '#3D0880', '#7D08FA']}
+              colors={['#1F0F2E', '#3B0764', '#B026FF']}
               style={[styles.heroImage, { height: HERO_HEIGHT }]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             />
           )}
 
-          {/* Gradient fade to black */}
+          {/* Floor-to-top violet scrim */}
           <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.55)', '#000']}
+            colors={['transparent', 'rgba(31,15,46,0.6)', '#05020A']}
             style={styles.heroFade}
             pointerEvents="none"
           />
@@ -241,7 +241,7 @@ export default function PartyDetailScreen() {
           <View style={styles.heroOverlay} pointerEvents="none">
             <Text style={styles.clubName}>{party.title}</Text>
             <LinearGradient
-              colors={['#7D08FA', '#FF6E00']}
+              colors={['#B026FF', '#FF2E93']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.ratingBadge}
@@ -385,9 +385,9 @@ export default function PartyDetailScreen() {
                 activeOpacity={0.85}
               >
                 <LinearGradient
-                  colors={['#7D08FA', '#FF6E00']}
+                  colors={['#B026FF', '#7E22CE']}
                   start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
+                  end={{ x: 1, y: 1 }}
                   style={styles.modalConfirmGradient}
                 >
                   <Text style={styles.modalConfirmText}>Confirm</Text>
@@ -428,11 +428,11 @@ export default function PartyDetailScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#05020A',
   },
   loadingRoot: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#05020A',
     alignItems: 'center',
     justifyContent: 'center',
     gap: vs(16),
@@ -444,8 +444,12 @@ const styles = StyleSheet.create({
   backFallback: {
     paddingHorizontal: s(24),
     paddingVertical: vs(12),
-    backgroundColor: '#7D08FA',
+    backgroundColor: '#B026FF',
     borderRadius: s(30),
+    shadowColor: '#B026FF',
+    shadowOpacity: 0.6,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
   },
   backFallbackText: {
     color: '#FFF',
@@ -515,9 +519,9 @@ const styles = StyleSheet.create({
     marginTop: vs(14),
     borderRadius: s(34),
     overflow: 'hidden',
-    backgroundColor: 'rgba(38,38,38,0.92)',
+    backgroundColor: 'rgba(30,20,50,0.72)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(216,180,254,0.18)',
   },
   infoRow: {
     flexDirection: 'row',
@@ -571,13 +575,17 @@ const styles = StyleSheet.create({
     borderRadius: s(30),
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
+    borderColor: 'rgba(216,180,254,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#B026FF',
+    shadowOpacity: 0.7,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 0 },
   },
   reserveOverlay: {
     borderRadius: s(30),
-    backgroundColor: 'rgba(125,8,250,0.45)',
+    backgroundColor: 'rgba(176,38,255,0.55)',
   },
   reserveText: {
     color: '#FFF',
@@ -616,12 +624,16 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: '85%',
-    backgroundColor: '#1A1A2E',
+    backgroundColor: '#140823',
     borderRadius: s(24),
     padding: s(24),
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(216,180,254,0.2)',
+    shadowColor: '#B026FF',
+    shadowOpacity: 0.4,
+    shadowRadius: 30,
+    shadowOffset: { width: 0, height: 0 },
   },
   modalTitle: {
     color: '#FFF',
@@ -639,9 +651,9 @@ const styles = StyleSheet.create({
     width: s(48),
     height: s(48),
     borderRadius: s(24),
-    backgroundColor: 'rgba(125,8,250,0.35)',
+    backgroundColor: 'rgba(176,38,255,0.24)',
     borderWidth: 1,
-    borderColor: 'rgba(125,8,250,0.6)',
+    borderColor: '#B026FF',
     alignItems: 'center',
     justifyContent: 'center',
   },

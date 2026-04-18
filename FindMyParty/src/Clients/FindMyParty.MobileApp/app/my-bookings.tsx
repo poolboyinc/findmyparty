@@ -20,6 +20,7 @@ import { bookingService } from '@/services/bookingService';
 import { getStatusColor, getStatusBorderColor } from '@/types/bookings';
 import type { BookingItem } from '@/types/bookings';
 import { s, vs, ms } from '@/constants/responsive';
+import { AmbientBackdrop } from '@/components/ui/ambient-backdrop';
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-GB', {
@@ -133,11 +134,7 @@ export default function MyBookingsScreen() {
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <LinearGradient
-        colors={['#000000', '#0A001A', '#7D08FA']}
-        locations={[0, 0.55, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      <AmbientBackdrop variant="subtle" />
 
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + vs(10) }]}>
@@ -149,7 +146,7 @@ export default function MyBookingsScreen() {
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#7D08FA" />
+          <ActivityIndicator size="large" color="#B026FF" />
         </View>
       ) : active.length === 0 ? (
         <View style={styles.centered}>
@@ -162,9 +159,9 @@ export default function MyBookingsScreen() {
             onPress={() => router.replace('/(tabs)')}
           >
             <LinearGradient
-              colors={['#7E0AFA', '#FF6E00']}
+              colors={['#B026FF', '#7E22CE']}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+              end={{ x: 1, y: 1 }}
               style={styles.exploreBtnGradient}
             >
               <Text style={styles.exploreBtnText}>Explore Parties</Text>
@@ -177,7 +174,7 @@ export default function MyBookingsScreen() {
           contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + vs(30) }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D08FA" colors={['#7D08FA']} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#B026FF" colors={['#B026FF']} />
           }
         >
           {active.map(b => (
@@ -304,11 +301,15 @@ const styles = StyleSheet.create({
     flex: 1,
     height: vs(40),
     borderRadius: s(20),
-    backgroundColor: 'rgba(125,8,250,0.3)',
+    backgroundColor: 'rgba(176,38,255,0.24)',
     borderWidth: 1,
-    borderColor: 'rgba(125,8,250,0.6)',
+    borderColor: '#B026FF',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#B026FF',
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
   },
   detailBtnText: {
     color: '#FFF',
@@ -319,14 +320,14 @@ const styles = StyleSheet.create({
     flex: 1,
     height: vs(40),
     borderRadius: s(20),
-    backgroundColor: 'rgba(239,68,68,0.15)',
+    backgroundColor: 'rgba(255,46,147,0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(239,68,68,0.4)',
+    borderColor: 'rgba(255,46,147,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelBtnText: {
-    color: '#EF4444',
+    color: '#FF2E93',
     fontSize: ms(14),
     fontWeight: '600',
   },

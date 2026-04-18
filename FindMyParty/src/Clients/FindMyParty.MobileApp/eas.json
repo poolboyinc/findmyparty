@@ -12,13 +12,7 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true,
-      "env": {
-        "EXPO_PUBLIC_API_URL": "https://findmyparty-gateway-production.up.railway.app",
-        "EXPO_PUBLIC_MAPBOX_TOKEN": "pk.eyJ1IjoicG9vbGJvaWluYyIsImEiOiJjbTl0eWhuNHkwM3l0Mm1zOXBqc2FxMDVkIn0.ARL02yHrAorx0t98mlv2KQ",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "614494491110-0soalbm7utg2he0a3psop3ju0oab6b7v.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_REVERSED_CLIENT_ID": "com.googleusercontent.apps.614494491110-0soalbm7utg2he0a3psop3ju0oab6b7v"
-      }
+      "autoIncrement": true
     }
   },
   "submit": {

@@ -1,3 +1,4 @@
+using FindMyParty.ServiceDefaults;
 using FindMyParty.Bookings.API.Application.Common;
 using FindMyParty.Bookings.API.Application.Handlers;
 using FindMyParty.Bookings.API.Application.IntegrationEvents.EventBus;
@@ -12,6 +13,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.MapRailwayEnvironment();
 
 builder.Services.AddDbContext<BookingsDbContext>(options =>
 {
@@ -24,13 +26,15 @@ builder.Services.AddDbContext<BookingsDbContext>(options =>
 });
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtKey = jwtSection["Key"]!;
+var jwtKey = jwtSection["Key"]
+    ?? throw new InvalidOperationException(
+        "Jwt:Key is not configured. Set the JWT_KEY environment variable.");
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.RequireHttpsMetadata = false; // true in prod
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
         options.SaveToken = true;
 
         options.TokenValidationParameters = new TokenValidationParameters

@@ -974,7 +974,7 @@ const styles = StyleSheet.create({
   datePickerFab: {
     position: 'absolute',
     right: s(20),
-    bottom: vs(24),
+    bottom: vs(112),
     width: s(52),
     height: s(52),
     borderRadius: s(26),

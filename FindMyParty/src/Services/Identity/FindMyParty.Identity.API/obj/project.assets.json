@@ -895,6 +895,19 @@
             "rid": "win"
           }
         }
+      },
+      "FindMyParty.ServiceDefaults/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v10.0",
+        "compile": {
+          "bin/placeholder/FindMyParty.ServiceDefaults.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/FindMyParty.ServiceDefaults.dll": {}
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ]
       }
     }
   },
@@ -2739,10 +2752,16 @@
         "system.management.nuspec",
         "useSharedDesignerContext.txt"
       ]
+    },
+    "FindMyParty.ServiceDefaults/1.0.0": {
+      "type": "project",
+      "path": "../../../BuildingBlocks/FindMyParty.ServiceDefaults/FindMyParty.ServiceDefaults.csproj",
+      "msbuildProject": "../../../BuildingBlocks/FindMyParty.ServiceDefaults/FindMyParty.ServiceDefaults.csproj"
     }
   },
   "projectFileDependencyGroups": {
     "net10.0": [
+      "FindMyParty.ServiceDefaults >= 1.0.0",
       "Google.Apis.Auth >= 1.68.0",
       "Microsoft.AspNetCore.Authentication.JwtBearer >= 10.0.4",
       "Microsoft.AspNetCore.Identity.EntityFrameworkCore >= 10.0.4",
@@ -2784,7 +2803,11 @@
       "frameworks": {
         "net10.0": {
           "targetAlias": "net10.0",
-          "projectReferences": {}
+          "projectReferences": {
+            "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj": {
+              "projectPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj"
+            }
+          }
         }
       },
       "warningProperties": {

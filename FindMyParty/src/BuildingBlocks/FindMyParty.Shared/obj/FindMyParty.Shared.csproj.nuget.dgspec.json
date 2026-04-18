@@ -1,15 +1,15 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.Shared\\FindMyParty.Shared.csproj": {}
+    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.Shared\\FindMyParty.Shared.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.Shared\\FindMyParty.Shared.csproj": {
+    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.Shared\\FindMyParty.Shared.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.Shared\\FindMyParty.Shared.csproj",
+        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.Shared\\FindMyParty.Shared.csproj",
         "projectName": "FindMyParty.Shared",
-        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.Shared\\FindMyParty.Shared.csproj",
+        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.Shared\\FindMyParty.Shared.csproj",
         "packagesPath": "C:\\Users\\Lenovo\\.nuget\\packages\\",
         "outputPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.Shared\\obj\\",
         "projectStyle": "PackageReference",

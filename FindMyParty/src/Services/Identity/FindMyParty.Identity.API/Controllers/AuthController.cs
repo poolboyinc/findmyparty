@@ -43,9 +43,7 @@ namespace FindMyParty.Identity.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequest request)
         {
-            var user = request.Email.Contains('@')
-                ? await userManager.FindByEmailAsync(request.Email)
-                : await userManager.FindByNameAsync(request.Email);
+            var user = await userManager.FindByEmailAsync(request.Email);
             if (user == null)
                 return Unauthorized();
 
@@ -66,7 +64,7 @@ namespace FindMyParty.Identity.API.Controllers
         [HttpPost("refresh")]
         public async Task<IActionResult> Refresh(RefreshTokenRequest request)
         {
-            var (isValid, user) = await tokenService.ValidateRefreshTokenAsync(request.UserId, request.RefreshToken);
+            var (isValid, user) = await tokenService.ValidateRefreshTokenAsync(request.RefreshToken);
 
             if (!isValid || user == null)
                 return Unauthorized();

@@ -16,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useProfile } from '@/hooks/useProfile';
 import { s, vs, ms } from '@/constants/responsive';
+import { AmbientBackdrop } from '@/components/ui/ambient-backdrop';
 
 // ─── Stat item ────────────────────────────────────────────────────────────────
 function StatItem({
@@ -127,15 +128,10 @@ export default function ProfileScreen() {
     <View style={styles.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* Full-screen gradient background */}
-      <LinearGradient
-        colors={['rgba(0,0,0,0.98)', 'rgba(125,8,250,0.95)', 'rgba(255,110,0,0.92)']}
-        locations={[0.19, 0.65, 1.0]}
-        style={StyleSheet.absoluteFill}
-      />
+      <AmbientBackdrop variant="default" />
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + vs(24), paddingBottom: insets.bottom + vs(24) }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + vs(24), paddingBottom: 128 }]}
         showsVerticalScrollIndicator={false}
       >
         {/* ── Avatar ── */}
@@ -178,42 +174,35 @@ export default function ProfileScreen() {
 
         {/* ── Action buttons ── */}
         <View style={styles.actionRow}>
-          {/* Saved Events */}
+          {/* Saved Events — primary neon CTA */}
           <TouchableOpacity
             style={styles.actionBtnWrapper}
             onPress={handleSavedEvents}
             activeOpacity={0.85}
           >
             <LinearGradient
-              colors={['#7D08FA', '#FF6E00']}
+              colors={['#B026FF', '#7E22CE']}
               start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
+              end={{ x: 1, y: 1 }}
               style={styles.actionBtnGradient}
             >
-              <View style={styles.actionBtnBorder}>
-                <Ionicons name="bookmark-outline" size={ms(18)} color="#FFF" />
+              <View style={[styles.actionBtnBorder, { borderColor: 'rgba(255,255,255,0.20)' }]}>
+                <Ionicons name="bookmark" size={ms(18)} color="#FFF" />
                 <Text style={styles.actionBtnText}>Saved Events</Text>
               </View>
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Edit Profile */}
+          {/* Edit Profile — ghost variant */}
           <TouchableOpacity
             style={styles.actionBtnWrapper}
             onPress={handleEditProfile}
             activeOpacity={0.85}
           >
-            <LinearGradient
-              colors={['#7E0AFA', '#5700B4']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.actionBtnGradient}
-            >
-              <View style={[styles.actionBtnBorder, { borderColor: '#7E0AFA' }]}>
-                <Ionicons name="pencil-outline" size={ms(18)} color="#FFF" />
-                <Text style={styles.actionBtnText}>Edit Profile</Text>
-              </View>
-            </LinearGradient>
+            <View style={styles.ghostBtn}>
+              <Ionicons name="pencil-outline" size={ms(18)} color="#D8B4FE" />
+              <Text style={[styles.actionBtnText, { color: '#D8B4FE' }]}>Edit Profile</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -395,8 +384,19 @@ const styles = StyleSheet.create({
     gap: s(6),
     borderRadius: s(30),
     borderWidth: 1.5,
-    borderColor: '#FF26E2',
+    borderColor: 'rgba(255,255,255,0.20)',
     margin: 1.5,
+  },
+  ghostBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: s(6),
+    borderRadius: s(30),
+    borderWidth: 1,
+    borderColor: 'rgba(216,180,254,0.32)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   actionBtnText: {
     color: '#FFF',

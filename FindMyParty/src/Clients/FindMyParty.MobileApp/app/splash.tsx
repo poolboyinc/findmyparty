@@ -67,8 +67,8 @@ export default function SplashPage() {
 
   return (
     <LinearGradient
-      colors={['#000000', '#000000', '#1A0035', '#4A0088']}
-      locations={[0, 0.45, 0.72, 1]}
+      colors={['#05020A', '#0A0612', '#1F0F2E', '#3B0764']}
+      locations={[0, 0.4, 0.75, 1]}
       style={styles.container}
     >
       <Animated.View style={[styles.content, animatedStyle]}>
@@ -91,13 +91,15 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: 'center',
-    gap: 16,
+    gap: 20,
   },
-  // logo size is computed inline from useWindowDimensions
   title: {
-    color: '#FFFFFF',
-    fontSize: 32,
+    color: '#F5EBFF',
+    fontSize: 34,
     fontWeight: '800',
-    letterSpacing: 0.5,
+    letterSpacing: 2,
+    textShadowColor: '#B026FF',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 18,
   },
 });

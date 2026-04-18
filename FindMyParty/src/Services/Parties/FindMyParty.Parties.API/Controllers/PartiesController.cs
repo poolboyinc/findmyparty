@@ -7,6 +7,9 @@ using FindMyParty.Parties.API.Infrastructure.Storage;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Distributed;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Processing;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -149,26 +152,61 @@ public class PartiesController(
     [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB
     public async Task<IActionResult> UploadImage(Guid id, IFormFile file)
     {
+        const int maxDimension = 2048;
+        const int maxBytes = 10 * 1024 * 1024;
+
+        if (file == null || file.Length == 0)
+            return BadRequest("No file provided.");
+        if (file.Length > maxBytes)
+            return BadRequest("Image is larger than 10 MB.");
+
         var hostId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
         var party = await db.Parties.FindAsync(id);
         if (party == null) return NotFound();
         if (party.HostId != hostId) return Forbid();
 
-        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
-        if (!allowed.Contains(ext)) return BadRequest("Only jpg, png and webp images are allowed.");
+        // Decode the image via ImageSharp. This:
+        //   1. Verifies it is actually an image (not a renamed executable / polyglot).
+        //   2. Throws on malformed/exploit payloads.
+        //   3. Gives us dimensions so we can cap them.
+        // We then re-encode to JPEG, which strips EXIF (including GPS) and
+        // normalizes the content type — so we never trust the client's filename/content-type.
+        Image image;
+        try
+        {
+            await using var sourceStream = file.OpenReadStream();
+            image = await Image.LoadAsync(sourceStream);
+        }
+        catch (Exception)
+        {
+            return BadRequest("File is not a valid image.");
+        }
 
-        var contentType = file.ContentType;
-        var key = $"parties/{id}{ext}";
+        using (image)
+        {
+            if (image.Width > maxDimension || image.Height > maxDimension)
+            {
+                image.Mutate(ctx => ctx.Resize(new ResizeOptions
+                {
+                    Mode = ResizeMode.Max,
+                    Size = new Size(maxDimension, maxDimension),
+                }));
+            }
 
-        using var stream = file.OpenReadStream();
-        var imageUrl = await s3.UploadAsync(stream, key, contentType);
+            // Always write JPEG regardless of source format. Keeps things simple and safe.
+            using var outputStream = new MemoryStream();
+            await image.SaveAsync(outputStream, new JpegEncoder { Quality = 85 });
+            outputStream.Position = 0;
 
-        party.SetImageUrl(imageUrl);
-        await db.SaveChangesAsync();
+            var key = $"parties/{id}.jpg";
+            var imageUrl = await s3.UploadAsync(outputStream, key, "image/jpeg");
 
-        return Ok(new { imageUrl });
+            party.SetImageUrl(imageUrl);
+            await db.SaveChangesAsync();
+
+            return Ok(new { imageUrl });
+        }
     }
 
     [HttpGet("{id}/availability")]

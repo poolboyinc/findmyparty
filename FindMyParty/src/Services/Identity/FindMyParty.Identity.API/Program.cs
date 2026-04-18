@@ -1,3 +1,4 @@
+using FindMyParty.ServiceDefaults;
 using FindMyParty.Identity.API.Application.Services;
 using FindMyParty.Identity.API.Domain.Entities;
 using FindMyParty.Identity.API.Infrastructure.Data;
@@ -8,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.MapRailwayEnvironment();
 
 builder.Services.AddDbContext<IdentityDbContext>(options =>
 {
@@ -41,7 +43,9 @@ builder.Services
 
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtKey = jwtSection["Key"]!;
+var jwtKey = jwtSection["Key"]
+    ?? throw new InvalidOperationException(
+        "Jwt:Key is not configured. Set the JWT_KEY environment variable.");
 
 builder.Services
     .AddAuthentication(options =>
@@ -51,7 +55,7 @@ builder.Services
     })
     .AddJwtBearer(options =>
     {
-        options.RequireHttpsMetadata = false; // true in prod
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
         options.SaveToken = true;
 
         options.TokenValidationParameters = new TokenValidationParameters

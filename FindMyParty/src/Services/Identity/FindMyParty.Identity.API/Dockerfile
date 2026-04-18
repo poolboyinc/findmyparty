@@ -6,11 +6,15 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
-COPY ["FindMyParty.Identity.API.csproj", "."]
-RUN dotnet restore "FindMyParty.Identity.API.csproj"
+# Copy csproj files for restore layer caching
+COPY BuildingBlocks/FindMyParty.ServiceDefaults/FindMyParty.ServiceDefaults.csproj BuildingBlocks/FindMyParty.ServiceDefaults/
+COPY Services/Identity/FindMyParty.Identity.API/FindMyParty.Identity.API.csproj Services/Identity/FindMyParty.Identity.API/
+RUN dotnet restore Services/Identity/FindMyParty.Identity.API/FindMyParty.Identity.API.csproj
 
-COPY . .
-RUN dotnet publish "FindMyParty.Identity.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+# Copy source and publish
+COPY BuildingBlocks/FindMyParty.ServiceDefaults/ BuildingBlocks/FindMyParty.ServiceDefaults/
+COPY Services/Identity/FindMyParty.Identity.API/ Services/Identity/FindMyParty.Identity.API/
+RUN dotnet publish Services/Identity/FindMyParty.Identity.API/FindMyParty.Identity.API.csproj -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app

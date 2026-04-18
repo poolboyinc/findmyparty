@@ -733,6 +733,22 @@
           }
         }
       },
+      "SixLabors.ImageSharp/3.1.5": {
+        "type": "package",
+        "compile": {
+          "lib/net6.0/SixLabors.ImageSharp.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net6.0/SixLabors.ImageSharp.dll": {
+            "related": ".xml"
+          }
+        },
+        "build": {
+          "build/SixLabors.ImageSharp.props": {}
+        }
+      },
       "StackExchange.Redis/2.7.27": {
         "type": "package",
         "dependencies": {
@@ -891,6 +907,19 @@
             "related": ".xml"
           }
         }
+      },
+      "FindMyParty.ServiceDefaults/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v10.0",
+        "compile": {
+          "bin/placeholder/FindMyParty.ServiceDefaults.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/FindMyParty.ServiceDefaults.dll": {}
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ]
       }
     }
   },
@@ -2534,6 +2563,22 @@
         "rabbitmq.client.nuspec"
       ]
     },
+    "SixLabors.ImageSharp/3.1.5": {
+      "sha512": "lNtlq7dSI/QEbYey+A0xn48z5w4XHSffF8222cC4F4YwTXfEImuiBavQcWjr49LThT/pRmtWJRcqA/PlL+eJ6g==",
+      "type": "package",
+      "path": "sixlabors.imagesharp/3.1.5",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE",
+        "build/SixLabors.ImageSharp.props",
+        "lib/net6.0/SixLabors.ImageSharp.dll",
+        "lib/net6.0/SixLabors.ImageSharp.xml",
+        "sixlabors.imagesharp.128.png",
+        "sixlabors.imagesharp.3.1.5.nupkg.sha512",
+        "sixlabors.imagesharp.nuspec"
+      ]
+    },
     "StackExchange.Redis/2.7.27": {
       "sha512": "Uqc2OQHglqj9/FfGQ6RkKFkZfHySfZlfmbCl+hc+u2I/IqunfelQ7QJi7ZhvAJxUtu80pildVX6NPLdDaUffOw==",
       "type": "package",
@@ -2763,18 +2808,25 @@
         "system.identitymodel.tokens.jwt.8.0.1.nupkg.sha512",
         "system.identitymodel.tokens.jwt.nuspec"
       ]
+    },
+    "FindMyParty.ServiceDefaults/1.0.0": {
+      "type": "project",
+      "path": "../../../BuildingBlocks/FindMyParty.ServiceDefaults/FindMyParty.ServiceDefaults.csproj",
+      "msbuildProject": "../../../BuildingBlocks/FindMyParty.ServiceDefaults/FindMyParty.ServiceDefaults.csproj"
     }
   },
   "projectFileDependencyGroups": {
     "net10.0": [
       "AWSSDK.S3 >= 3.7.400.2",
+      "FindMyParty.ServiceDefaults >= 1.0.0",
       "Microsoft.AspNetCore.Authentication.JwtBearer >= 10.0.2",
       "Microsoft.AspNetCore.OpenApi >= 10.0.1",
       "Microsoft.EntityFrameworkCore >= 10.0.4",
       "Microsoft.EntityFrameworkCore.Tools >= 10.0.4",
       "Microsoft.Extensions.Caching.StackExchangeRedis >= 10.0.3",
       "Npgsql.EntityFrameworkCore.PostgreSQL >= 10.0.1",
-      "RabbitMQ.Client >= 7.2.0"
+      "RabbitMQ.Client >= 7.2.0",
+      "SixLabors.ImageSharp >= 3.1.5"
     ]
   },
   "packageFolders": {
@@ -2809,7 +2861,11 @@
       "frameworks": {
         "net10.0": {
           "targetAlias": "net10.0",
-          "projectReferences": {}
+          "projectReferences": {
+            "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj": {
+              "projectPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj"
+            }
+          }
         }
       },
       "warningProperties": {
@@ -2861,6 +2917,10 @@
           "RabbitMQ.Client": {
             "target": "Package",
             "version": "[7.2.0, )"
+          },
+          "SixLabors.ImageSharp": {
+            "target": "Package",
+            "version": "[3.1.5, )"
           }
         },
         "imports": [
@@ -3299,5 +3359,27 @@
         }
       }
     }
-  }
+  },
+  "logs": [
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 3.1.5 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    },
+    {
+      "code": "NU1902",
+      "level": "Warning",
+      "warningLevel": 1,
+      "message": "Package 'SixLabors.ImageSharp' 3.1.5 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    }
+  ]
 }

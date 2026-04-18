@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "UdjAY+IryKg=",
+  "dgSpecHash": "TSy8GkJLCh0=",
   "success": true,
   "projectFilePath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\Services\\Parties\\FindMyParty.Parties.API\\FindMyParty.Parties.API.csproj",
   "expectedPackageFiles": [
@@ -38,6 +38,7 @@
     "C:\\Users\\Lenovo\\.nuget\\packages\\npgsql.entityframeworkcore.postgresql\\10.0.1\\npgsql.entityframeworkcore.postgresql.10.0.1.nupkg.sha512",
     "C:\\Users\\Lenovo\\.nuget\\packages\\pipelines.sockets.unofficial\\2.2.8\\pipelines.sockets.unofficial.2.2.8.nupkg.sha512",
     "C:\\Users\\Lenovo\\.nuget\\packages\\rabbitmq.client\\7.2.0\\rabbitmq.client.7.2.0.nupkg.sha512",
+    "C:\\Users\\Lenovo\\.nuget\\packages\\sixlabors.imagesharp\\3.1.5\\sixlabors.imagesharp.3.1.5.nupkg.sha512",
     "C:\\Users\\Lenovo\\.nuget\\packages\\stackexchange.redis\\2.7.27\\stackexchange.redis.2.7.27.nupkg.sha512",
     "C:\\Users\\Lenovo\\.nuget\\packages\\system.codedom\\6.0.0\\system.codedom.6.0.0.nupkg.sha512",
     "C:\\Users\\Lenovo\\.nuget\\packages\\system.composition\\9.0.0\\system.composition.9.0.0.nupkg.sha512",
@@ -48,5 +49,30 @@
     "C:\\Users\\Lenovo\\.nuget\\packages\\system.composition.typedparts\\9.0.0\\system.composition.typedparts.9.0.0.nupkg.sha512",
     "C:\\Users\\Lenovo\\.nuget\\packages\\system.identitymodel.tokens.jwt\\8.0.1\\system.identitymodel.tokens.jwt.8.0.1.nupkg.sha512"
   ],
-  "logs": []
+  "logs": [
+    {
+      "code": "NU1903",
+      "level": "Warning",
+      "message": "Package 'SixLabors.ImageSharp' 3.1.5 has a known high severity vulnerability, https://github.com/advisories/GHSA-2cmq-823j-5qj8",
+      "projectPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\Services\\Parties\\FindMyParty.Parties.API\\FindMyParty.Parties.API.csproj",
+      "warningLevel": 1,
+      "filePath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\Services\\Parties\\FindMyParty.Parties.API\\FindMyParty.Parties.API.csproj",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    },
+    {
+      "code": "NU1902",
+      "level": "Warning",
+      "message": "Package 'SixLabors.ImageSharp' 3.1.5 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-rxmq-m78w-7wmc",
+      "projectPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\Services\\Parties\\FindMyParty.Parties.API\\FindMyParty.Parties.API.csproj",
+      "warningLevel": 1,
+      "filePath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\Services\\Parties\\FindMyParty.Parties.API\\FindMyParty.Parties.API.csproj",
+      "libraryId": "SixLabors.ImageSharp",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    }
+  ]
 }

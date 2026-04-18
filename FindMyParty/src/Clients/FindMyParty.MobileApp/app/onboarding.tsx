@@ -168,8 +168,8 @@ export default function OnboardingPage() {
         ]}
       >
         <LinearGradient
-          colors={['#8B0DFF', '#C2007A', '#FF5230', '#FF8C48']}
-          locations={[0, 0.4, 0.75, 1]}
+          colors={['#B026FF', '#FF2E93', '#00F5D4']}
+          locations={[0, 0.55, 1]}
           style={StyleSheet.absoluteFill}
         />
       </View>
@@ -283,7 +283,7 @@ export default function OnboardingPage() {
           >
             <BlurView intensity={20} tint="dark" style={styles.adminBtnBlur}>
               <LinearGradient
-                colors={['#3D0080', '#7E0AFA', '#FF6E00']}
+                colors={['#3D0080', '#7E22CE', '#B026FF']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.adminBtnGradient}
@@ -417,11 +417,15 @@ const styles = StyleSheet.create({
     marginHorizontal: s(12),
   },
   signUpButton: {
-    backgroundColor: '#7E0AFA',
+    backgroundColor: '#B026FF',
     borderRadius: s(48),
     height: vs(44),
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#B026FF',
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 0 },
   },
   signUpText: {
     color: '#FFFFFF',
@@ -435,7 +439,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   loginTextHighlight: {
-    color: '#7E0AFA',
+    color: '#D8B4FE',
     fontWeight: '700',
   },
   legal: {

@@ -48,8 +48,12 @@ namespace FindMyParty.Identity.API.Application.Services
             var jwtSettings = configuration.GetSection("Jwt");
             var lifetimeDays = int.Parse(jwtSettings["RefreshTokenLifetimeDays"]!);
 
+            // Format: "{userId}.{base64(randomBytes)}"
+            // The userId prefix is not a secret (it's also in the access token) but lets
+            // the server identify the account without trusting a client-sent userId.
             var tokenBytes = RandomNumberGenerator.GetBytes(64);
-            var refreshToken = Convert.ToBase64String(tokenBytes);
+            var secret = Convert.ToBase64String(tokenBytes);
+            var refreshToken = $"{user.Id}.{secret}";
             var expiry = DateTime.UtcNow.AddDays(lifetimeDays).ToString("O");
 
             await userManager.SetAuthenticationTokenAsync(user, LoginProvider, RefreshTokenName, refreshToken);
@@ -58,8 +62,18 @@ namespace FindMyParty.Identity.API.Application.Services
             return refreshToken;
         }
 
-        public async Task<(bool isValid, ApplicationUser? user)> ValidateRefreshTokenAsync(string userId, string refreshToken)
+        public async Task<(bool isValid, ApplicationUser? user)> ValidateRefreshTokenAsync(string refreshToken)
         {
+            if (string.IsNullOrEmpty(refreshToken))
+                return (false, null);
+
+            // Parse the userId prefix out of the refresh token itself.
+            var dotIndex = refreshToken.IndexOf('.');
+            if (dotIndex <= 0 || dotIndex == refreshToken.Length - 1)
+                return (false, null);
+
+            var userId = refreshToken.Substring(0, dotIndex);
+
             var user = await userManager.FindByIdAsync(userId);
             if (user == null)
                 return (false, null);
@@ -70,9 +84,12 @@ namespace FindMyParty.Identity.API.Application.Services
             if (storedToken == null || storedExpiry == null)
                 return (false, null);
 
-            if (!CryptographicOperations.FixedTimeEquals(
-                    Encoding.UTF8.GetBytes(storedToken),
-                    Encoding.UTF8.GetBytes(refreshToken)))
+            // Constant-time compare to avoid timing attacks. Length difference => fail fast but constant per length.
+            var storedBytes = Encoding.UTF8.GetBytes(storedToken);
+            var givenBytes = Encoding.UTF8.GetBytes(refreshToken);
+            if (storedBytes.Length != givenBytes.Length)
+                return (false, null);
+            if (!CryptographicOperations.FixedTimeEquals(storedBytes, givenBytes))
                 return (false, null);
 
             if (!DateTime.TryParse(storedExpiry, out var expiry) || DateTime.UtcNow > expiry)

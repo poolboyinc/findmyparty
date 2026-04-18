@@ -21,6 +21,8 @@ import * as Location from 'expo-location';
 import { partyService } from '@/services/partyService';
 import type { PartyMapItem } from '@/types/parties';
 import { s, vs, ms } from '@/constants/responsive';
+import { AmbientBackdrop } from '@/components/ui/ambient-backdrop';
+import { GlassSurface } from '@/components/ui/glass-surface';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatTime(iso: string): string {
@@ -237,27 +239,32 @@ function FilterRow({
 const filterStyles = StyleSheet.create({
   row: {
     paddingHorizontal: s(14),
-    paddingVertical: vs(10),
-    gap: s(10),
+    paddingVertical: vs(12),
+    gap: s(8),
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: vs(30),
+    height: vs(32),
     paddingHorizontal: s(14),
     borderRadius: s(30),
     borderWidth: 1,
-    borderColor: '#9739FB',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   chipActive: {
-    backgroundColor: 'rgba(125,8,250,0.45)',
-    borderColor: '#B060FF',
+    backgroundColor: 'rgba(176,38,255,0.24)',
+    borderColor: '#B026FF',
+    shadowColor: '#B026FF',
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
   },
   chipText: {
-    color: '#FFF',
+    color: 'rgba(245,235,255,0.72)',
     fontSize: ms(13),
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });
 
@@ -364,43 +371,47 @@ export default function PartiesScreen() {
     <View style={styles.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* Full-screen gradient background */}
-      <LinearGradient
-        colors={['#000000', '#000000', '#7D08FA']}
-        locations={[0, 0.33, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      <AmbientBackdrop variant="default" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 20 }]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: 128 }]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D08FA" colors={['#7D08FA']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#B026FF" colors={['#B026FF']} />
         }
       >
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={ms(20)} color="rgba(255,255,255,0.8)" />
-            <View style={styles.searchDivider} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search..."
-              placeholderTextColor="rgba(255,255,255,0.7)"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
-                <Ionicons name="close-circle" size={ms(18)} color="rgba(255,255,255,0.6)" />
-              </TouchableOpacity>
-            )}
-          </View>
+          <GlassSurface
+            intensity={70}
+            washOpacity={0.10}
+            tone="bright"
+            elevation="raised"
+            borderRadius={30}
+            flex={1}
+            height={vs(44)}
+          >
+            <View style={styles.searchInner}>
+              <Ionicons name="search" size={ms(18)} color="rgba(245,235,255,0.72)" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search parties, clubs, vibes..."
+                placeholderTextColor="rgba(245,235,255,0.48)"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
+                  <Ionicons name="close-circle" size={ms(18)} color="rgba(245,235,255,0.56)" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </GlassSurface>
           <TouchableOpacity style={styles.bellBtn} activeOpacity={0.8}>
-            <Ionicons name="notifications-outline" size={ms(22)} color="#FFF" />
+            <Ionicons name="notifications-outline" size={ms(22)} color="#F5EBFF" />
           </TouchableOpacity>
         </View>
 
@@ -470,29 +481,20 @@ const styles = StyleSheet.create({
     paddingBottom: vs(4),
     gap: s(10),
   },
-  searchBar: {
+  searchInner: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    height: vs(40),
-    borderRadius: s(30),
-    borderWidth: 1,
-    borderColor: '#FFF',
-    paddingHorizontal: s(14),
+    paddingHorizontal: s(16),
     gap: s(10),
-    backgroundColor: 'rgba(126,10,250,0.55)',
-  },
-  searchDivider: {
-    width: s(1),
-    height: vs(20),
-    backgroundColor: 'rgba(255,255,255,0.4)',
   },
   searchInput: {
-    color: '#FFF',
-    fontSize: ms(18),
-    fontWeight: '300',
+    color: '#F5EBFF',
+    fontSize: ms(15),
+    fontWeight: '500',
     flex: 1,
     paddingVertical: 0,
+    letterSpacing: 0.2,
   },
   bellBtn: {
     width: s(32),

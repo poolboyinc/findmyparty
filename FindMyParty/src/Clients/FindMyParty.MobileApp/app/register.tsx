@@ -9,13 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { useRegister } from '@/hooks/useAuth';
 import { s, vs, ms } from '@/constants/responsive';
+import { AmbientBackdrop } from '@/components/ui/ambient-backdrop';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,8 +34,6 @@ function PwHint({ met, label }: { met: boolean; label: string }) {
 
 export default function RegisterPage() {
   const insets = useSafeAreaInsets();
-  const { width: W } = useWindowDimensions();
-  const ellipseSize = W * 2.2;
   const { userName, setUserName, email, setEmail, password, setPassword, error, loading, register } = useRegister();
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
@@ -65,20 +63,7 @@ export default function RegisterPage() {
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Background gradient: purple → pink → orange */}
-      <LinearGradient
-        colors={['#7D08FA', '#B03070', '#C84B00', '#FF8C48']}
-        locations={[0, 0.38, 0.65, 1]}
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* Purple ellipse blob at bottom */}
-      <View style={[styles.ellipseBottom, {
-        width: ellipseSize,
-        height: ellipseSize,
-        borderRadius: ellipseSize / 2,
-        left: (W - ellipseSize) / 2,
-      }]} />
+      <AmbientBackdrop variant="intense" />
 
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
@@ -187,12 +172,7 @@ export default function RegisterPage() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#7D08FA',
-  },
-  ellipseBottom: {
-    position: 'absolute',
-    bottom: '-160%',
-    backgroundColor: '#7D08FA',
+    backgroundColor: '#05020A',
   },
   header: {
     flexDirection: 'row',
@@ -270,18 +250,22 @@ const styles = StyleSheet.create({
     color: '#A8F0C6',
   },
   button: {
-    backgroundColor: '#9B989D',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: s(48),
-    height: vs(51),
+    height: vs(54),
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#646464',
+    borderColor: 'rgba(255,255,255,0.16)',
     marginTop: vs(8),
   },
   buttonActive: {
-    backgroundColor: '#7D08FA',
-    borderColor: '#6A00D4',
+    backgroundColor: '#B026FF',
+    borderColor: 'rgba(255,255,255,0.28)',
+    shadowColor: '#B026FF',
+    shadowOpacity: 0.7,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 0 },
   },
   buttonText: {
     color: '#FFF',
