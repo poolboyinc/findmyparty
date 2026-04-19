@@ -4,13 +4,17 @@ const DEV_HOST = Platform.OS === 'android'
   ? '10.0.2.2'
   : (process.env.EXPO_PUBLIC_DEV_HOST ?? '192.168.1.66');
 
+// If EXPO_PUBLIC_API_URL is set, always use it (even in dev) — lets the dev
+// client hit Railway instead of a local gateway. Fall back to local for
+// offline/local backend work.
+const REMOTE_API = process.env.EXPO_PUBLIC_API_URL;
+
 export const ApiConstants = {
   MapboxPublicToken: process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '',
 
-  // All traffic goes through the YARP gateway
-  GatewayBaseUrl: __DEV__
-    ? `http://${DEV_HOST}:5000`
-    : (process.env.EXPO_PUBLIC_API_URL ?? 'https://api.findmyparty.com'),
+  GatewayBaseUrl: REMOTE_API
+    ? REMOTE_API
+    : (__DEV__ ? `http://${DEV_HOST}:5000` : 'https://api.findmyparty.com'),
 };
 
 /**

@@ -167,12 +167,18 @@ const tokens = createTokens({
     true:  16,
   },
 
+  // Keys MUST be a subset of size keys. Semantic layers:
+  //   $0   = base    (page)
+  //   $xs  = raised  (cards, FABs)
+  //   $md  = overlay (dropdowns, tooltips)
+  //   $xl  = modal   (sheets, dialogs)
+  //   $3xl = toast   (snackbars, alerts)
   zIndex: {
-    base:    0,
-    raised:  10,
-    overlay: 100,
-    modal:   1000,
-    toast:   10000,
+    $0:     0,
+    $xs:    10,
+    $md:    100,
+    $xl:    1000,
+    '$3xl': 10000,
   },
 });
 
@@ -377,7 +383,7 @@ export const tamaguiConfig = createTamagui({
     tall:   { minHeight: 821 },
   },
   settings: {
-    allowedStyleValues: 'somewhat-strict',
+    allowedStyleValues: 'loose',
     autocompleteSpecificTokens: 'except-special',
   },
 });
