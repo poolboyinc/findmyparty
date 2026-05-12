@@ -1,301 +1,296 @@
+import { useRef, useState } from 'react';
 import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import * as Haptics from 'expo-haptics';
 import { useRegister } from '@/hooks/useAuth';
-import { s, vs, ms } from '@/constants/responsive';
+import { colors, layout, spacing, typography } from '@/constants/theme';
+import { AuthField } from '@/components/ui/auth-field';
+import { PrimaryButton } from '@/components/ui/primary-button';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function PwHint({ met, label }: { met: boolean; label: string }) {
   return (
-    <View style={styles.pwHintRow}>
+    <View style={hintStyles.row}>
       <Ionicons
         name={met ? 'checkmark-circle' : 'ellipse-outline'}
-        size={ms(14)}
-        color={met ? '#A8F0C6' : 'rgba(255,255,255,0.5)'}
+        size={14}
+        color={met ? colors.success : colors.labelTertiary}
       />
-      <Text style={[styles.pwHintText, met && styles.pwHintTextMet]}>{label}</Text>
+      <Text style={[hintStyles.text, met && hintStyles.textMet]}>{label}</Text>
     </View>
   );
 }
 
+const hintStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
+  text: { ...typography.footnote, color: colors.labelTertiary },
+  textMet: { color: colors.success },
+});
+
 export default function RegisterPage() {
   const insets = useSafeAreaInsets();
-  const { width: W } = useWindowDimensions();
-  const ellipseSize = W * 2.2;
-  const { userName, setUserName, email, setEmail, password, setPassword, error, loading, register } = useRegister();
+  const {
+    userName,
+    setUserName,
+    email,
+    setEmail,
+    password,
+    setPassword,
+    error,
+    loading,
+    register,
+  } = useRegister();
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
-  const [passwordTouched, setPasswordTouched] = useState(false);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
 
-  const emailInvalid = emailTouched && email.length > 0 && !EMAIL_REGEX.test(email.trim());
+  const emailError =
+    emailTouched && email.length > 0 && !EMAIL_REGEX.test(email.trim())
+      ? 'Please enter a valid email address.'
+      : null;
+
   const pwChecks = {
     length: password.length >= 8,
     digit: /[0-9]/.test(password),
     lower: /[a-z]/.test(password),
   };
 
-  const nameValid = userName.trim().length >= 2;
   const formValid =
-    nameValid &&
+    userName.trim().length >= 2 &&
     EMAIL_REGEX.test(email.trim()) &&
-    pwChecks.length && pwChecks.digit && pwChecks.lower;
+    pwChecks.length &&
+    pwChecks.digit &&
+    pwChecks.lower;
 
   const handleSignUp = async () => {
     if (!formValid) return;
     const success = await register();
-    if (success) router.replace('/(tabs)');
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/(tabs)');
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      {/* Background gradient: purple → pink → orange */}
+    <View style={styles.root}>
       <LinearGradient
-        colors={['#7D08FA', '#B03070', '#C84B00', '#FF8C48']}
-        locations={[0, 0.38, 0.65, 1]}
-        style={StyleSheet.absoluteFill}
+        colors={['rgba(157,78,255,0.18)', 'rgba(10,10,12,0)']}
+        locations={[0, 1]}
+        style={styles.spotlight}
+        pointerEvents="none"
       />
 
-      {/* Purple ellipse blob at bottom */}
-      <View style={[styles.ellipseBottom, {
-        width: ellipseSize,
-        height: ellipseSize,
-        borderRadius: ellipseSize / 2,
-        left: (W - ellipseSize) / 2,
-      }]} />
-
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={ms(26)} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Sign Up</Text>
-        <View style={styles.backBtn} />
-      </View>
-
-      {/* Form */}
-      <View style={styles.form}>
-        {/* Name */}
-        <View style={styles.fieldRow}>
-          <Ionicons name="person-outline" size={ms(28)} color="#FFF" style={styles.fieldIcon} />
-          <TextInput
-            style={styles.fieldInput}
-            placeholder="Username"
-            placeholderTextColor="rgba(255,255,255,0.75)"
-            value={userName}
-            onChangeText={setUserName}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-        <View style={styles.fieldLine} />
-
-        {/* Email */}
-        <View style={styles.fieldRow}>
-          <Ionicons name="mail-outline" size={ms(28)} color="#FFF" style={styles.fieldIcon} />
-          <TextInput
-            style={styles.fieldInput}
-            placeholder="Email"
-            placeholderTextColor="rgba(255,255,255,0.75)"
-            value={email}
-            onChangeText={setEmail}
-            onBlur={() => setEmailTouched(true)}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-        <View style={[styles.fieldLine, emailInvalid && styles.fieldLineError]} />
-        {emailInvalid && (
-          <Text style={styles.fieldError}>Please enter a valid email address</Text>
-        )}
-
-        {/* Password */}
-        <View style={styles.fieldRow}>
-          <Ionicons name="lock-closed-outline" size={ms(28)} color="#FFF" style={styles.fieldIcon} />
-          <TextInput
-            style={styles.fieldInput}
-            placeholder="Password"
-            placeholderTextColor="rgba(255,255,255,0.75)"
-            value={password}
-            onChangeText={(v) => { setPassword(v); setPasswordTouched(true); }}
-            secureTextEntry={!passwordVisible}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity onPress={() => setPasswordVisible(v => !v)} activeOpacity={0.7}>
-            <Ionicons
-              name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
-              size={ms(28)}
-              color="#FFF"
-            />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.fieldLine} />
-        {passwordTouched && (
-          <View style={styles.pwHints}>
-            <PwHint met={pwChecks.length} label="At least 8 characters" />
-            <PwHint met={pwChecks.digit} label="At least 1 number" />
-            <PwHint met={pwChecks.lower} label="At least 1 lowercase letter" />
-          </View>
-        )}
-
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-        {/* Sign Up button */}
-        <TouchableOpacity
-          style={[styles.button, formValid && styles.buttonActive]}
-          onPress={handleSignUp}
-          activeOpacity={0.85}
-          disabled={loading || !formValid}
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={layout.hitSlop}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.5 }]}
         >
-          {loading ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.buttonText}>Sign Up</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Sign in link */}
-        <TouchableOpacity onPress={() => router.push('/login')} activeOpacity={0.7}>
-          <Text style={styles.linkText}>
-            Already have an account?{'  '}
-            <Text style={styles.linkHighlight}>Sign In</Text>
-          </Text>
-        </TouchableOpacity>
+          <Ionicons name="chevron-back" size={28} color={colors.label} />
+        </Pressable>
       </View>
-    </KeyboardAvoidingView>
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.titleBlock}>
+            <Text style={styles.title}>Create account</Text>
+            <Text style={styles.subtitle}>Find your next party in seconds.</Text>
+          </View>
+
+          <View style={styles.form}>
+            <AuthField
+              placeholder="Username"
+              value={userName}
+              onChangeText={setUserName}
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="username"
+              autoComplete="username-new"
+              returnKeyType="next"
+              onSubmitEditing={() => emailRef.current?.focus()}
+              accessibilityLabel="Username"
+              leadingIcon={
+                <Ionicons name="person-outline" size={18} color={colors.labelTertiary} />
+              }
+            />
+            <AuthField
+              ref={emailRef}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              onBlur={() => setEmailTouched(true)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="emailAddress"
+              autoComplete="email"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              accessibilityLabel="Email"
+              error={emailError}
+              leadingIcon={
+                <Ionicons name="mail-outline" size={18} color={colors.labelTertiary} />
+              }
+            />
+            <AuthField
+              ref={passwordRef}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!passwordVisible}
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="newPassword"
+              autoComplete="password-new"
+              returnKeyType="done"
+              onSubmitEditing={handleSignUp}
+              accessibilityLabel="Password"
+              leadingIcon={
+                <Ionicons name="lock-closed-outline" size={18} color={colors.labelTertiary} />
+              }
+              trailingSlot={
+                <Pressable
+                  onPress={() => setPasswordVisible((v) => !v)}
+                  hitSlop={layout.hitSlop}
+                  accessibilityRole="button"
+                  accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+                >
+                  <Ionicons
+                    name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={colors.labelSecondary}
+                  />
+                </Pressable>
+              }
+            />
+
+            <View style={styles.hints}>
+              <PwHint met={pwChecks.length} label="At least 8 characters" />
+              <PwHint met={pwChecks.digit} label="At least 1 number" />
+              <PwHint met={pwChecks.lower} label="At least 1 lowercase letter" />
+            </View>
+
+            {error ? (
+              <Text style={styles.formError} accessibilityLiveRegion="polite">
+                {error}
+              </Text>
+            ) : null}
+
+            <PrimaryButton
+              label="Create account"
+              onPress={handleSignUp}
+              disabled={!formValid}
+              loading={loading}
+              accessibilityHint="Creates your FindMyParty account"
+            />
+          </View>
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Already have an account?{' '}
+              <Text style={styles.footerLink} onPress={() => router.push('/login')}>
+                Sign in
+              </Text>
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#7D08FA',
+    backgroundColor: colors.bg,
   },
-  ellipseBottom: {
+  spotlight: {
     position: 'absolute',
-    bottom: '-160%',
-    backgroundColor: '#7D08FA',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 360,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: s(20),
-    paddingBottom: vs(16),
+    paddingHorizontal: spacing.base,
+    paddingBottom: spacing.sm,
   },
   backBtn: {
-    width: s(48),
-    height: vs(48),
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: layout.screenMargin,
+    paddingBottom: spacing.xxl,
+  },
+  titleBlock: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.xxl,
+    gap: spacing.xs,
   },
   title: {
-    color: '#FFF',
-    fontSize: ms(32),
-    fontWeight: '600',
-    letterSpacing: 0.2,
+    ...typography.largeTitle,
+    fontWeight: '700',
+    color: colors.label,
+  },
+  subtitle: {
+    ...typography.subheadline,
+    color: colors.labelSecondary,
   },
   form: {
-    flex: 1,
-    paddingHorizontal: s(28),
-    paddingTop: '12%',
-    gap: vs(28),
+    gap: spacing.base,
   },
-  fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s(16),
+  hints: {
+    gap: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    marginTop: -spacing.xs,
   },
-  fieldIcon: {
-    width: s(32),
-  },
-  fieldInput: {
-    flex: 1,
-    color: '#FFF',
-    fontSize: ms(22),
-    fontWeight: '300',
-    paddingVertical: vs(4),
-  },
-  fieldLine: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    marginTop: vs(-20),
-  },
-  errorText: {
-    color: '#FFD0D0',
-    fontSize: ms(13),
-    textAlign: 'center',
-    marginTop: vs(-12),
-  },
-  fieldLineError: {
-    backgroundColor: '#FFD0D0',
-  },
-  fieldError: {
-    color: '#FFD0D0',
-    fontSize: ms(12),
-    marginTop: vs(-20),
-  },
-  pwHints: {
-    gap: vs(6),
-    marginTop: vs(-20),
-  },
-  pwHintRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s(6),
-  },
-  pwHintText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: ms(12),
-  },
-  pwHintTextMet: {
-    color: '#A8F0C6',
-  },
-  button: {
-    backgroundColor: '#9B989D',
-    borderRadius: s(48),
-    height: vs(51),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#646464',
-    marginTop: vs(8),
-  },
-  buttonActive: {
-    backgroundColor: '#7D08FA',
-    borderColor: '#6A00D4',
-  },
-  buttonText: {
-    color: '#FFF',
-    fontSize: ms(20),
-    fontWeight: '700',
-  },
-  linkText: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: ms(15),
+  formError: {
+    ...typography.footnote,
+    color: colors.danger,
     textAlign: 'center',
   },
-  linkHighlight: {
-    color: '#FFF',
-    fontWeight: '700',
-    textDecorationLine: 'underline',
+  footer: {
+    alignItems: 'center',
+    marginTop: 'auto',
+    paddingTop: spacing.xl,
+  },
+  footerText: {
+    ...typography.subheadline,
+    color: colors.labelSecondary,
+  },
+  footerLink: {
+    color: colors.brandLight,
+    fontWeight: '600',
   },
 });
