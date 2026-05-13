@@ -1,439 +1,435 @@
-import React from 'react';
+import { useCallback, useReducer } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
+  Alert,
+  Platform,
+  Pressable,
   ScrollView,
   StatusBar,
-  Platform,
-  useWindowDimensions,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import Constants from 'expo-constants';
+import { Icon } from '@/components/ui/icon';
+import { SettingRow } from '@/components/ui/setting-row';
 import { useProfile } from '@/hooks/useProfile';
-import { s, vs, ms } from '@/constants/responsive';
+import { useFavorites } from '@/hooks/useFavorites';
+import { colors, layout, radii, spacing, typography, weights } from '@/theme';
 
-// ─── Stat item ────────────────────────────────────────────────────────────────
-function StatItem({
-  icon,
-  value,
-  label,
-  showSeparator,
-}: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  value: string;
-  label: string;
-  showSeparator?: boolean;
-}) {
-  return (
-    <View style={statStyles.wrapper}>
-      <View style={statStyles.item}>
-        <View style={statStyles.iconWrapper}>
-          <Ionicons name={icon} size={ms(22)} color="#A855F7" />
-        </View>
-        <Text style={statStyles.value}>{value}</Text>
-        <Text style={statStyles.label}>{label}</Text>
-      </View>
-      {showSeparator && <View style={statStyles.separator} />}
-    </View>
-  );
-}
+const AVATAR_SIZE = 96;
+const AVATAR_HALO_SIZE = 140;
+// Divider inset aligns with the SettingRow icon's right edge so dividers don't
+// cut through the icon column.
+const DIVIDER_INSET = spacing.base + 28 + spacing.md;
 
-const statStyles = StyleSheet.create({
-  wrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  item: {
-    flex: 1,
-    alignItems: 'center',
-    gap: vs(4),
-  },
-  iconWrapper: {
-    width: s(46),
-    height: vs(46),
-    borderRadius: s(23),
-    backgroundColor: 'rgba(125,8,250,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(125,8,250,0.3)',
-    // Purple glow
-    ...Platform.select({
-      ios: {
-        shadowColor: '#A600FF',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.6,
-        shadowRadius: s(10),
-      },
-      android: {
-        elevation: 6,
-      },
-    }),
-  },
-  value: {
-    color: '#FFF',
-    fontSize: ms(20),
-    fontWeight: '800',
-  },
-  label: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: ms(11),
-    fontWeight: '500',
-    textAlign: 'center',
-    lineHeight: vs(14),
-  },
-  separator: {
-    width: 1,
-    height: vs(52),
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-});
-
-// ─── Main Screen ──────────────────────────────────────────────────────────────
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { height: H } = useWindowDimensions();
   const { userInfo, bookingCount, load, logout } = useProfile();
+  const { count: favoriteCount } = useFavorites();
 
-  const avatarGlowSize = H * 0.213;   // 180/844
-  const avatarRingSize = H * 0.199;   // 168/844
+  // Workaround for the react-native-screens v4 view-recycle bug — see the
+  // matching pattern in `parties.tsx`. Forces a fresh render on every focus
+  // so the native view re-paints after being recycled by the navigator.
+  const [, forceRerender] = useReducer((x: number) => x + 1, 0);
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
+      forceRerender();
       load();
-    }, [load])
+    }, [load]),
   );
 
-  const handleSavedEvents = () => {
-    router.push('/my-bookings');
+  const isPremium = userInfo?.subscription === 'Premium';
+  const versionString = Constants.expoConfig?.version ?? '—';
+  const buildNumber =
+    Constants.expoConfig?.ios?.buildNumber ??
+    String(Constants.expoConfig?.android?.versionCode ?? '');
+  const versionLabel = buildNumber
+    ? `v${versionString} (${buildNumber})`
+    : `v${versionString}`;
+
+  const scrollPaddingBottom =
+    insets.bottom +
+    layout.floatingTabBarHeight +
+    layout.floatingTabBarBottomOffset +
+    spacing.base;
+
+  const stubAlert = (title: string) => () => {
+    Alert.alert(title, 'Coming soon.');
   };
 
-  const handleEditProfile = () => {
-    // TODO: navigate to edit profile
+  const handleSubscriptionPress = () => {
+    Haptics.selectionAsync();
+    if (isPremium) {
+      Alert.alert('Premium', "You're on the Premium plan.");
+    } else {
+      // TODO: open the real upgrade flow when the IAP / paywall lands.
+      Alert.alert('Upgrade to Premium', 'Premium features are coming soon.');
+    }
   };
 
-  const handleSignOut = async () => {
-    await logout();
-    router.replace('/onboarding');
+  const handleSignOut = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      'Sign out?',
+      "You'll need to log in again.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            router.replace('/onboarding');
+          },
+        },
+      ],
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      'Delete account?',
+      "This permanently deletes your account and all your data. This can't be undone.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            // TODO: wire to backend DELETE /api/auth/account when endpoint exists.
+            Alert.alert(
+              'Request submitted',
+              "We've recorded your request. Check your email for confirmation.",
+            );
+          },
+        },
+      ],
+    );
   };
 
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-
-      {/* Full-screen gradient background */}
-      <LinearGradient
-        colors={['rgba(0,0,0,0.98)', 'rgba(125,8,250,0.95)', 'rgba(255,110,0,0.92)']}
-        locations={[0.19, 0.65, 1.0]}
-        style={StyleSheet.absoluteFill}
-      />
-
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + vs(24), paddingBottom: insets.bottom + vs(24) }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingTop: insets.top + spacing.xl, paddingBottom: scrollPaddingBottom },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Avatar ── */}
-        <View style={styles.avatarSection}>
-          <View style={[styles.avatarGlow, { width: avatarGlowSize, height: avatarGlowSize, borderRadius: avatarGlowSize / 2 }]}>
-            <View style={[styles.avatarRing, { width: avatarRingSize, height: avatarRingSize, borderRadius: avatarRingSize / 2 }]}>
-              <View style={styles.avatarInner}>
-                <Ionicons name="person" size={avatarRingSize * 0.42} color="rgba(255,255,255,0.9)" />
-              </View>
+        {/* Hero */}
+        <View style={styles.hero}>
+          <View style={styles.avatarWrap}>
+            <View style={styles.avatarHalo} pointerEvents="none" />
+            <View style={styles.avatar}>
+              <Icon
+                sfSymbol="person.fill"
+                ionicon="person"
+                size={56}
+                color={colors.labelSecondary}
+              />
             </View>
           </View>
-        </View>
-
-        {/* ── Name + Username ── */}
-        <View style={styles.nameSection}>
-          <Text style={styles.name}>{userInfo?.userName ?? '—'}</Text>
-          <Text style={styles.username}>{userInfo?.email ?? ''}</Text>
-        </View>
-
-        {/* ── Stats ── */}
-        <View style={styles.statsCard}>
-          <StatItem
-            icon="calendar-outline"
-            value={String(bookingCount)}
-            label={'Parties\nAttended'}
-            showSeparator
-          />
-          <StatItem
-            icon="trophy-outline"
-            value="—"
-            label={'Achieve-\nments'}
-            showSeparator
-          />
-          <StatItem
-            icon="heart-outline"
-            value="—"
-            label={'Favorites'}
-          />
-        </View>
-
-        {/* ── Action buttons ── */}
-        <View style={styles.actionRow}>
-          {/* Saved Events */}
-          <TouchableOpacity
-            style={styles.actionBtnWrapper}
-            onPress={handleSavedEvents}
-            activeOpacity={0.85}
+          <Text style={styles.name} accessibilityRole="header">
+            {userInfo?.userName ?? '—'}
+          </Text>
+          {userInfo?.email ? (
+            <Text style={styles.email} numberOfLines={1} ellipsizeMode="middle">
+              {userInfo.email}
+            </Text>
+          ) : null}
+          <Pressable
+            onPress={handleSubscriptionPress}
+            hitSlop={layout.hitSlop}
+            accessibilityRole="button"
+            accessibilityLabel={`Subscription: ${isPremium ? 'Premium' : 'Free'}`}
+            style={[
+              styles.subscriptionPill,
+              isPremium ? styles.subscriptionPillPremium : styles.subscriptionPillFree,
+            ]}
           >
-            <LinearGradient
-              colors={['#7D08FA', '#FF6E00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.actionBtnGradient}
+            <Text
+              style={[
+                styles.subscriptionLabel,
+                isPremium ? styles.subscriptionLabelPremium : null,
+              ]}
             >
-              <View style={styles.actionBtnBorder}>
-                <Ionicons name="bookmark-outline" size={ms(18)} color="#FFF" />
-                <Text style={styles.actionBtnText}>Saved Events</Text>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          {/* Edit Profile */}
-          <TouchableOpacity
-            style={styles.actionBtnWrapper}
-            onPress={handleEditProfile}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={['#7E0AFA', '#5700B4']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.actionBtnGradient}
-            >
-              <View style={[styles.actionBtnBorder, { borderColor: '#7E0AFA' }]}>
-                <Ionicons name="pencil-outline" size={ms(18)} color="#FFF" />
-                <Text style={styles.actionBtnText}>Edit Profile</Text>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
+              {isPremium ? 'Premium' : 'Free'}
+            </Text>
+          </Pressable>
         </View>
 
-        {/* ── Divider ── */}
-        <View style={styles.divider} />
+        {/* Stats card — liquid glass surface */}
+        <BlurView intensity={30} tint="dark" style={styles.statsCard}>
+          <View style={styles.cardGlassTint} pointerEvents="none" />
+          <View style={styles.cardTopHighlight} pointerEvents="none" />
+          <View style={styles.statColumn}>
+            <Text style={styles.statValue}>{bookingCount}</Text>
+            <Text style={styles.statLabel}>Parties attended</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statColumn}>
+            <Text style={[styles.statValue, styles.statValuePlaceholder]}>—</Text>
+            <Text style={styles.statLabel}>Achievements</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statColumn}>
+            <Text style={styles.statValue}>{favoriteCount}</Text>
+            <Text style={styles.statLabel}>Favorites</Text>
+          </View>
+        </BlurView>
 
-        {/* ── Menu items ── */}
-        <View style={styles.menuSection}>
-          <MenuItem icon="notifications-outline" label="Notifications" onPress={() => { /* TODO */ }} />
-          <MenuItem icon="shield-outline" label="Privacy & Security" onPress={() => { /* TODO */ }} />
-          <MenuItem icon="help-circle-outline" label="Help & Support" onPress={() => { /* TODO */ }} />
-          <MenuItem icon="star-outline" label="Rate the App" onPress={() => { /* TODO */ }} />
-        </View>
+        {/* Settings group — liquid glass surface */}
+        <BlurView intensity={30} tint="dark" style={styles.group}>
+          <View style={styles.cardGlassTint} pointerEvents="none" />
+          <View style={styles.cardTopHighlight} pointerEvents="none" />
+          <SettingRow
+            sfSymbol="person.crop.circle"
+            ionicon="person-circle-outline"
+            label="Edit Profile"
+            onPress={() => router.push('/edit-profile')}
+          />
+          <View style={styles.divider} />
+          <SettingRow
+            sfSymbol="bookmark"
+            ionicon="bookmark-outline"
+            label="Saved Events"
+            onPress={() => router.push('/my-bookings')}
+          />
+          <View style={styles.divider} />
+          <SettingRow
+            sfSymbol="bell"
+            ionicon="notifications-outline"
+            label="Notifications"
+            onPress={stubAlert('Notifications')}
+          />
+          <View style={styles.divider} />
+          <SettingRow
+            sfSymbol="lock.shield"
+            ionicon="shield-outline"
+            label="Privacy & Security"
+            onPress={stubAlert('Privacy & Security')}
+          />
+          <View style={styles.divider} />
+          <SettingRow
+            sfSymbol="questionmark.circle"
+            ionicon="help-circle-outline"
+            label="Help & Support"
+            onPress={stubAlert('Help & Support')}
+          />
+          <View style={styles.divider} />
+          <SettingRow
+            sfSymbol="star"
+            ionicon="star-outline"
+            label="Rate the App"
+            onPress={stubAlert('Rate the App')}
+          />
+        </BlurView>
 
-        {/* ── Sign Out ── */}
-        <TouchableOpacity
-          style={styles.signOutWrapper}
-          onPress={handleSignOut}
-          activeOpacity={0.85}
+        {/* Sign Out — separate destructive group, also glass */}
+        <BlurView intensity={30} tint="dark" style={styles.group}>
+          <View style={styles.cardGlassTint} pointerEvents="none" />
+          <View style={styles.cardTopHighlight} pointerEvents="none" />
+          <SettingRow
+            sfSymbol="rectangle.portrait.and.arrow.right"
+            ionicon="log-out-outline"
+            label="Sign Out"
+            onPress={handleSignOut}
+            variant="destructive"
+            showChevron={false}
+          />
+        </BlurView>
+
+        {/* Delete account — tertiary text link */}
+        <Pressable
+          onPress={handleDeleteAccount}
+          hitSlop={layout.hitSlop}
+          accessibilityRole="button"
+          accessibilityLabel="Delete account"
+          style={styles.deleteAccountWrap}
         >
-          <LinearGradient
-            colors={['#6500D2', '#7E0AFA']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.signOutGradient}
-          >
-            <Ionicons name="log-out-outline" size={ms(20)} color="rgba(255,255,255,0.85)" />
-            <Text style={styles.signOutText}>Sign Out</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+          <Text style={styles.deleteAccountText}>Delete account</Text>
+        </Pressable>
+
+        {/* Version footer */}
+        <Text style={styles.versionText} accessibilityLabel={`App version ${versionLabel}`}>
+          {versionLabel}
+        </Text>
       </ScrollView>
     </View>
   );
 }
 
-// ─── Menu Item ────────────────────────────────────────────────────────────────
-function MenuItem({
-  icon,
-  label,
-  onPress,
-}: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  label: string;
-  onPress: () => void;
-}) {
-  return (
-    <TouchableOpacity style={menuStyles.item} onPress={onPress} activeOpacity={0.7}>
-      <View style={menuStyles.iconWrapper}>
-        <Ionicons name={icon} size={ms(20)} color="#CA99FF" />
-      </View>
-      <Text style={menuStyles.label}>{label}</Text>
-      <Ionicons name="chevron-forward" size={ms(16)} color="rgba(255,255,255,0.3)" />
-    </TouchableOpacity>
-  );
-}
-
-const menuStyles = StyleSheet.create({
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: vs(14),
-    paddingHorizontal: s(4),
-    gap: s(14),
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.07)',
-  },
-  iconWrapper: {
-    width: s(38),
-    height: vs(38),
-    borderRadius: s(19),
-    backgroundColor: 'rgba(125,8,250,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    flex: 1,
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: ms(15),
-    fontWeight: '500',
-  },
-});
-
-// ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.bg,
   },
-  content: {
-    paddingHorizontal: s(24),
+  scrollContent: {
+    paddingHorizontal: layout.screenMargin,
+    gap: spacing.xl,
+  },
+  hero: {
     alignItems: 'center',
+    gap: spacing.sm,
   },
-  // Avatar
-  avatarSection: {
-    marginBottom: vs(20),
-  },
-  avatarGlow: {
-    // width/height/borderRadius applied inline via useWindowDimensions
-    alignItems: 'center',
-    justifyContent: 'center',
-    // Purple glow
-    ...Platform.select({
-      ios: {
-        shadowColor: '#A600FF',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: s(30),
-      },
-      android: {
-        elevation: 20,
-      },
-    }),
-  },
-  avatarRing: {
-    // width/height/borderRadius applied inline via useWindowDimensions
-    padding: s(3),
-    backgroundColor: 'rgba(125,8,250,0.4)',
-    borderWidth: 2,
-    borderColor: 'rgba(125,8,250,0.6)',
-  },
-  avatarInner: {
-    flex: 1,
-    borderRadius: s(80),
-    backgroundColor: '#3D0880',
+  avatarWrap: {
+    width: AVATAR_HALO_SIZE,
+    height: AVATAR_HALO_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: spacing.sm,
   },
-  // Name
-  nameSection: {
+  avatarHalo: {
+    position: 'absolute',
+    width: AVATAR_HALO_SIZE,
+    height: AVATAR_HALO_SIZE,
+    borderRadius: AVATAR_HALO_SIZE / 2,
+    backgroundColor: colors.brand.tintBg,
+  },
+  avatar: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: colors.surfaceElevated,
     alignItems: 'center',
-    gap: vs(6),
-    marginBottom: vs(28),
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    // Option 3: soft purple glow around the avatar. iOS only — Android's
+    // `elevation` is a drop-shadow with no colored option.
+    ...(Platform.OS === 'ios'
+      ? {
+          shadowColor: colors.tint,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.55,
+          shadowRadius: 18,
+        }
+      : {}),
   },
   name: {
-    color: '#FFF',
-    fontSize: ms(32),
-    fontWeight: '800',
-    letterSpacing: -0.5,
+    ...typography.title2,
+    fontWeight: weights.bold,
+    color: colors.label,
+    textAlign: 'center',
   },
-  username: {
-    color: '#CA99FF',
-    fontSize: ms(18),
-    fontWeight: '600',
-    letterSpacing: 0.2,
+  email: {
+    ...typography.subheadline,
+    color: colors.labelSecondary,
+    textAlign: 'center',
+    paddingHorizontal: spacing.lg,
   },
-  // Stats
+  subscriptionPill: {
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
+    marginTop: spacing.xs,
+  },
+  subscriptionPillFree: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+  subscriptionPillPremium: {
+    backgroundColor: colors.tint,
+    // Option 4: soft brand-color glow on Premium pill only. iOS-only;
+    // Free pill stays flat (it's a status indicator, not a CTA).
+    ...(Platform.OS === 'ios'
+      ? {
+          shadowColor: colors.tint,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.55,
+          shadowRadius: 8,
+        }
+      : {}),
+  },
+  subscriptionLabel: {
+    ...typography.footnote,
+    fontWeight: weights.semibold,
+    color: colors.labelSecondary,
+  },
+  subscriptionLabelPremium: {
+    color: colors.label,
+  },
   statsCard: {
     flexDirection: 'row',
-    width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: s(24),
-    paddingVertical: vs(20),
-    paddingHorizontal: s(16),
-    marginBottom: vs(24),
+    borderRadius: radii.card,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  // Action buttons
-  actionRow: {
-    flexDirection: 'row',
-    gap: s(12),
-    width: '100%',
-    marginBottom: vs(24),
-  },
-  actionBtnWrapper: {
-    flex: 1,
-    borderRadius: s(30),
+    borderColor: colors.hairline,
+    paddingVertical: spacing.lg,
     overflow: 'hidden',
-    height: vs(54),
   },
-  actionBtnGradient: {
-    flex: 1,
+  // Subtle purple wash inside the BlurView surfaces — gives the glass a
+  // brand-tinted feel without crossing into "gradient" territory.
+  cardGlassTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.brand.tintBg,
   },
-  actionBtnBorder: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: s(6),
-    borderRadius: s(30),
-    borderWidth: 1.5,
-    borderColor: '#FF26E2',
-    margin: 1.5,
-  },
-  actionBtnText: {
-    color: '#FFF',
-    fontSize: ms(13),
-    fontWeight: '700',
-  },
-  // Divider
-  divider: {
-    width: '100%',
+  // 1px refraction edge at the top of the glass surface — matches the floating
+  // tab bar treatment for visual cohesion across surfaces.
+  cardTopHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    marginBottom: vs(8),
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
-  // Menu
-  menuSection: {
-    width: '100%',
-    marginBottom: vs(24),
-  },
-  // Sign out
-  signOutWrapper: {
-    width: '100%',
-    height: vs(54),
-    borderRadius: s(30),
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(112,58,250,0.35)',
-  },
-  signOutGradient: {
+  statColumn: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: s(8),
+    gap: spacing.xs,
+    paddingHorizontal: spacing.sm,
   },
-  signOutText: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: ms(16),
-    fontWeight: '700',
+  statDivider: {
+    width: 1,
+    backgroundColor: colors.hairline,
+  },
+  statValue: {
+    ...typography.title1,
+    fontWeight: weights.bold,
+    // Option 2: real stat values render in brand-light so the user's own
+    // numbers feel identity-tinted, not generic. Placeholder override below
+    // resets achievements (which has no real data yet) to neutral faded.
+    color: colors.brand.light,
+  },
+  statValuePlaceholder: {
+    color: colors.labelTertiary,
+  },
+  statLabel: {
+    ...typography.caption1,
+    color: colors.labelSecondary,
+    textAlign: 'center',
+  },
+  group: {
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    overflow: 'hidden',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.hairline,
+    marginLeft: DIVIDER_INSET,
+  },
+  deleteAccountWrap: {
+    alignSelf: 'center',
+    paddingVertical: spacing.sm,
+  },
+  deleteAccountText: {
+    ...typography.footnote,
+    color: colors.danger,
+  },
+  versionText: {
+    ...typography.caption2,
+    color: colors.labelTertiary,
+    textAlign: 'center',
   },
 });

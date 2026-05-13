@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { authService } from '@/services/authService';
@@ -30,7 +32,7 @@ function useProtectedRoute() {
     if (root === 'splash' || root === undefined) return;
 
     // Auth and onboarding screens are always accessible
-    const publicRoutes = ['onboarding', 'login', 'register', 'admin'];
+    const publicRoutes = ['onboarding', 'login', 'register', 'forgot-password', 'admin'];
     if (publicRoutes.includes(root)) {
       setChecked(true);
       return;
@@ -63,19 +65,25 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack initialRouteName="splash">
-        <Stack.Screen name="splash" options={{ headerShown: false, animation: 'none' }} />
-        <Stack.Screen name="onboarding" options={{ headerShown: false, animation: 'fade' }} />
-        <Stack.Screen name="login" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="register" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false, animation: 'none' }} />
-        <Stack.Screen name="party/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="my-bookings" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="admin" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="light" />
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <BottomSheetModalProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack initialRouteName="splash">
+            <Stack.Screen name="splash" options={{ headerShown: false, animation: 'none' }} />
+            <Stack.Screen name="onboarding" options={{ headerShown: false, animation: 'fade' }} />
+            <Stack.Screen name="login" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="register" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="forgot-password" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="edit-profile" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false, animation: 'none' }} />
+            <Stack.Screen name="party/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="my-bookings" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="admin" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+          </Stack>
+          <StatusBar style="light" />
+        </ThemeProvider>
+      </BottomSheetModalProvider>
+    </GestureHandlerRootView>
   );
 }

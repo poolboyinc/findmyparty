@@ -9,17 +9,18 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRegister } from '@/hooks/useAuth';
-import { colors, layout, spacing, typography } from '@/constants/theme';
 import { AuthField } from '@/components/ui/auth-field';
+import { AuthHeader } from '@/components/ui/auth-header';
 import { PrimaryButton } from '@/components/ui/primary-button';
+import { colors, layout, spacing, typography, weights } from '@/theme';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Backend constraint: 3–20 chars, alphanumeric + underscore, no spaces.
+const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
 
 function PwHint({ met, label }: { met: boolean; label: string }) {
   return (
@@ -41,7 +42,6 @@ const hintStyles = StyleSheet.create({
 });
 
 export default function RegisterPage() {
-  const insets = useSafeAreaInsets();
   const {
     userName,
     setUserName,
@@ -53,30 +53,57 @@ export default function RegisterPage() {
     loading,
     register,
   } = useRegister();
+
+  const [confirm, setConfirm] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const [usernameTouched, setUsernameTouched] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
+  const [confirmTouched, setConfirmTouched] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
+  const confirmRef = useRef<TextInput>(null);
+
+  const usernameError =
+    (usernameTouched || submitAttempted) && userName.length > 0 && !USERNAME_REGEX.test(userName.trim())
+      ? '3–20 letters, numbers, or underscores. No spaces.'
+      : submitAttempted && userName.trim().length === 0
+        ? 'Name is required.'
+        : null;
 
   const emailError =
-    emailTouched && email.length > 0 && !EMAIL_REGEX.test(email.trim())
+    (emailTouched || submitAttempted) && email.length > 0 && !EMAIL_REGEX.test(email.trim())
       ? 'Please enter a valid email address.'
-      : null;
+      : submitAttempted && email.trim().length === 0
+        ? 'Email is required.'
+        : null;
 
   const pwChecks = {
     length: password.length >= 8,
     digit: /[0-9]/.test(password),
     lower: /[a-z]/.test(password),
   };
+  const pwAllMet = pwChecks.length && pwChecks.digit && pwChecks.lower;
+
+  const passwordError =
+    submitAttempted && password.length === 0 ? 'Password is required.' : null;
+
+  const confirmError =
+    (confirmTouched || submitAttempted) && confirm.length > 0 && confirm !== password
+      ? 'Passwords do not match.'
+      : submitAttempted && confirm.length === 0
+        ? 'Please confirm your password.'
+        : null;
 
   const formValid =
-    userName.trim().length >= 2 &&
+    USERNAME_REGEX.test(userName.trim()) &&
     EMAIL_REGEX.test(email.trim()) &&
-    pwChecks.length &&
-    pwChecks.digit &&
-    pwChecks.lower;
+    pwAllMet &&
+    confirm === password;
 
   const handleSignUp = async () => {
+    setSubmitAttempted(true);
     if (!formValid) return;
     const success = await register();
     if (success) {
@@ -89,24 +116,7 @@ export default function RegisterPage() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={['rgba(157,78,255,0.18)', 'rgba(10,10,12,0)']}
-        locations={[0, 1]}
-        style={styles.spotlight}
-        pointerEvents="none"
-      />
-
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={layout.hitSlop}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.5 }]}
-        >
-          <Ionicons name="chevron-back" size={28} color={colors.label} />
-        </Pressable>
-      </View>
+      <AuthHeader title="Sign Up" disabled={loading} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -117,26 +127,22 @@ export default function RegisterPage() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.titleBlock}>
-            <Text style={styles.title}>Create account</Text>
-            <Text style={styles.subtitle}>Find your next party in seconds.</Text>
-          </View>
-
           <View style={styles.form}>
             <AuthField
-              placeholder="Username"
+              placeholder="Name"
               value={userName}
               onChangeText={setUserName}
+              onBlur={() => setUsernameTouched(true)}
               autoCapitalize="none"
               autoCorrect={false}
               textContentType="username"
               autoComplete="username-new"
               returnKeyType="next"
               onSubmitEditing={() => emailRef.current?.focus()}
-              accessibilityLabel="Username"
-              leadingIcon={
-                <Ionicons name="person-outline" size={18} color={colors.labelTertiary} />
-              }
+              accessibilityLabel="Name"
+              error={usernameError}
+              editable={!loading}
+              maxLength={20}
             />
             <AuthField
               ref={emailRef}
@@ -153,9 +159,7 @@ export default function RegisterPage() {
               onSubmitEditing={() => passwordRef.current?.focus()}
               accessibilityLabel="Email"
               error={emailError}
-              leadingIcon={
-                <Ionicons name="mail-outline" size={18} color={colors.labelTertiary} />
-              }
+              editable={!loading}
             />
             <AuthField
               ref={passwordRef}
@@ -167,15 +171,15 @@ export default function RegisterPage() {
               autoCorrect={false}
               textContentType="newPassword"
               autoComplete="password-new"
-              returnKeyType="done"
-              onSubmitEditing={handleSignUp}
+              returnKeyType="next"
+              onSubmitEditing={() => confirmRef.current?.focus()}
               accessibilityLabel="Password"
-              leadingIcon={
-                <Ionicons name="lock-closed-outline" size={18} color={colors.labelTertiary} />
-              }
+              error={passwordError}
+              editable={!loading}
               trailingSlot={
                 <Pressable
                   onPress={() => setPasswordVisible((v) => !v)}
+                  disabled={loading}
                   hitSlop={layout.hitSlop}
                   accessibilityRole="button"
                   accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
@@ -187,6 +191,23 @@ export default function RegisterPage() {
                   />
                 </Pressable>
               }
+            />
+            <AuthField
+              ref={confirmRef}
+              placeholder="Confirm Password"
+              value={confirm}
+              onChangeText={setConfirm}
+              onBlur={() => setConfirmTouched(true)}
+              secureTextEntry={!passwordVisible}
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="newPassword"
+              autoComplete="password-new"
+              returnKeyType="done"
+              onSubmitEditing={handleSignUp}
+              accessibilityLabel="Confirm Password"
+              error={confirmError}
+              editable={!loading}
             />
 
             <View style={styles.hints}>
@@ -202,9 +223,9 @@ export default function RegisterPage() {
             ) : null}
 
             <PrimaryButton
-              label="Create account"
+              label="Sign Up"
               onPress={handleSignUp}
-              disabled={!formValid}
+              disabled={loading}
               loading={loading}
               accessibilityHint="Creates your FindMyParty account"
             />
@@ -213,7 +234,11 @@ export default function RegisterPage() {
           <View style={styles.footer}>
             <Text style={styles.footerText}>
               Already have an account?{' '}
-              <Text style={styles.footerLink} onPress={() => router.push('/login')}>
+              <Text
+                style={[styles.footerLink, loading && styles.footerLinkDisabled]}
+                onPress={loading ? undefined : () => router.push('/login')}
+                accessibilityRole="link"
+              >
                 Sign in
               </Text>
             </Text>
@@ -229,43 +254,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  spotlight: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 360,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing.sm,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: layout.screenMargin,
+    paddingTop: spacing.giant,
     paddingBottom: spacing.xxl,
-  },
-  titleBlock: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.xxl,
-    gap: spacing.xs,
-  },
-  title: {
-    ...typography.largeTitle,
-    fontWeight: '700',
-    color: colors.label,
-  },
-  subtitle: {
-    ...typography.subheadline,
-    color: colors.labelSecondary,
   },
   form: {
     gap: spacing.base,
@@ -290,7 +283,10 @@ const styles = StyleSheet.create({
     color: colors.labelSecondary,
   },
   footerLink: {
-    color: colors.brandLight,
-    fontWeight: '600',
+    color: colors.brand.light,
+    fontWeight: weights.semibold,
+  },
+  footerLinkDisabled: {
+    color: colors.labelTertiary,
   },
 });

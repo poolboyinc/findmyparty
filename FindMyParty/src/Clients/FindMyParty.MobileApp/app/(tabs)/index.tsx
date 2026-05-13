@@ -21,6 +21,8 @@ import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { ApiConstants, resolveMediaUrl } from '@/constants/api';
 import { s, vs, ms } from '@/constants/responsive';
+import { colors, layout, spacing } from '@/theme';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useExplore } from '@/hooks/useExplore';
 import type { PartyMapItem } from '@/types/parties';
 
@@ -590,6 +592,12 @@ type RouteGeoJSON = {
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const { parties, loadParties } = useExplore();
+  // Lifts floating controls clear of the new GlassTabBar floating pill.
+  const tabBarClearance =
+    insets.bottom +
+    layout.floatingTabBarHeight +
+    layout.floatingTabBarBottomOffset +
+    spacing.base;
   const [selectedParty, setSelectedParty] = useState<PartyMapItem | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -659,12 +667,10 @@ export default function ExploreScreen() {
     }
   }, [userCoords]);
 
-  // Guard: redirect if Mapbox token is missing
-  useEffect(() => {
-    if (!ApiConstants.MapboxPublicToken) {
-      router.replace('/onboarding');
-    }
-  }, []);
+  // If the Mapbox token isn't configured we render an inline placeholder in
+  // place of the map. The other tabs keep working, and the user can navigate
+  // to /parties via the placeholder's action — no auth-style redirect.
+  const hasMap = !!ApiConstants.MapboxPublicToken;
 
   // Request location permission, fly to user, and load nearby parties
   useEffect(() => {
@@ -744,70 +750,85 @@ export default function ExploreScreen() {
     <View style={styles.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* ── Map ── */}
-      <MapboxGL.MapView
-        style={styles.map}
-        styleURL="mapbox://styles/mapbox/dark-v11"
-        logoEnabled={false}
-        attributionEnabled={false}
-        compassEnabled={false}
-        scaleBarEnabled={false}
-      >
-        <MapboxGL.Camera
-          ref={cameraRef}
-          defaultSettings={{
-            centerCoordinate: userCoords ?? [19.2594, 42.4411],
-            zoomLevel: 13.5,
-          }}
-          followUserLocation={navigating}
-          followZoomLevel={navigating ? 16.5 : undefined}
-          animationMode="flyTo"
-          animationDuration={navigating ? 1000 : 0}
-        />
-        <MapboxGL.UserLocation visible androidRenderMode="compass" />
-
-        {/* Route line */}
-        {routeGeoJSON && (
-          <MapboxGL.ShapeSource id="routeLine" shape={routeGeoJSON}>
-            <MapboxGL.LineLayer
-              id="routeLineLayer"
-              style={
-                travelMode === 'walking'
-                  ? {
-                      lineColor: '#B44AFF',
-                      lineWidth: 5,
-                      lineCap: 'round',
-                      lineJoin: 'round',
-                      lineDasharray: [1.5, 2],
-                    }
-                  : {
-                      lineColor: '#B44AFF',
-                      lineWidth: 5,
-                      lineCap: 'round',
-                      lineJoin: 'round',
-                    }
-              }
-            />
-          </MapboxGL.ShapeSource>
-        )}
-
-        {/* Party markers */}
-        {parties.map((party) => (
-          <PartyMarker
-            key={party.id}
-            party={party}
-            isActive={selectedParty?.id === party.id}
-            onPress={handleMarkerPress.bind(null, party)}
+      {/* ── Map (or placeholder when Mapbox is not configured) ── */}
+      {hasMap ? (
+        <MapboxGL.MapView
+          style={styles.map}
+          styleURL="mapbox://styles/mapbox/dark-v11"
+          logoEnabled={false}
+          attributionEnabled={false}
+          compassEnabled={false}
+          scaleBarEnabled={false}
+        >
+          <MapboxGL.Camera
+            ref={cameraRef}
+            defaultSettings={{
+              centerCoordinate: userCoords ?? [19.2594, 42.4411],
+              zoomLevel: 13.5,
+            }}
+            followUserLocation={navigating}
+            followZoomLevel={navigating ? 16.5 : undefined}
+            animationMode="flyTo"
+            animationDuration={navigating ? 1000 : 0}
           />
-        ))}
-      </MapboxGL.MapView>
+          <MapboxGL.UserLocation visible androidRenderMode="compass" />
+
+          {/* Route line */}
+          {routeGeoJSON && (
+            <MapboxGL.ShapeSource id="routeLine" shape={routeGeoJSON}>
+              <MapboxGL.LineLayer
+                id="routeLineLayer"
+                style={
+                  travelMode === 'walking'
+                    ? {
+                        lineColor: '#B44AFF',
+                        lineWidth: 5,
+                        lineCap: 'round',
+                        lineJoin: 'round',
+                        lineDasharray: [1.5, 2],
+                      }
+                    : {
+                        lineColor: '#B44AFF',
+                        lineWidth: 5,
+                        lineCap: 'round',
+                        lineJoin: 'round',
+                      }
+                }
+              />
+            </MapboxGL.ShapeSource>
+          )}
+
+          {/* Party markers */}
+          {parties.map((party) => (
+            <PartyMarker
+              key={party.id}
+              party={party}
+              isActive={selectedParty?.id === party.id}
+              onPress={handleMarkerPress.bind(null, party)}
+            />
+          ))}
+        </MapboxGL.MapView>
+      ) : (
+        <View style={styles.placeholder}>
+          <EmptyState
+            sfSymbol="map.fill"
+            ionicon="map"
+            title="Map unavailable"
+            body="We can&apos;t show parties on the map right now. Try the Parties tab to see what&apos;s happening."
+            action={{
+              label: 'Go to Parties',
+              onPress: () => router.push('/(tabs)/parties'),
+            }}
+          />
+        </View>
+      )}
 
       {/* ── Header bar ── */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity
           style={styles.searchBar}
           activeOpacity={0.8}
-          onPress={() => router.push('/(tabs)/explore')}
+          onPress={() => router.push('/(tabs)/parties')}
         >
           <Ionicons name="search" size={ms(17)} color="rgba(255,255,255,0.6)" />
           <View style={styles.dividerV} />
@@ -820,7 +841,7 @@ export default function ExploreScreen() {
 
       {/* ── Location denied banner ── */}
       {locationDenied && (
-        <View style={styles.locationBanner}>
+        <View style={[styles.locationBanner, { bottom: tabBarClearance + vs(52) + spacing.sm }]}>
           <Ionicons name="location-outline" size={ms(18)} color="rgba(255,255,255,0.85)" />
           <Text style={styles.locationBannerText}>
             Enable location to discover parties near you
@@ -829,9 +850,9 @@ export default function ExploreScreen() {
       )}
 
       {/* ── FAB: cancel navigation OR date picker ── */}
-      {!selectedParty && navigating && (
+      {hasMap && !selectedParty && navigating && (
         <TouchableOpacity
-          style={[styles.datePickerFab, styles.cancelNavFab]}
+          style={[styles.datePickerFab, styles.cancelNavFab, { bottom: tabBarClearance }]}
           onPress={handleCancelNavigation}
           activeOpacity={0.75}
         >
@@ -840,9 +861,9 @@ export default function ExploreScreen() {
           </View>
         </TouchableOpacity>
       )}
-      {!selectedParty && !navigating && (
+      {hasMap && !selectedParty && !navigating && (
         <TouchableOpacity
-          style={styles.datePickerFab}
+          style={[styles.datePickerFab, { bottom: tabBarClearance }]}
           onPress={() => setShowDatePicker(true)}
           activeOpacity={0.75}
         >
@@ -858,7 +879,7 @@ export default function ExploreScreen() {
       )}
 
       {/* ── Party popup card ── */}
-      {selectedParty && (
+      {hasMap && selectedParty && (
         <PartyCard
           party={selectedParty}
           onClose={handleCloseCard}
@@ -902,6 +923,12 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  placeholder: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Location banner
   locationBanner: {

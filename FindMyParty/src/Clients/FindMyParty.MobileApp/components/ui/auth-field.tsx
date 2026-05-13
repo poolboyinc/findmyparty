@@ -1,4 +1,4 @@
-import { forwardRef, ReactNode, useState } from 'react';
+import { forwardRef, ReactNode, useEffect, useRef, useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,7 +6,14 @@ import {
   TextInputProps,
   View,
 } from 'react-native';
-import { colors, layout, radii, spacing, typography } from '@/constants/theme';
+import Animated, {
+  FadeIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { colors, layout, radii, spacing, typography } from '@/theme';
 
 type Props = TextInputProps & {
   leadingIcon?: ReactNode;
@@ -15,6 +22,10 @@ type Props = TextInputProps & {
   helper?: string;
 };
 
+// Shake on validation error: 3 cycles of ±4pt at 50ms each = 300ms total.
+const SHAKE_DISTANCE = 4;
+const SHAKE_STEP_MS = 50;
+
 export const AuthField = forwardRef<TextInput, Props>(function AuthField(
   { leadingIcon, trailingSlot, error, helper, style, onFocus, onBlur, ...rest },
   ref,
@@ -22,13 +33,37 @@ export const AuthField = forwardRef<TextInput, Props>(function AuthField(
   const [focused, setFocused] = useState(false);
   const showError = !!error;
 
+  const translateX = useSharedValue(0);
+  const hadErrorRef = useRef(false);
+
+  // Trigger the shake only on no-error → error transitions, not on every render
+  // where the error persists.
+  useEffect(() => {
+    if (showError && !hadErrorRef.current) {
+      translateX.value = withSequence(
+        withTiming(-SHAKE_DISTANCE, { duration: SHAKE_STEP_MS }),
+        withTiming(SHAKE_DISTANCE, { duration: SHAKE_STEP_MS }),
+        withTiming(-SHAKE_DISTANCE, { duration: SHAKE_STEP_MS }),
+        withTiming(SHAKE_DISTANCE, { duration: SHAKE_STEP_MS }),
+        withTiming(-SHAKE_DISTANCE, { duration: SHAKE_STEP_MS }),
+        withTiming(0, { duration: SHAKE_STEP_MS }),
+      );
+    }
+    hadErrorRef.current = showError;
+  }, [showError, translateX]);
+
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
   return (
     <View style={styles.wrap}>
-      <View
+      <Animated.View
         style={[
           styles.field,
           focused && styles.fieldFocused,
           showError && styles.fieldError,
+          shakeStyle,
         ]}
       >
         {leadingIcon ? <View style={styles.leading}>{leadingIcon}</View> : null}
@@ -47,11 +82,15 @@ export const AuthField = forwardRef<TextInput, Props>(function AuthField(
           {...rest}
         />
         {trailingSlot ? <View style={styles.trailing}>{trailingSlot}</View> : null}
-      </View>
+      </Animated.View>
       {showError ? (
-        <Text style={styles.error} accessibilityLiveRegion="polite">
+        <Animated.Text
+          entering={FadeIn.duration(200)}
+          style={styles.error}
+          accessibilityLiveRegion="polite"
+        >
           {error}
-        </Text>
+        </Animated.Text>
       ) : helper ? (
         <Text style={styles.helper}>{helper}</Text>
       ) : null}
@@ -66,17 +105,16 @@ const styles = StyleSheet.create({
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: radii.field,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: colors.hairline,
     height: layout.fieldHeightTall,
     paddingHorizontal: spacing.base,
     gap: spacing.md,
   },
   fieldFocused: {
     borderColor: colors.tint,
-    backgroundColor: colors.surfaceElevated,
   },
   fieldError: {
     borderColor: colors.danger,

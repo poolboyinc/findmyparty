@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors, layout, radii, spacing, typography } from '@/constants/theme';
+import { colors, layout, radii, spacing, typography } from '@/theme';
 
 type Variant = 'primary' | 'secondary';
 
@@ -32,14 +32,18 @@ export function PrimaryButton({
 }: Props) {
   const inactive = disabled || loading;
 
-  const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onPress();
+  // Press-start haptic acknowledges the input. The screen-level submit handler
+  // fires a `notification` haptic on the result (success/error) — two distinct
+  // tactile moments per HIG feedback guidance.
+  const handlePressIn = () => {
+    if (inactive) return;
+    Haptics.selectionAsync();
   };
 
   return (
     <Pressable
-      onPress={handlePress}
+      onPressIn={handlePressIn}
+      onPress={onPress}
       disabled={inactive}
       accessibilityRole="button"
       accessibilityState={{ disabled: inactive, busy: loading }}
@@ -47,8 +51,8 @@ export function PrimaryButton({
       style={({ pressed }) => [
         styles.base,
         variant === 'primary' ? styles.primary : styles.secondary,
-        pressed && !inactive && styles.pressed,
         inactive && styles.disabled,
+        pressed && !inactive && styles.pressed,
       ]}
     >
       {loading ? (
@@ -59,7 +63,7 @@ export function PrimaryButton({
           <Text
             style={[
               styles.label,
-              variant === 'secondary' && styles.labelSecondary,
+              inactive && styles.labelDisabled,
             ]}
           >
             {label}
@@ -84,12 +88,12 @@ const styles = StyleSheet.create({
   secondary: {
     backgroundColor: colors.surfaceElevated,
   },
+  disabled: {
+    backgroundColor: colors.fillTertiary,
+  },
   pressed: {
     transform: [{ scale: 0.98 }],
     opacity: 0.92,
-  },
-  disabled: {
-    opacity: 0.4,
   },
   row: {
     flexDirection: 'row',
@@ -103,7 +107,7 @@ const styles = StyleSheet.create({
     ...typography.bodyEmphasized,
     color: colors.label,
   },
-  labelSecondary: {
-    color: colors.label,
+  labelDisabled: {
+    color: colors.labelTertiary,
   },
 });

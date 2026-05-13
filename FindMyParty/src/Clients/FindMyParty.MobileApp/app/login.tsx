@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import {
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,47 +9,40 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useLogin } from '@/hooks/useAuth';
-import {
-  BRAND_GRADIENT,
-  colors,
-  layout,
-  spacing,
-  typography,
-} from '@/constants/theme';
 import { AuthField } from '@/components/ui/auth-field';
+import { AuthHeader } from '@/components/ui/auth-header';
 import { PrimaryButton } from '@/components/ui/primary-button';
+import { colors, layout, spacing, typography, weights } from '@/theme';
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const isValidEmail = (v: string) => EMAIL_REGEX.test(v.trim());
-
-const HALO = 140;
-const LOGO = 88;
+// The identifier field accepts either an email or a username — backend
+// disambiguates by checking for '@'. Frontend validation is minimal so
+// legitimate inputs (plus-addressed emails, dotted usernames, etc.) aren't
+// falsely rejected.
+const MIN_IDENTIFIER_LENGTH = 3;
 
 export default function LoginPage() {
-  const insets = useSafeAreaInsets();
   const { email, setEmail, password, setPassword, error, loading, login } = useLogin();
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const [emailTouched, setEmailTouched] = useState(false);
   const passwordRef = useRef<TextInput>(null);
 
-  const looksLikeEmail = email.includes('@');
-  const emailError =
-    emailTouched && looksLikeEmail && !isValidEmail(email)
-      ? 'Please enter a valid email address.'
+  const identifierError =
+    submitAttempted && email.trim().length < MIN_IDENTIFIER_LENGTH
+      ? 'Enter your email or username'
       : null;
 
+  const passwordError =
+    submitAttempted && password.length === 0 ? 'Password is required.' : null;
+
   const formValid =
-    email.trim().length >= 2 &&
-    (!looksLikeEmail || isValidEmail(email)) &&
-    password.length > 0;
+    email.trim().length >= MIN_IDENTIFIER_LENGTH && password.length > 0;
 
   const handleSignIn = async () => {
+    setSubmitAttempted(true);
     if (!formValid) return;
     const success = await login();
     if (success) {
@@ -63,24 +55,7 @@ export default function LoginPage() {
 
   return (
     <View style={styles.root}>
-      <LinearGradient
-        colors={['rgba(157,78,255,0.18)', 'rgba(10,10,12,0)']}
-        locations={[0, 1]}
-        style={styles.spotlight}
-        pointerEvents="none"
-      />
-
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={layout.hitSlop}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.5 }]}
-        >
-          <Ionicons name="chevron-back" size={28} color={colors.label} />
-        </Pressable>
-      </View>
+      <AuthHeader title="Log In" disabled={loading} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -91,44 +66,21 @@ export default function LoginPage() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.brandWrap}>
-            <View style={styles.haloWrap}>
-              <LinearGradient
-                colors={BRAND_GRADIENT.colors}
-                locations={BRAND_GRADIENT.locations}
-                style={styles.halo}
-              />
-              <Image
-                source={require('@/assets/images/fmp_logo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-          </View>
-
-          <View style={styles.titleBlock}>
-            <Text style={styles.title}>Welcome back</Text>
-            <Text style={styles.subtitle}>Sign in to keep the party going.</Text>
-          </View>
-
           <View style={styles.form}>
             <AuthField
               placeholder="Email or username"
               value={email}
               onChangeText={setEmail}
-              onBlur={() => setEmailTouched(true)}
+              keyboardType="default"
               autoCapitalize="none"
               autoCorrect={false}
-              keyboardType="email-address"
               textContentType="username"
               autoComplete="username"
               returnKeyType="next"
               onSubmitEditing={() => passwordRef.current?.focus()}
               accessibilityLabel="Email or username"
-              error={emailError}
-              leadingIcon={
-                <Ionicons name="person-outline" size={18} color={colors.labelTertiary} />
-              }
+              error={identifierError}
+              editable={!loading}
             />
             <AuthField
               ref={passwordRef}
@@ -143,12 +95,12 @@ export default function LoginPage() {
               returnKeyType="done"
               onSubmitEditing={handleSignIn}
               accessibilityLabel="Password"
-              leadingIcon={
-                <Ionicons name="lock-closed-outline" size={18} color={colors.labelTertiary} />
-              }
+              error={passwordError}
+              editable={!loading}
               trailingSlot={
                 <Pressable
                   onPress={() => setPasswordVisible((v) => !v)}
+                  disabled={loading}
                   hitSlop={layout.hitSlop}
                   accessibilityRole="button"
                   accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
@@ -162,6 +114,20 @@ export default function LoginPage() {
               }
             />
 
+            <Pressable
+              onPress={() => router.push('/forgot-password')}
+              disabled={loading}
+              hitSlop={layout.hitSlop}
+              accessibilityRole="link"
+              accessibilityLabel="Forgot password"
+              accessibilityHint="Opens password recovery"
+              style={styles.forgotWrap}
+            >
+              <Text style={[styles.forgot, loading && styles.forgotDisabled]}>
+                Forgot password?
+              </Text>
+            </Pressable>
+
             {error ? (
               <Text style={styles.formError} accessibilityLiveRegion="polite">
                 {error}
@@ -169,9 +135,9 @@ export default function LoginPage() {
             ) : null}
 
             <PrimaryButton
-              label="Sign in"
+              label="Log In"
               onPress={handleSignIn}
-              disabled={!formValid}
+              disabled={loading}
               loading={loading}
               accessibilityHint="Signs you into your account"
             />
@@ -179,8 +145,12 @@ export default function LoginPage() {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>
-              Don't have an account?{' '}
-              <Text style={styles.footerLink} onPress={() => router.push('/register')}>
+              Don&apos;t have an account?{' '}
+              <Text
+                style={[styles.footerLink, loading && styles.footerLinkDisabled]}
+                onPress={loading ? undefined : () => router.push('/register')}
+                accessibilityRole="link"
+              >
                 Sign up
               </Text>
             </Text>
@@ -196,71 +166,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  spotlight: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 360,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing.sm,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: layout.screenMargin,
+    paddingTop: spacing.giant,
     paddingBottom: spacing.xxl,
-  },
-  brandWrap: {
-    alignItems: 'center',
-    marginTop: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  haloWrap: {
-    width: HALO,
-    height: HALO,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  halo: {
-    position: 'absolute',
-    width: HALO,
-    height: HALO,
-    borderRadius: HALO / 2,
-    opacity: 0.35,
-  },
-  logo: {
-    width: LOGO,
-    height: LOGO,
-  },
-  titleBlock: {
-    alignItems: 'center',
-    marginBottom: spacing.xxl,
-    gap: spacing.xs,
-  },
-  title: {
-    ...typography.largeTitle,
-    fontWeight: '700',
-    color: colors.label,
-    textAlign: 'center',
-  },
-  subtitle: {
-    ...typography.subheadline,
-    color: colors.labelSecondary,
-    textAlign: 'center',
   },
   form: {
     gap: spacing.base,
-    marginBottom: spacing.xl,
+  },
+  forgotWrap: {
+    alignSelf: 'flex-end',
+    paddingVertical: spacing.xs,
+  },
+  forgot: {
+    ...typography.subheadline,
+    fontWeight: weights.medium,
+    color: colors.tint,
+  },
+  forgotDisabled: {
+    color: colors.labelTertiary,
   },
   formError: {
     ...typography.footnote,
@@ -277,7 +202,10 @@ const styles = StyleSheet.create({
     color: colors.labelSecondary,
   },
   footerLink: {
-    color: colors.brandLight,
-    fontWeight: '600',
+    color: colors.brand.light,
+    fontWeight: weights.semibold,
+  },
+  footerLinkDisabled: {
+    color: colors.labelTertiary,
   },
 });

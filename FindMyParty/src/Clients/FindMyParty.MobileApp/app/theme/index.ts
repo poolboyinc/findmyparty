@@ -1,26 +1,25 @@
 import { Platform, StyleSheet, TextStyle } from 'react-native';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Brand
-// Hero-only — these belong on the splash and as accents, never as full-bleed
-// chrome on functional screens.
+// FindMyParty Design System
+//
+// Single source of truth for all visual tokens. Never hardcode colors,
+// spacing, fonts, or radii — always import from here.
+//
+// Usage:
+//   import { colors, spacing, radii } from '@/theme';
+//   <View style={{ backgroundColor: colors.bg, padding: spacing.lg }} />
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const BRAND_PURPLE = '#7D08FA';
-export const BRAND_ORANGE = '#FF8C48';
-
-export const BRAND_GRADIENT = {
-  colors: ['#7D08FA', '#B03070', '#C84B00', '#FF8C48'] as const,
-  locations: [0, 0.38, 0.65, 1] as const,
-};
-
-// Lifted purple — pure #7D08FA reads too dark against #0A0A0C surfaces.
-// Use this for buttons, links, focus rings on dark backgrounds.
-const BRAND_PURPLE_LIFTED = '#9D4EFF';
+// Internal palette anchors — exposed only through `colors.brand.*`.
+const BRAND_PURPLE_PRIMARY = '#9D6BFF';
+const BRAND_PURPLE_LIGHT = '#B58CFF';
+const BRAND_PURPLE_DEEP = '#7D08FA';
+const BRAND_ORANGE_HEX = '#FF8C48';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Colors — dark-mode-first, semantic tokens modeled on iOS UIKit colors.
-// Label tier opacities follow Apple's dark-mode UIColor specs.
+// Label and fill tier opacities follow Apple's dark-mode UIColor specs.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const colors = {
@@ -43,13 +42,30 @@ export const colors = {
   fillTertiary: 'rgba(118,118,128,0.24)',
   fillQuaternary: 'rgba(118,118,128,0.18)',
 
-  tint: BRAND_PURPLE_LIFTED,
-  tintPressed: '#7D2DDB',
-  tintDisabled: 'rgba(157,78,255,0.30)',
+  /** Active action color — mirrors UIKit's `tintColor`. Alias of `brand.primary`. */
+  tint: BRAND_PURPLE_PRIMARY,
 
-  brand: BRAND_PURPLE,
-  brandLight: BRAND_PURPLE_LIFTED,
-  brandOrange: BRAND_ORANGE,
+  brand: {
+    /** Default brand purple for UI — buttons, links, focus rings, accents on dark surfaces. */
+    primary: BRAND_PURPLE_PRIMARY,
+    /** Lighter variant for hover, secondary emphasis, and softer accent moments. */
+    light: BRAND_PURPLE_LIGHT,
+    /** True brand purple from the logo. Use ONLY as splash, logo, or gradient anchor. */
+    deep: BRAND_PURPLE_DEEP,
+    /** Brand orange — gradient anchor and rare accent only. */
+    orange: BRAND_ORANGE_HEX,
+    /** Low-opacity tint for selection/active backgrounds (active tab bubble, active chip). */
+    tintBg: 'rgba(157,107,255,0.15)',
+    /**
+     * Full brand gradient (purple → magenta → orange → peach).
+     * Reserved for the FindMyParty logo and rare hero moments only.
+     * Do NOT use as a screen background or routine button fill.
+     */
+    gradient: {
+      colors: [BRAND_PURPLE_DEEP, '#B03070', '#C84B00', BRAND_ORANGE_HEX] as const,
+      locations: [0, 0.38, 0.65, 1] as const,
+    },
+  },
 
   // iOS dark-mode system colors
   red: '#FF453A',
@@ -178,8 +194,6 @@ export const typography = {
   } satisfies Type,
 } as const;
 
-// Pair with any typography style:
-//   { ...typography.largeTitle, fontWeight: weights.bold }
 export const weights = {
   ultralight: '100',
   thin: '200',
@@ -194,8 +208,6 @@ export const weights = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Spacing — 4pt grid. Matches Apple's 4/8/16/20 rhythm.
-// Values are in points. Pair with `s()`/`vs()` from constants/responsive.ts
-// only when device-relative scaling is needed.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const spacing = {
@@ -215,6 +227,7 @@ export const spacing = {
 // ─────────────────────────────────────────────────────────────────────────────
 // Radii — iOS continuous-corner conventions.
 // 14 is the iOS sheet/card corner; 10 is the standard control corner.
+// Semantic aliases (button/field/card/modal) help consumers pick correctly.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const radii = {
@@ -228,7 +241,9 @@ export const radii = {
   card: 16,
   modal: 14,
   button: 14,
-  field: 12,
+  /** Same value as `radii.card` today, kept separate for semantic clarity.
+   * Flag for consolidation review if they stay identical long-term. */
+  field: 16,
   pill: 9999,
 } as const;
 
@@ -244,11 +259,21 @@ export const layout = {
   tabBarHeight: 49,
   listItemHeight: 44,
   listItemHeightTall: 56,
+  /** Deliberate +4 over Figma's 46pt mockup. 46pt clips at AX1+ Dynamic Type;
+   * 50pt stays HIG-safe. Do NOT "fix" back to 46. */
   buttonHeight: 50,
   fieldHeight: 50,
-  fieldHeightTall: 56,
+  fieldHeightTall: 54,
   hitSlop: { top: 8, right: 8, bottom: 8, left: 8 },
   minTouchTarget: 44,
+  /** Width of the grabber handle at the top of a `@gorhom/bottom-sheet` modal. */
+  sheetHandleWidth: 36,
+  /** Floating tab bar visual height (excluding bottom safe-area inset). */
+  floatingTabBarHeight: 64,
+  /** Vertical inset between the floating tab bar and the screen edge / home indicator. */
+  floatingTabBarBottomOffset: 12,
+  /** Promo flyer aspect — wider than 16:9 to honor event poster proportions. */
+  cardImageAspect: 333 / 168,
 } as const;
 
 export const hairlineWidth = StyleSheet.hairlineWidth;
@@ -265,12 +290,6 @@ export const theme = {
   radii,
   layout,
   hairlineWidth,
-  brand: {
-    purple: BRAND_PURPLE,
-    orange: BRAND_ORANGE,
-    purpleLifted: BRAND_PURPLE_LIFTED,
-    gradient: BRAND_GRADIENT,
-  },
 } as const;
 
 export type Theme = typeof theme;
@@ -279,51 +298,3 @@ export type ThemeTypography = typeof typography;
 export type ThemeSpacing = typeof spacing;
 export type ThemeRadii = typeof radii;
 export type ThemeLayout = typeof layout;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Legacy exports — kept so existing consumers (use-theme-color, collapsible)
-// keep working. Prefer the named token exports above for new code.
-// ─────────────────────────────────────────────────────────────────────────────
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
-
-export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
-  },
-  dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
-  },
-};
-
-export const Fonts = Platform.select({
-  ios: {
-    sans: 'system-ui',
-    serif: 'ui-serif',
-    rounded: 'ui-rounded',
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});

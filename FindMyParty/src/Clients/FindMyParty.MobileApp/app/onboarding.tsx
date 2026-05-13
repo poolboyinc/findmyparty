@@ -21,20 +21,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiConstants } from '@/constants/api';
 import { ms, s, vs } from '@/constants/responsive';
-import { colors, layout, radii, spacing, typography, weights } from '@/constants/theme';
+import { colors, layout, radii, spacing, typography, weights } from '@/theme';
 import { authService } from '../services/authService';
 
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
 const GOOGLE_REVERSED_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_REVERSED_CLIENT_ID ?? '';
 
 WebBrowser.maybeCompleteAuthSession();
-
-// Welcome screen tokens — sourced from FMP BETA V2 / WELCOME SCREEN (Figma).
-const SURFACE_BUTTON = '#1C1C28';
-const SURFACE_BUTTON_BORDER = 'rgba(255,255,255,0.13)';
-const SIGNUP_GRADIENT_FROM = '#7B35E8';
-const SIGNUP_GRADIENT_TO = '#C040C8';
-const ACCENT_PINK = '#FF4FD8';
 
 export default function WelcomeScreen() {
   const [loading, setLoading] = useState<'google' | 'apple' | null>(null);
@@ -257,7 +250,8 @@ export default function WelcomeScreen() {
             ]}
           >
             <LinearGradient
-              colors={[SIGNUP_GRADIENT_FROM, SIGNUP_GRADIENT_TO]}
+              colors={colors.brand.gradient.colors}
+              locations={colors.brand.gradient.locations}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.signUpGradient}
@@ -353,10 +347,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: vs(48),
     minHeight: layout.minTouchTarget,
-    backgroundColor: SURFACE_BUTTON,
+    backgroundColor: colors.surfaceElevated,
     borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: SURFACE_BUTTON_BORDER,
+    borderColor: colors.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -430,7 +424,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   loginTextHighlight: {
-    color: ACCENT_PINK,
+    color: colors.tint,
     fontWeight: weights.bold,
   },
   legal: {

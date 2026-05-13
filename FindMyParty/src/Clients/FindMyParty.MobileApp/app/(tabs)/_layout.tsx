@@ -1,124 +1,61 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { s, vs, ms } from '@/constants/responsive';
+import { GlassTabBar, type TabIconMap } from '@/components/ui/glass-tab-bar';
 
-// ─── Tab definitions ───────────────────────────────────────────────────────────
-const TABS = [
-  { name: 'index', label: 'Explore', icon: 'map-outline' as const },
-  { name: 'explore', label: 'Parties', icon: 'flame' as const },
-  { name: 'profile', label: 'Profile', icon: 'person-outline' as const },
-];
+/**
+ * Tab definitions — single source of truth for icons + labels.
+ * Keys must match the file-based route names under `app/(tabs)/`.
+ */
+const TAB_ICONS: TabIconMap = {
+  index: {
+    label: 'Explore',
+    sfSymbolActive: 'map.fill',
+    sfSymbolInactive: 'map',
+    ioniconActive: 'map',
+    ioniconInactive: 'map-outline',
+  },
+  parties: {
+    label: 'Parties',
+    sfSymbolActive: 'flame.fill',
+    sfSymbolInactive: 'flame',
+    ioniconActive: 'flame',
+    ioniconInactive: 'flame-outline',
+  },
+  profile: {
+    label: 'Profile',
+    sfSymbolActive: 'person.fill',
+    sfSymbolInactive: 'person',
+    ioniconActive: 'person',
+    ioniconInactive: 'person-outline',
+  },
+};
 
-const ACTIVE_COLOR = '#7D08FA';
-const INACTIVE_COLOR = 'rgba(255,255,255,0.45)';
-
-// ─── Custom tab bar ─────────────────────────────────────────────────────────────
-function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const insets = useSafeAreaInsets();
-
-  return (
-    <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-      {state.routes.map((route, index) => {
-        const tab = TABS.find((t) => t.name === route.name);
-        if (!tab) return null;
-
-        const isFocused = state.index === index;
-        const color = isFocused ? ACTIVE_COLOR : INACTIVE_COLOR;
-
-        const onPress = () => {
-          const event = navigation.emit({
-            type: 'tabPress',
-            target: route.key,
-            canPreventDefault: true,
-          });
-          if (!isFocused && !event.defaultPrevented) {
-            navigation.navigate(route.name);
-          }
-        };
-
-        return (
-          <TouchableOpacity
-            key={route.key}
-            onPress={onPress}
-            activeOpacity={0.7}
-            style={styles.tabItem}
-            accessibilityRole="button"
-            accessibilityState={isFocused ? { selected: true } : {}}
-            accessibilityLabel={tab.label}
-          >
-            <Ionicons name={tab.icon} size={ms(26)} color={color} />
-            <Text style={[styles.tabLabel, { color }]}>{tab.label}</Text>
-            {isFocused && <View style={styles.activeIndicator} />}
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
-
-// ─── Layout ──────────────────────────────────────────────────────────────────────
 export default function TabLayout() {
   return (
     <Tabs
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={(props) => <GlassTabBar {...props} iconMap={TAB_ICONS} />}
       screenOptions={{
         headerShown: false,
+        // `animation: 'shift'` instead of `'fade'`: shift uses translateX so
+        // tab transitions don't depend on opacity. `'fade'` accumulated
+        // opacity-state corruption over many cycles in @react-navigation/
+        // bottom-tabs v7 — confirmed via device repro (10+ tab back-and-forths
+        // between two tabs eventually left the destination screen stuck at
+        // opacity 0). Shift sidesteps the opacity path entirely.
+        animation: 'shift',
+        // `freezeOnBlur: false` disables react-native-screens' default freeze
+        // behavior. v4 (~4.16) intermittently drops a frozen screen's native
+        // render buffer during back-and-forth tab navigation; on thaw the
+        // screen appears black until something triggers a re-paint, which
+        // doesn't happen without a state change. Disabling the freeze keeps
+        // each tab actively rendering — negligible cost for 3 tabs, no thaw
+        // paint bug. `lazy` is at its v7 default (`true`); re-enabling
+        // `lazy: false` is held for a separate step once this is verified.
+        freezeOnBlur: false,
       }}
     >
       <Tabs.Screen name="index" />
-      <Tabs.Screen name="explore" />
+      <Tabs.Screen name="parties" />
       <Tabs.Screen name="profile" />
     </Tabs>
   );
 }
-
-// ─── Styles ──────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#110F14',
-    borderTopColor: 'rgba(255,255,255,0.15)',
-    borderTopWidth: 1,
-    borderTopLeftRadius: s(24),
-    borderTopRightRadius: s(24),
-    paddingTop: vs(14),
-    paddingHorizontal: s(8),
-    // Shadow for depth
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 20,
-      },
-    }),
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    position: 'relative',
-    paddingBottom: 2,
-  },
-  tabLabel: {
-    fontSize: ms(11),
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-  activeIndicator: {
-    position: 'absolute',
-    top: vs(-14),
-    width: s(32),
-    height: vs(3),
-    borderRadius: s(2),
-    backgroundColor: '#7D08FA',
-  },
-});
