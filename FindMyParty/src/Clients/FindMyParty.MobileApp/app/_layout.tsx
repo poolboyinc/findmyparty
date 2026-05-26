@@ -78,8 +78,8 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false, animation: 'none' }} />
             <Stack.Screen name="party/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="my-bookings" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="favorites" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="admin" options={{ headerShown: false }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
           <StatusBar style="light" />
         </ThemeProvider>

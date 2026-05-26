@@ -149,6 +149,20 @@ export const authService = {
     ]);
   },
 
+  async deleteAccount(): Promise<boolean> {
+    try {
+      const token = await authService.getToken();
+      if (!token) return false;
+      const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/auth/account`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  },
+
   // Deduplicates concurrent refresh calls
   _refreshPromise: null as Promise<boolean> | null,
 

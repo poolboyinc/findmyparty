@@ -4,7 +4,8 @@
       "Bash(find C:/Users/vukasin.macic/source/repos/findmyparty/FindMyParty/src/Clients/FindMyParty.MobileApp/app -type f \\\\\\(-name *.tsx -o -name *.ts \\\\\\) ! -path */node_modules/*)",
       "Bash(dotnet ef:*)",
       "Bash(dotnet build:*)",
-      "WebFetch(domain:findmyparty-gateway-production.up.railway.app)"
+      "WebFetch(domain:findmyparty-gateway-production.up.railway.app)",
+      "mcp__figma__get_design_context"
     ]
   }
 }

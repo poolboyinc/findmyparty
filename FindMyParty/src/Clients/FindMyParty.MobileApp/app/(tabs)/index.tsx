@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MapboxGL from '@rnmapbox/maps';
+import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { ApiConstants, resolveMediaUrl } from '@/constants/api';
@@ -24,6 +25,7 @@ import { s, vs, ms } from '@/constants/responsive';
 import { colors, layout, spacing } from '@/theme';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useExplore } from '@/hooks/useExplore';
+import { useFavorites } from '@/hooks/useFavorites';
 import type { PartyMapItem } from '@/types/parties';
 
 // Set Mapbox access token once (only if present — missing token redirects to onboarding at runtime)
@@ -117,12 +119,16 @@ function PartyCard({
   translateY,
   onDirections,
   hasLocation,
+  isFavorited,
+  onHeartPress,
 }: {
   party: PartyMapItem;
   onClose: () => void;
   translateY: Animated.Value;
   onDirections?: () => void;
   hasLocation?: boolean;
+  isFavorited: boolean;
+  onHeartPress: () => void;
 }) {
   const { height: H } = useWindowDimensions();
   const imageSectionHeight = H * 0.213;  // 180/844
@@ -149,8 +155,18 @@ function PartyCard({
 
         {/* Heart + Close buttons */}
         <View style={cardStyles.imageActions}>
-          <TouchableOpacity style={cardStyles.actionBtn} activeOpacity={0.8}>
-            <Ionicons name="heart-outline" size={ms(20)} color="#7D08FA" />
+          <TouchableOpacity
+            style={cardStyles.actionBtn}
+            onPress={onHeartPress}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Ionicons
+              name={isFavorited ? 'heart' : 'heart-outline'}
+              size={ms(20)}
+              color={isFavorited ? colors.pink : '#7D08FA'}
+            />
           </TouchableOpacity>
           <TouchableOpacity style={cardStyles.actionBtn} onPress={onClose} activeOpacity={0.8}>
             <Ionicons name="close" size={ms(20)} color="#333" />
@@ -592,6 +608,7 @@ type RouteGeoJSON = {
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const { parties, loadParties } = useExplore();
+  const { isFavorite, toggle: toggleFavorite } = useFavorites();
   // Lifts floating controls clear of the new GlassTabBar floating pill.
   const tabBarClearance =
     insets.bottom +
@@ -886,6 +903,11 @@ export default function ExploreScreen() {
           translateY={cardAnim}
           onDirections={handleDirections}
           hasLocation={!!userCoords}
+          isFavorited={isFavorite(selectedParty.id)}
+          onHeartPress={() => {
+            Haptics.selectionAsync();
+            toggleFavorite(selectedParty.id);
+          }}
         />
       )}
 

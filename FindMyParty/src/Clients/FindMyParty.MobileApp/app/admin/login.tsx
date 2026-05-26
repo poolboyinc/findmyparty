@@ -1,59 +1,78 @@
-import React, { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
   Image,
-  StatusBar,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
-  useWindowDimensions,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { s, vs, ms } from '@/constants/responsive';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { AuthField } from '@/components/ui/auth-field';
+import { AuthHeader } from '@/components/ui/auth-header';
+import { PrimaryButton } from '@/components/ui/primary-button';
 import { authService } from '@/services/authService';
+import { colors, layout, radii, spacing, typography, weights } from '@/theme';
+
+// Single fixed logo size — intentionally smaller than the welcome screen's
+// hero logo because the AuthHeader's "Host Portal" title already supplies the
+// contextual signal. No wordmark is rendered beneath the mark.
+const LOGO_SIZE = 104;
 
 export default function AdminLoginScreen() {
-  const insets = useSafeAreaInsets();
-  const { height: H } = useWindowDimensions();
-  const logoSize = H * 0.154;  // 130/844
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [roleNotice, setRoleNotice] = useState<string | null>(null);
+  const passwordRef = useRef<TextInput>(null);
+
+  const identifierError =
+    submitAttempted && email.trim().length === 0
+      ? 'Enter your email or username'
+      : null;
+
+  const passwordError =
+    submitAttempted && password.length === 0 ? 'Password is required.' : null;
+
+  const formValid = email.trim().length > 0 && password.length > 0;
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      setError('Please fill in all fields.');
-      return;
-    }
+    setSubmitAttempted(true);
+    setFormError(null);
+    setRoleNotice(null);
+    if (!formValid) return;
     setLoading(true);
-    setError(null);
     try {
       const success = await authService.login(email.trim(), password);
       if (!success) {
-        setError('Invalid credentials. Please try again.');
+        setFormError('Invalid credentials. Please try again.');
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         return;
       }
       const userInfo = await authService.getUserInfo();
       const roles = userInfo?.roles ?? [];
       if (roles.includes('Host') || roles.includes('Admin')) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.replace('/admin/dashboard');
       } else {
         await authService.logout();
-        setError('Access denied. Host or Admin account required.');
+        setRoleNotice(
+          "This account isn't a host. If you're expecting access, contact your FindMyParty rep.",
+        );
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } catch {
-      setError('Something went wrong. Please try again.');
+      setFormError('Something went wrong. Please try again.');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
     }
@@ -61,106 +80,108 @@ export default function AdminLoginScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <LinearGradient
-        colors={['#000000', '#0A001A', '#7D08FA']}
-        locations={[0, 0.13, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      <AuthHeader title="Host Portal" disabled={loading} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={[
-            styles.content,
-            { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 30 },
-          ]}
+          contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Logo */}
-          <View style={styles.logoArea}>
+          <View style={styles.logoBlock}>
             <Image
               source={require('@/assets/images/fmp_logo.png')}
-              style={{ width: logoSize, height: logoSize }}
+              style={styles.logo}
               resizeMode="contain"
+              accessibilityIgnoresInvertColors
+              accessible={false}
             />
-            <Text style={styles.brandName}>FindMyParty</Text>
           </View>
 
-          {/* Form */}
-          <View style={styles.formArea}>
-            {/* Username / Email field */}
-            <BlurView intensity={12} tint="dark" style={styles.fieldBlur}>
-              <View style={styles.fieldRow}>
-                <Ionicons name="person-outline" size={ms(26)} color="rgba(255,255,255,0.75)" />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Username"
-                  placeholderTextColor="rgba(255,255,255,0.5)"
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  returnKeyType="next"
-                />
-              </View>
-              <View style={styles.fieldUnderline} />
-            </BlurView>
-
-            {/* Password field */}
-            <BlurView intensity={12} tint="dark" style={[styles.fieldBlur, { marginTop: vs(24) }]}>
-              <View style={styles.fieldRow}>
-                <Ionicons name="lock-closed-outline" size={ms(26)} color="rgba(255,255,255,0.75)" />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Password"
-                  placeholderTextColor="rgba(255,255,255,0.5)"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  returnKeyType="done"
-                  onSubmitEditing={handleLogin}
-                />
-                <TouchableOpacity onPress={() => setShowPassword(v => !v)} activeOpacity={0.7}>
+          <View style={styles.form}>
+            <AuthField
+              placeholder="Email or username"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="default"
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="username"
+              autoComplete="username"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              accessibilityLabel="Email or username"
+              error={identifierError}
+              editable={!loading}
+            />
+            <AuthField
+              ref={passwordRef}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!passwordVisible}
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="password"
+              autoComplete="current-password"
+              returnKeyType="done"
+              onSubmitEditing={handleLogin}
+              accessibilityLabel="Password"
+              error={passwordError}
+              editable={!loading}
+              trailingSlot={
+                <Pressable
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setPasswordVisible((v) => !v);
+                  }}
+                  disabled={loading}
+                  hitSlop={layout.hitSlop}
+                  accessibilityRole="button"
+                  accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+                >
                   <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={ms(22)}
-                    color="rgba(255,255,255,0.5)"
+                    name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={colors.labelSecondary}
                   />
-                </TouchableOpacity>
-              </View>
-              <View style={styles.fieldUnderline} />
-            </BlurView>
+                </Pressable>
+              }
+            />
 
-            {/* Error message */}
-            {error && <Text style={styles.errorText}>{error}</Text>}
-          </View>
+            {formError ? (
+              <Text style={styles.formError} accessibilityLiveRegion="polite">
+                {formError}
+              </Text>
+            ) : null}
 
-          {/* Jump In button */}
-          <TouchableOpacity
-            activeOpacity={0.82}
-            onPress={handleLogin}
-            disabled={loading}
-            style={styles.btnWrapper}
-          >
-            <BlurView intensity={18} tint="light" style={styles.btnBlur}>
-              <LinearGradient
-                colors={['#9B20FF', '#7E0AFA']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.btnGradient}
+            {roleNotice ? (
+              <Animated.View
+                entering={FadeInDown.duration(180)}
+                style={styles.roleNotice}
+                accessibilityLiveRegion="polite"
               >
-                {loading ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.btnText}>Jump In</Text>
-                )}
-              </LinearGradient>
-            </BlurView>
-          </TouchableOpacity>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={20}
+                  color={colors.labelSecondary}
+                />
+                <Text style={styles.roleNoticeText}>{roleNotice}</Text>
+              </Animated.View>
+            ) : null}
+
+            <PrimaryButton
+              label="Sign In"
+              variant="gradient"
+              onPress={handleLogin}
+              disabled={loading}
+              loading={loading}
+              accessibilityHint="Signs you into the host portal"
+            />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -170,77 +191,47 @@ export default function AdminLoginScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.bg,
   },
-  content: {
+  scroll: {
     flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: s(36),
-    gap: vs(40),
+    paddingHorizontal: layout.screenMargin,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
-  logoArea: {
-    alignItems: 'center',
-    gap: vs(10),
-  },
-  brandName: {
-    color: '#FFF',
-    fontSize: ms(26),
-    fontFamily: 'Coolvetica',
-    letterSpacing: 0.3,
-  },
-  formArea: {
-    width: '100%',
-  },
-  fieldBlur: {
-    overflow: 'hidden',
-    borderRadius: s(4),
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: s(8),
-    paddingVertical: vs(10),
-    gap: s(14),
-  },
-  input: {
-    flex: 1,
-    color: '#FFF',
-    fontSize: ms(22),
-    fontWeight: '300',
-  },
-  fieldUnderline: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.45)',
-    marginHorizontal: s(8),
-  },
-  errorText: {
-    color: '#FF6B6B',
-    fontSize: ms(14),
-    fontWeight: '500',
-    textAlign: 'center',
-    marginTop: vs(16),
-  },
-  btnWrapper: {
-    width: '100%',
-    height: vs(51),
-    borderRadius: s(48),
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(157,157,157,0.6)',
-    marginBottom: vs(10),
-  },
-  btnBlur: {
-    flex: 1,
-  },
-  btnGradient: {
-    flex: 1,
+  logoBlock: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: spacing.sm,
+    marginBottom: spacing.giant,
   },
-  btnText: {
-    color: '#FFF',
-    fontSize: ms(20),
-    fontWeight: '700',
+  logo: {
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
+  },
+  form: {
+    gap: spacing.base,
+  },
+  formError: {
+    ...typography.footnote,
+    color: colors.danger,
+    textAlign: 'center',
+  },
+  roleNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.field,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+  },
+  roleNoticeText: {
+    ...typography.subheadline,
+    color: colors.labelSecondary,
+    fontWeight: weights.medium,
+    flexShrink: 1,
   },
 });

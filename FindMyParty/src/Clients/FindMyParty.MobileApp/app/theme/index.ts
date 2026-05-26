@@ -12,7 +12,7 @@ import { Platform, StyleSheet, TextStyle } from 'react-native';
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Internal palette anchors — exposed only through `colors.brand.*`.
-const BRAND_PURPLE_PRIMARY = '#9D6BFF';
+const BRAND_PURPLE_PRIMARY = '#8B5CF6';
 const BRAND_PURPLE_LIGHT = '#B58CFF';
 const BRAND_PURPLE_DEEP = '#7D08FA';
 const BRAND_ORANGE_HEX = '#FF8C48';
@@ -56,6 +56,9 @@ export const colors = {
     orange: BRAND_ORANGE_HEX,
     /** Low-opacity tint for selection/active backgrounds (active tab bubble, active chip). */
     tintBg: 'rgba(157,107,255,0.15)',
+    /** Magenta accent — auth-screen text links (Forgot password, Sign up / Sign in
+     *  footers) and the right anchor of `authGradient` below. */
+    magenta: '#C040C8',
     /**
      * Full brand gradient (purple → magenta → orange → peach).
      * Reserved for the FindMyParty logo and rare hero moments only.
@@ -64,6 +67,17 @@ export const colors = {
     gradient: {
       colors: [BRAND_PURPLE_DEEP, '#B03070', '#C84B00', BRAND_ORANGE_HEX] as const,
       locations: [0, 0.38, 0.65, 1] as const,
+    },
+    /**
+     * 2-stop gradient (deep purple → magenta) used ONLY on the Log In and
+     * Sign Up CTA buttons. A documented carve-out from the
+     * "gradient = logo only" rule, approved per user decision (see commit
+     * message / PR description). Do NOT extend to other CTAs without a fresh
+     * decision.
+     */
+    authGradient: {
+      colors: ['#7B35E8', '#C040C8'] as const,
+      locations: [0, 1] as const,
     },
   },
 

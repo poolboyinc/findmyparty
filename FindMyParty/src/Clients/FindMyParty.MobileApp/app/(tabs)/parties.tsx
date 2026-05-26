@@ -71,6 +71,7 @@ export default function PartiesScreen() {
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
   const [cityLoaded, setCityLoaded] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterLabel>('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isAuthed, setIsAuthed] = useState<boolean | null>(null);
 
   const citySheetRef = useRef<CityPickerSheetRef>(null);
@@ -152,28 +153,19 @@ export default function PartiesScreen() {
     }
   }, [cityLoaded, selectedCity]);
 
-  // TEMP-DIAG: log mount/unmount for the black-screen investigation. Remove
-  // once root cause is found.
-  useEffect(() => {
-    console.log('[Parties] mounted');
-    return () => {
-      console.log('[Parties] unmounted');
-    };
-  }, []);
-
   // Cache auth state — needed to route heart taps (toggle vs. show sign-in sheet).
   // `useFocusEffect` so the value refreshes whenever this screen regains focus
   // (e.g. after the user signs in via the SignInSheet → /login flow and pops back).
+  // `forceRerender()` is the react-native-screens v4 view-recycle workaround —
+  // see the long comment above where `forceRerender` is declared.
   useFocusEffect(
     useCallback(() => {
       forceRerender();
-      console.log('[Parties] focused');
       let cancelled = false;
       authService.isAuthenticated().then((ok) => {
         if (!cancelled) setIsAuthed(ok);
       });
       return () => {
-        console.log('[Parties] unfocused');
         cancelled = true;
       };
     }, []),
@@ -207,6 +199,27 @@ export default function PartiesScreen() {
     () => Math.min(screenWidth - layout.screenMargin * 2 - spacing.xxl, 360),
     [screenWidth],
   );
+
+  // Client-side filter: matches the active chip + the search query. Operates on
+  // the mock feed for now; will move to the /api/parties/feed query string when
+  // the backend lands.
+  const applyFilters = useCallback(
+    (items: FeedItem[]): FeedItem[] => {
+      const q = searchQuery.trim().toLowerCase();
+      return items.filter((item) => {
+        if (q && !`${item.title} ${item.genre}`.toLowerCase().includes(q)) return false;
+        if (activeFilter === 'Free Entrance' && !item.priceLevel.toLowerCase().includes('free')) {
+          return false;
+        }
+        // 'All', 'Tonight', 'This Weekend' all pass through on mock data.
+        return true;
+      });
+    },
+    [activeFilter, searchQuery],
+  );
+
+  const filteredPopping = useMemo(() => applyFilters(POPPING_TONIGHT), [applyFilters]);
+  const filteredNearby = useMemo(() => applyFilters(NEARBY), [applyFilters]);
 
   const scrollPaddingBottom =
     layout.floatingTabBarHeight +
@@ -268,24 +281,12 @@ export default function PartiesScreen() {
     );
   };
 
-  // TEMP-DIAG: log every render. Remove once root cause is found. `scrollY`
-  // intentionally NOT read here — reading `.value` during render triggers
-  // Reanimated's strict-mode warning. The shared value is observable inside
-  // `useAnimatedStyle` / `useAnimatedScrollHandler` worklets if needed.
-  console.log('[Parties] render', {
-    isAuthed,
-    cityLoaded,
-    favoritesLoaded,
-    selectedCity,
-  });
-
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       <Animated.ScrollView
         onScroll={scrollHandler}
-        onContentSizeChange={(w, h) => console.log('[Parties] contentSize', w, h)}
         scrollEventThrottle={16}
         contentContainerStyle={[
           styles.scrollContent,
@@ -318,7 +319,11 @@ export default function PartiesScreen() {
             placeholder="Search events, venues, artists…"
             placeholderTextColor={colors.labelTertiary}
             style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
             returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
             accessibilityLabel="Search"
           />
         </View>
@@ -347,7 +352,7 @@ export default function PartiesScreen() {
             />
           </View>
           {renderSection(
-            POPPING_TONIGHT,
+            filteredPopping,
             'No parties tonight',
             'Check back later or expand your search radius.',
           )}
@@ -358,7 +363,7 @@ export default function PartiesScreen() {
             <SectionHeader title="Nearby" />
           </View>
           {renderSection(
-            NEARBY,
+            filteredNearby,
             'Nothing nearby',
             'Try a different city or relax your filters.',
           )}

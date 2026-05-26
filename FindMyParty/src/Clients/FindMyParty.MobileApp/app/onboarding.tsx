@@ -7,7 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,8 +18,11 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiConstants } from '@/constants/api';
+import { CookiesUrl, PrivacyUrl, TermsUrl } from '@/constants/legal';
 import { ms, s, vs } from '@/constants/responsive';
 import { colors, layout, radii, spacing, typography, weights } from '@/theme';
 import { authService } from '../services/authService';
@@ -149,18 +152,69 @@ export default function WelcomeScreen() {
 
   const inputDisabled = backendDown || loading !== null;
 
+  const triggerAdminEntry = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    router.push('/admin/login');
+  };
+
+  const midHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleMidHoldTick = () => {
+    if (midHoldTimerRef.current !== null) {
+      clearTimeout(midHoldTimerRef.current);
+    }
+    midHoldTimerRef.current = setTimeout(() => {
+      Haptics.selectionAsync();
+      midHoldTimerRef.current = null;
+    }, 800);
+  };
+
+  const clearMidHoldTick = () => {
+    if (midHoldTimerRef.current !== null) {
+      clearTimeout(midHoldTimerRef.current);
+      midHoldTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (midHoldTimerRef.current !== null) {
+        clearTimeout(midHoldTimerRef.current);
+        midHoldTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const adminGesture = useMemo(
+    () =>
+      Gesture.LongPress()
+        .minDuration(1500)
+        .onBegin(() => {
+          runOnJS(scheduleMidHoldTick)();
+        })
+        .onStart(() => {
+          runOnJS(triggerAdminEntry)();
+        })
+        .onFinalize(() => {
+          runOnJS(clearMidHoldTick)();
+        }),
+    [],
+  );
+
   return (
     <View style={styles.root}>
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* Brand */}
         <View style={styles.logoSection}>
-          <Image
-            source={require('@/assets/images/fmp_logo.png')}
-            style={{ width: logoSize, height: logoSize }}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-            accessible={false}
-          />
+          <GestureDetector gesture={adminGesture}>
+            <Image
+              source={require('@/assets/images/fmp_logo.png')}
+              style={{ width: logoSize, height: logoSize }}
+              resizeMode="contain"
+              accessibilityIgnoresInvertColors
+              accessible={false}
+            />
+          </GestureDetector>
           <Text
             accessibilityRole="header"
             style={[
@@ -281,11 +335,29 @@ export default function WelcomeScreen() {
         {/* Legal — pinned to the bottom (mirrors Figma frame y=792 of 874) */}
         <Text style={styles.legal}>
           {'By continuing you automatically accept our '}
-          <Text style={styles.legalUnderline}>Terms & Conditions</Text>
+          <Text
+            style={styles.legalUnderline}
+            accessibilityRole="link"
+            onPress={() => WebBrowser.openBrowserAsync(TermsUrl)}
+          >
+            Terms & Conditions
+          </Text>
           {', '}
-          <Text style={styles.legalUnderline}>Privacy Policy</Text>
+          <Text
+            style={styles.legalUnderline}
+            accessibilityRole="link"
+            onPress={() => WebBrowser.openBrowserAsync(PrivacyUrl)}
+          >
+            Privacy Policy
+          </Text>
           {' and '}
-          <Text style={styles.legalUnderline}>Cookies Policy</Text>
+          <Text
+            style={styles.legalUnderline}
+            accessibilityRole="link"
+            onPress={() => WebBrowser.openBrowserAsync(CookiesUrl)}
+          >
+            Cookies Policy
+          </Text>
         </Text>
       </SafeAreaView>
     </View>

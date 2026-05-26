@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FAVORITE_IDS_KEY } from '@/constants/cities';
 
@@ -75,5 +75,10 @@ export function useFavorites() {
     [persist],
   );
 
-  return { isFavorite, toggle, loaded, count: ids.size };
+  // Exposes the current id set as an array so screens like Favorites can
+  // enumerate without re-reading AsyncStorage (which would race against the
+  // serialized write queue and silently re-introduce just-removed favorites).
+  const idArray = useMemo(() => Array.from(ids), [ids]);
+
+  return { isFavorite, toggle, loaded, count: ids.size, ids: idArray };
 }

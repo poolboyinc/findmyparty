@@ -1,12 +1,5 @@
 const RAILWAY_GATEWAY = 'https://findmyparty-gateway-production.up.railway.app';
 
-// TEMP-DIAG: verify the Mapbox env var is being read at app boot.
-// Remove this log once the Map placeholder issue is resolved.
-console.log('[Mapbox]', {
-  tokenPresent: !!process.env.EXPO_PUBLIC_MAPBOX_TOKEN,
-  tokenPrefix: process.env.EXPO_PUBLIC_MAPBOX_TOKEN?.slice(0, 4),
-});
-
 export const ApiConstants = {
   MapboxPublicToken: process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '',
 

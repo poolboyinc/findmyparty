@@ -25,7 +25,8 @@ type Props = {
  * container provides the surface background, rounded corners, and inserts
  * `<View style={divider}>` siblings between rows for hairline separators.
  *
- * Press feedback (haptic + scale + background tint) lands in Phase 3.
+ * Press feedback: pressed state applies a subtle fillQuaternary wash across
+ * the row, matching iOS's native grouped-list tap highlight.
  */
 export function SettingRow({
   sfSymbol,
@@ -46,7 +47,7 @@ export function SettingRow({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={styles.row}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
       <View style={styles.iconWrap}>
         <Icon sfSymbol={sfSymbol} ionicon={ionicon} size={20} color={iconColor} />
@@ -79,6 +80,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
     gap: spacing.md,
+  },
+  rowPressed: {
+    backgroundColor: colors.fillQuaternary,
   },
   iconWrap: {
     width: 28,

@@ -1,6 +1,5 @@
 import { authService, fetchWithTimeout } from './authService';
 import { ApiConstants } from '../constants/api';
-import { Alert } from 'react-native';
 import type {
   CreatePartyRequest,
   HostPartyResponse,
@@ -24,7 +23,9 @@ export const partyService = {
       if (!response.ok) return [];
       return response.json();
     } catch {
-      Alert.alert('Connection error', 'Could not load parties. Check your internet connection.');
+      // Network/timeout failure — return empty so callers can render an empty
+      // state. Do NOT pop a modal alert from a passive fetch; that interrupts
+      // the user with something they didn't ask for. Caller owns error UX.
       return [];
     }
   },
@@ -35,7 +36,7 @@ export const partyService = {
       if (!response.ok) return null;
       return response.json();
     } catch {
-      Alert.alert('Connection error', 'Could not load party details.');
+      // See getParties: silent failure, caller renders "Party not found".
       return null;
     }
   },
@@ -65,7 +66,7 @@ export const partyService = {
       if (!response.ok) return [];
       return response.json();
     } catch {
-      Alert.alert('Connection error', 'Could not load your parties.');
+      // See getParties: silent failure, host dashboard renders empty list.
       return [];
     }
   },

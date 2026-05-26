@@ -136,6 +136,7 @@ export default function LoginPage() {
 
             <PrimaryButton
               label="Log In"
+              variant="gradient"
               onPress={handleSignIn}
               disabled={loading}
               loading={loading}
@@ -182,7 +183,7 @@ const styles = StyleSheet.create({
   forgot: {
     ...typography.subheadline,
     fontWeight: weights.medium,
-    color: colors.tint,
+    color: colors.brand.magenta,
   },
   forgotDisabled: {
     color: colors.labelTertiary,
@@ -202,7 +203,7 @@ const styles = StyleSheet.create({
     color: colors.labelSecondary,
   },
   footerLink: {
-    color: colors.brand.light,
+    color: colors.brand.magenta,
     fontWeight: weights.semibold,
   },
   footerLinkDisabled: {

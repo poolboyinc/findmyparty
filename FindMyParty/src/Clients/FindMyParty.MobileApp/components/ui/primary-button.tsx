@@ -6,10 +6,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { colors, layout, radii, spacing, typography } from '@/theme';
 
-type Variant = 'primary' | 'secondary';
+type Variant = 'primary' | 'secondary' | 'gradient';
 
 type Props = {
   label: string;
@@ -31,6 +32,7 @@ export function PrimaryButton({
   accessibilityHint,
 }: Props) {
   const inactive = disabled || loading;
+  const isGradient = variant === 'gradient' && !inactive;
 
   // Press-start haptic acknowledges the input. The screen-level submit handler
   // fires a `notification` haptic on the result (success/error) — two distinct
@@ -50,11 +52,23 @@ export function PrimaryButton({
       accessibilityHint={accessibilityHint}
       style={({ pressed }) => [
         styles.base,
-        variant === 'primary' ? styles.primary : styles.secondary,
+        variant === 'primary' && styles.primary,
+        variant === 'secondary' && styles.secondary,
+        variant === 'gradient' && styles.gradientBase,
         inactive && styles.disabled,
         pressed && !inactive && styles.pressed,
       ]}
     >
+      {isGradient ? (
+        <LinearGradient
+          colors={colors.brand.authGradient.colors}
+          locations={colors.brand.authGradient.locations}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+      ) : null}
       {loading ? (
         <ActivityIndicator color={colors.label} />
       ) : (
@@ -81,12 +95,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
+    overflow: 'hidden',
   },
   primary: {
     backgroundColor: colors.tint,
   },
   secondary: {
     backgroundColor: colors.surfaceElevated,
+  },
+  gradientBase: {
+    // Background painted by the absolutely-positioned LinearGradient child.
+    // Falls back to the disabled fill when `inactive` overrides this style.
+    backgroundColor: 'transparent',
   },
   disabled: {
     backgroundColor: colors.fillTertiary,

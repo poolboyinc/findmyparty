@@ -91,7 +91,7 @@ export default function RegisterPage() {
 
   const confirmError =
     (confirmTouched || submitAttempted) && confirm.length > 0 && confirm !== password
-      ? 'Passwords do not match.'
+      ? "Passwords don't match"
       : submitAttempted && confirm.length === 0
         ? 'Please confirm your password.'
         : null;
@@ -192,6 +192,17 @@ export default function RegisterPage() {
                 </Pressable>
               }
             />
+
+            {/* Live password rules — indicators are state-driven via `pwChecks`
+                derived from the password value. Each rule fills in as the user
+                types matching characters. Sits directly under Password so the
+                user sees them before typing Confirm Password. */}
+            <View style={styles.hints}>
+              <PwHint met={pwChecks.length} label="8 characters" />
+              <PwHint met={pwChecks.digit} label="1 number" />
+              <PwHint met={pwChecks.lower} label="1 lowercase letter" />
+            </View>
+
             <AuthField
               ref={confirmRef}
               placeholder="Confirm Password"
@@ -210,12 +221,6 @@ export default function RegisterPage() {
               editable={!loading}
             />
 
-            <View style={styles.hints}>
-              <PwHint met={pwChecks.length} label="At least 8 characters" />
-              <PwHint met={pwChecks.digit} label="At least 1 number" />
-              <PwHint met={pwChecks.lower} label="At least 1 lowercase letter" />
-            </View>
-
             {error ? (
               <Text style={styles.formError} accessibilityLiveRegion="polite">
                 {error}
@@ -224,6 +229,7 @@ export default function RegisterPage() {
 
             <PrimaryButton
               label="Sign Up"
+              variant="gradient"
               onPress={handleSignUp}
               disabled={loading}
               loading={loading}
@@ -283,7 +289,7 @@ const styles = StyleSheet.create({
     color: colors.labelSecondary,
   },
   footerLink: {
-    color: colors.brand.light,
+    color: colors.brand.magenta,
     fontWeight: weights.semibold,
   },
   footerLinkDisabled: {
