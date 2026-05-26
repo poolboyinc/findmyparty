@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\Services\\Payments\\FindMyParty.Payments.API\\FindMyParty.Payments.API.csproj": {}
+    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\Services\\Payments\\FindMyParty.Payments.API\\FindMyParty.Payments.API.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\Services\\Payments\\FindMyParty.Payments.API\\FindMyParty.Payments.API.csproj": {
+    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\Services\\Payments\\FindMyParty.Payments.API\\FindMyParty.Payments.API.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\Services\\Payments\\FindMyParty.Payments.API\\FindMyParty.Payments.API.csproj",
+        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\Services\\Payments\\FindMyParty.Payments.API\\FindMyParty.Payments.API.csproj",
         "projectName": "FindMyParty.Payments.API",
-        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\Services\\Payments\\FindMyParty.Payments.API\\FindMyParty.Payments.API.csproj",
+        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\Services\\Payments\\FindMyParty.Payments.API\\FindMyParty.Payments.API.csproj",
         "packagesPath": "C:\\Users\\Lenovo\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\Services\\Payments\\FindMyParty.Payments.API\\obj\\",
+        "outputPath": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\Services\\Payments\\FindMyParty.Payments.API\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

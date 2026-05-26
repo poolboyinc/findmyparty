@@ -20,7 +20,21 @@ builder.Services.AddDbContext<PartiesDbContext>(options =>
         npgsql =>
         {
             npgsql.MigrationsAssembly(typeof(Program).Assembly.FullName);
+            // Auto-retry transient connection/command failures (Railway network
+            // blips, brief Postgres unavailability) instead of throwing hard.
+            npgsql.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorCodesToAdd: null);
         });
+});
+
+// A BackgroundService throwing (e.g. the RabbitMQ consumer on a broker blip)
+// must NOT tear down the whole host. The default StopHost behavior turned a
+// transient dependency failure into a full outage. Keep the API alive.
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
 });
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
@@ -96,8 +110,17 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<PartiesDbContext>();
-    await db.Database.MigrateAsync();
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<PartiesDbContext>();
+        await db.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        // Don't let a transient DB hiccup at startup stop the service from
+        // serving HTTP. EnableRetryOnFailure already retried; log and continue.
+        Console.WriteLine($"[Startup] Database migration failed (continuing): {ex.Message}");
+    }
 }
 
 app.UseStaticFiles();
