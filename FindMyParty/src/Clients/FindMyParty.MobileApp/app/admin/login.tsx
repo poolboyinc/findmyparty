@@ -62,7 +62,7 @@ export default function AdminLoginScreen() {
       const roles = userInfo?.roles ?? [];
       if (roles.includes('Host') || roles.includes('Admin')) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace('/admin/dashboard');
+        router.replace('/admin');
       } else {
         await authService.logout();
         setRoleNotice(

@@ -16,6 +16,12 @@ type Props = {
    * to prevent navigation race conditions while a network request is in flight.
    */
   disabled?: boolean;
+  /**
+   * Render the back button. Defaults to true. Tab-root screens (which have no
+   * screen to pop back to) pass `false`; a matching spacer keeps the title
+   * visually centered.
+   */
+  showBack?: boolean;
 };
 
 const BACK_SIZE = 44;
@@ -28,7 +34,7 @@ const BACK_SIZE = 44;
  * The BlurView starts at intensity 40 / tint="dark" — adjust intensity if streaks
  * become visible during scroll on real devices.
  */
-export function AuthHeader({ title, onBack, disabled = false }: Props) {
+export function AuthHeader({ title, onBack, disabled = false, showBack = true }: Props) {
   const insets = useSafeAreaInsets();
 
   const handleBack = () => {
@@ -40,24 +46,28 @@ export function AuthHeader({ title, onBack, disabled = false }: Props) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
-      <Pressable
-        onPress={handleBack}
-        disabled={disabled}
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        accessibilityHint="Returns to the previous screen"
-        accessibilityState={{ disabled }}
-        hitSlop={layout.hitSlop}
-        style={({ pressed }) => [
-          styles.backWrap,
-          pressed && !disabled && styles.backPressed,
-          disabled && styles.backDisabled,
-        ]}
-      >
-        <BlurView intensity={40} tint="dark" style={styles.backBlur}>
-          <Ionicons name="chevron-back" size={22} color={colors.label} />
-        </BlurView>
-      </Pressable>
+      {showBack ? (
+        <Pressable
+          onPress={handleBack}
+          disabled={disabled}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          accessibilityHint="Returns to the previous screen"
+          accessibilityState={{ disabled }}
+          hitSlop={layout.hitSlop}
+          style={({ pressed }) => [
+            styles.backWrap,
+            pressed && !disabled && styles.backPressed,
+            disabled && styles.backDisabled,
+          ]}
+        >
+          <BlurView intensity={40} tint="dark" style={styles.backBlur}>
+            <Ionicons name="chevron-back" size={22} color={colors.label} />
+          </BlurView>
+        </Pressable>
+      ) : (
+        <View style={styles.spacer} />
+      )}
       <Text
         style={styles.title}
         accessibilityRole="header"

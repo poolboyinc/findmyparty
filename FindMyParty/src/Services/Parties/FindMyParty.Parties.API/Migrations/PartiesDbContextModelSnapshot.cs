@@ -59,6 +59,12 @@ namespace FindMyParty.Parties.API.Migrations
                     b.Property<DateTime>("EndsAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("Featured")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Genre")
+                        .HasColumnType("text");
+
                     b.Property<Guid>("HostId")
                         .HasColumnType("uuid");
 
@@ -73,6 +79,12 @@ namespace FindMyParty.Parties.API.Migrations
 
                     b.Property<double>("Longitude")
                         .HasColumnType("double precision");
+
+                    b.Property<string>("PerformerName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PerformerType")
+                        .HasColumnType("text");
 
                     b.Property<decimal>("Price")
                         .HasPrecision(10, 2)

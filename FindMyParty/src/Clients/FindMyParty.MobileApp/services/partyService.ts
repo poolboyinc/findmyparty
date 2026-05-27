@@ -64,7 +64,15 @@ export const partyService = {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) return [];
-      return response.json();
+      // Normalize numeric fields at the data boundary so every host screen
+      // inherits safe numbers — a missing ticketsSold/revenue would otherwise
+      // surface as NaN in aggregations and "NaN" in the UI.
+      const data: HostPartyResponse[] = await response.json();
+      return data.map((p) => ({
+        ...p,
+        ticketsSold: Number(p.ticketsSold) || 0,
+        revenue: Number(p.revenue) || 0,
+      }));
     } catch {
       // See getParties: silent failure, host dashboard renders empty list.
       return [];

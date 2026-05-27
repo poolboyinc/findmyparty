@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace FindMyParty.Parties.API.Application.DTOs
 {
     public class UpdatePartyRequest
@@ -11,5 +13,12 @@ namespace FindMyParty.Parties.API.Application.DTOs
         public double Latitude { get; set; }
         public double Longitude { get; set; }
         public string? ImageUrl { get; set; }
+        [StringLength(100)]
+        public string? Genre { get; set; }
+        [StringLength(100)]
+        public string? PerformerName { get; set; }
+        [StringLength(100)]
+        public string? PerformerType { get; set; }
+        public bool Featured { get; set; }
     }
 }

@@ -30,7 +30,11 @@ namespace FindMyParty.Parties.API.Application.Handlers
                     command.Request.EndsAt,
                     command.Request.Latitude,
                     command.Request.Longitude,
-                    command.Request.ImageUrl);
+                    command.Request.ImageUrl,
+                    command.Request.Genre,
+                    command.Request.PerformerName,
+                    command.Request.PerformerType,
+                    command.Request.Featured);
             }
             catch (InvalidOperationException)
             {

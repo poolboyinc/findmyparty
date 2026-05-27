@@ -285,7 +285,7 @@ export const layout = {
   /** Floating tab bar visual height (excluding bottom safe-area inset). */
   floatingTabBarHeight: 64,
   /** Vertical inset between the floating tab bar and the screen edge / home indicator. */
-  floatingTabBarBottomOffset: 12,
+  floatingTabBarBottomOffset: 2,
   /** Promo flyer aspect — wider than 16:9 to honor event poster proportions. */
   cardImageAspect: 333 / 168,
 } as const;
