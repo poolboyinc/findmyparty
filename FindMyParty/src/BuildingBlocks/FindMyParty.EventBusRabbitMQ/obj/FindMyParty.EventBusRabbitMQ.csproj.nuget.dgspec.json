@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj": {}
+    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj": {
+    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj",
+        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj",
         "projectName": "FindMyParty.EventBusRabbitMQ",
-        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj",
+        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\FindMyParty.EventBusRabbitMQ.csproj",
         "packagesPath": "C:\\Users\\Lenovo\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\obj\\",
+        "outputPath": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.EventBusRabbitMQ\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

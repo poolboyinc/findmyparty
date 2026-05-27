@@ -12,7 +12,7 @@ public class OutboxProcessorService(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // On startup, process anything left unprocessed from before shutdown/crash
-        await ProcessPendingAsync(stoppingToken);
+        await SafeProcessAsync(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -32,7 +32,42 @@ public class OutboxProcessorService(
 
             if (stoppingToken.IsCancellationRequested) break;
 
+            await SafeProcessAsync(stoppingToken);
+        }
+    }
+
+    /// <summary>
+    /// Wraps <see cref="ProcessPendingAsync"/> so a transient DB/broker failure
+    /// can never throw out of <see cref="ExecuteAsync"/>. Previously an
+    /// unhandled exception here (e.g. a Postgres connection timeout on the
+    /// query at the top of ProcessPendingAsync) propagated out and, with the
+    /// host's default StopHost behavior, shut down the entire service. Now we
+    /// log, back off, and let the next signal or the 30s fallback timer retry —
+    /// the DB connection recovers on a later attempt.
+    /// </summary>
+    private async Task SafeProcessAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
             await ProcessPendingAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Genuine shutdown — let it bubble so the loop exits cleanly.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Outbox] Processing failed (will retry): {ex.Message}");
+            try
+            {
+                // Brief backoff so a persistent failure doesn't hot-loop.
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutting down during backoff — ignore.
+            }
         }
     }
 

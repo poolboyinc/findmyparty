@@ -20,7 +20,24 @@ builder.Services.AddDbContext<BookingsDbContext>(options =>
         npgsqlOptions =>
         {
             npgsqlOptions.MigrationsAssembly(typeof(Program).Assembly.FullName);
+            // Auto-retry transient connection/command failures (Railway network
+            // blips, brief Postgres unavailability) instead of surfacing them as
+            // hard exceptions. The EF error "likely due to a transient failure"
+            // is exactly what this addresses.
+            npgsqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorCodesToAdd: null);
         });
+});
+
+// A BackgroundService throwing must NOT tear down the whole host. The default
+// (StopHost) turned a transient DB blip in OutboxProcessorService into a full
+// outage — the HTTP API died and the gateway 504'd. Keep the API alive even if
+// a background worker fails.
+builder.Services.Configure<HostOptions>(options =>
+{
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
 });
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
@@ -86,8 +103,18 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<BookingsDbContext>();
-    await db.Database.MigrateAsync();
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<BookingsDbContext>();
+        await db.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        // Don't let a transient DB hiccup at startup stop the service from
+        // coming up and serving HTTP. EnableRetryOnFailure already retried;
+        // log and continue so the gateway can still reach us.
+        Console.WriteLine($"[Startup] Database migration failed (continuing): {ex.Message}");
+    }
 }
 
 app.UseAuthentication();

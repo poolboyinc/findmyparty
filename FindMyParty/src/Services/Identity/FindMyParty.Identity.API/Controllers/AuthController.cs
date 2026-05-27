@@ -1,6 +1,7 @@
 using FindMyParty.Identity.API.Application.DTOs;
 using FindMyParty.Identity.API.Application.Services;
 using FindMyParty.Identity.API.Domain.Entities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,7 +12,8 @@ namespace FindMyParty.Identity.API.Controllers
     public class AuthController(
         UserManager<ApplicationUser> userManager,
         ITokenService tokenService,
-        IExternalAuthService externalAuthService) : ControllerBase
+        IExternalAuthService externalAuthService,
+        ILogger<AuthController> logger) : ControllerBase
     {
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterRequest request)
@@ -43,6 +45,7 @@ namespace FindMyParty.Identity.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequest request)
         {
+            // request.Email is a dual-purpose identifier: looked up as an email if it contains '@', otherwise as a username.
             var user = request.Email.Contains('@')
                 ? await userManager.FindByEmailAsync(request.Email)
                 : await userManager.FindByNameAsync(request.Email);
@@ -140,6 +143,55 @@ namespace FindMyParty.Identity.API.Controllers
                 AccessToken = accessToken,
                 RefreshToken = refreshToken
             });
+        }
+
+        /// <summary>
+        /// Permanently deletes the authenticated user's account.
+        /// </summary>
+        /// <remarks>
+        /// Hard-delete: removes the ApplicationUser record. ASP.NET Identity
+        /// cascade-deletes related rows (UserRoles, UserTokens including the
+        /// refresh-token storage, UserLogins for external auth providers).
+        /// <para>
+        /// Bookings and Parties owned by this user on the other services are
+        /// NOT cascaded today — they remain orphaned by UserId. This is invisible
+        /// to the demo flow (a deleted user can't log in) and acceptable for
+        /// the v1 investor cut. Cascading cleanup via RabbitMQ UserDeleted
+        /// events is a planned hardening pass — see agent_pipeline_gaps memory.
+        /// </para>
+        /// </remarks>
+        [HttpDelete("account")]
+        [Authorize]
+        public async Task<IActionResult> DeleteAccount()
+        {
+            var user = await userManager.GetUserAsync(User);
+            if (user == null)
+                return Unauthorized();
+
+            var remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            var userId = user.Id;
+            var emailHash = user.Email is null ? "n/a" : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(user.Email)))[..16];
+
+            var result = await userManager.DeleteAsync(user);
+            if (!result.Succeeded)
+            {
+                logger.LogWarning(
+                    "Account deletion FAILED for userId={UserId} emailHash={EmailHash} ip={RemoteIp} errors={Errors}",
+                    userId, emailHash, remoteIp,
+                    string.Join("; ", result.Errors.Select(e => e.Description)));
+
+                // Return a generic detail to the client; full error detail is server-side only.
+                return Problem(
+                    statusCode: StatusCodes.Status500InternalServerError,
+                    title: "Could not delete account",
+                    detail: "Account deletion failed. Please try again or contact support.");
+            }
+
+            logger.LogInformation(
+                "Account deletion SUCCEEDED for userId={UserId} emailHash={EmailHash} ip={RemoteIp}",
+                userId, emailHash, remoteIp);
+
+            return NoContent();
         }
 
         private async Task<string> GenerateUniqueUserNameAsync(string displayName)

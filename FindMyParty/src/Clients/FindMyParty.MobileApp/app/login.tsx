@@ -1,246 +1,212 @@
+import { useRef, useState } from 'react';
 import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import * as Haptics from 'expo-haptics';
 import { useLogin } from '@/hooks/useAuth';
-import { s, vs, ms } from '@/constants/responsive';
+import { AuthField } from '@/components/ui/auth-field';
+import { AuthHeader } from '@/components/ui/auth-header';
+import { PrimaryButton } from '@/components/ui/primary-button';
+import { colors, layout, spacing, typography, weights } from '@/theme';
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function isValidEmail(value: string) {
-  return EMAIL_REGEX.test(value.trim());
-}
-
+// The identifier field accepts either an email or a username — backend
+// disambiguates by checking for '@'. Frontend validation is minimal so
+// legitimate inputs (plus-addressed emails, dotted usernames, etc.) aren't
+// falsely rejected.
+const MIN_IDENTIFIER_LENGTH = 3;
 
 export default function LoginPage() {
-  const insets = useSafeAreaInsets();
-  const { width: W } = useWindowDimensions();
-  const ellipseSize = W * 2.2;
   const { email, setEmail, password, setPassword, error, loading, login } = useLogin();
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const [emailTouched, setEmailTouched] = useState(false);
-  const identifierValid = email.trim().length >= 2;
-  const looksLikeEmail = email.includes('@');
-  const emailInvalid = emailTouched && looksLikeEmail && !isValidEmail(email);
+  const passwordRef = useRef<TextInput>(null);
 
-  const formValid = identifierValid && (!looksLikeEmail || isValidEmail(email)) && password.length > 0;
+  const identifierError =
+    submitAttempted && email.trim().length < MIN_IDENTIFIER_LENGTH
+      ? 'Enter your email or username'
+      : null;
+
+  const passwordError =
+    submitAttempted && password.length === 0 ? 'Password is required.' : null;
+
+  const formValid =
+    email.trim().length >= MIN_IDENTIFIER_LENGTH && password.length > 0;
 
   const handleSignIn = async () => {
+    setSubmitAttempted(true);
     if (!formValid) return;
     const success = await login();
-    if (success) router.replace('/(tabs)');
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/(tabs)');
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      {/* Background gradient: purple → pink → orange */}
-      <LinearGradient
-        colors={['#7D08FA', '#B03070', '#C84B00', '#FF8C48']}
-        locations={[0, 0.38, 0.65, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+    <View style={styles.root}>
+      <AuthHeader title="Log In" disabled={loading} />
 
-      {/* Purple ellipse blob at bottom */}
-      <View style={[styles.ellipseBottom, {
-        width: ellipseSize,
-        height: ellipseSize,
-        borderRadius: ellipseSize / 2,
-        left: (W - ellipseSize) / 2,
-      }]} />
-
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={ms(26)} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Sign In</Text>
-        <View style={styles.backBtn} />
-      </View>
-
-      {/* Form */}
-      <View style={styles.form}>
-        {/* Email */}
-        <View style={styles.fieldRow}>
-          <Ionicons name="person-outline" size={ms(28)} color="#FFF" style={styles.fieldIcon} />
-          <TextInput
-            style={styles.fieldInput}
-            placeholder="Email or Username"
-            placeholderTextColor="rgba(255,255,255,0.75)"
-            value={email}
-            onChangeText={setEmail}
-            onBlur={() => setEmailTouched(true)}
-            keyboardType="default"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-        <View style={[styles.fieldLine, emailInvalid && styles.fieldLineError]} />
-        {emailInvalid && (
-          <Text style={styles.fieldError}>Please enter a valid email address</Text>
-        )}
-
-        {/* Password */}
-        <View style={styles.fieldRow}>
-          <Ionicons name="lock-closed-outline" size={ms(28)} color="#FFF" style={styles.fieldIcon} />
-          <TextInput
-            style={styles.fieldInput}
-            placeholder="Password"
-            placeholderTextColor="rgba(255,255,255,0.75)"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!passwordVisible}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <TouchableOpacity onPress={() => setPasswordVisible(v => !v)} activeOpacity={0.7}>
-            <Ionicons
-              name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
-              size={ms(28)}
-              color="#FFF"
-            />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.fieldLine} />
-
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-        {/* Sign In button */}
-        <TouchableOpacity
-          style={[styles.button, formValid && styles.buttonActive]}
-          onPress={handleSignIn}
-          activeOpacity={0.85}
-          disabled={loading || !formValid}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {loading ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.buttonText}>Sign In</Text>
-          )}
-        </TouchableOpacity>
+          <View style={styles.form}>
+            <AuthField
+              placeholder="Email or username"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="default"
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="username"
+              autoComplete="username"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              accessibilityLabel="Email or username"
+              error={identifierError}
+              editable={!loading}
+            />
+            <AuthField
+              ref={passwordRef}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!passwordVisible}
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="password"
+              autoComplete="current-password"
+              returnKeyType="done"
+              onSubmitEditing={handleSignIn}
+              accessibilityLabel="Password"
+              error={passwordError}
+              editable={!loading}
+              trailingSlot={
+                <Pressable
+                  onPress={() => setPasswordVisible((v) => !v)}
+                  disabled={loading}
+                  hitSlop={layout.hitSlop}
+                  accessibilityRole="button"
+                  accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
+                >
+                  <Ionicons
+                    name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
+                    size={20}
+                    color={colors.labelSecondary}
+                  />
+                </Pressable>
+              }
+            />
 
-        {/* Sign up link */}
-        <TouchableOpacity onPress={() => router.push('/register')} activeOpacity={0.7}>
-          <Text style={styles.linkText}>
-            Don't have an account?{'  '}
-            <Text style={styles.linkHighlight}>Sign Up</Text>
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+            <Pressable
+              onPress={() => router.push('/forgot-password')}
+              disabled={loading}
+              hitSlop={layout.hitSlop}
+              accessibilityRole="link"
+              accessibilityLabel="Forgot password"
+              accessibilityHint="Opens password recovery"
+              style={styles.forgotWrap}
+            >
+              <Text style={[styles.forgot, loading && styles.forgotDisabled]}>
+                Forgot password?
+              </Text>
+            </Pressable>
+
+            {error ? (
+              <Text style={styles.formError} accessibilityLiveRegion="polite">
+                {error}
+              </Text>
+            ) : null}
+
+            <PrimaryButton
+              label="Log In"
+              variant="gradient"
+              onPress={handleSignIn}
+              disabled={loading}
+              loading={loading}
+              accessibilityHint="Signs you into your account"
+            />
+          </View>
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              Don&apos;t have an account?{' '}
+              <Text
+                style={[styles.footerLink, loading && styles.footerLinkDisabled]}
+                onPress={loading ? undefined : () => router.push('/register')}
+                accessibilityRole="link"
+              >
+                Sign up
+              </Text>
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#7D08FA',
+    backgroundColor: colors.bg,
   },
-  ellipseBottom: {
-    position: 'absolute',
-    bottom: '-160%',
-    backgroundColor: '#7D08FA',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: s(20),
-    paddingBottom: vs(16),
-  },
-  backBtn: {
-    width: s(48),
-    height: vs(48),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    color: '#FFF',
-    fontSize: ms(32),
-    fontWeight: '600',
-    letterSpacing: 0.2,
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: layout.screenMargin,
+    paddingTop: spacing.giant,
+    paddingBottom: spacing.xxl,
   },
   form: {
-    flex: 1,
-    paddingHorizontal: s(28),
-    paddingTop: '18%',
-    gap: vs(28),
+    gap: spacing.base,
   },
-  fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s(16),
+  forgotWrap: {
+    alignSelf: 'flex-end',
+    paddingVertical: spacing.xs,
   },
-  fieldIcon: {
-    width: s(32),
+  forgot: {
+    ...typography.subheadline,
+    fontWeight: weights.medium,
+    color: colors.brand.magenta,
   },
-  fieldInput: {
-    flex: 1,
-    color: '#FFF',
-    fontSize: ms(22),
-    fontWeight: '300',
-    paddingVertical: vs(4),
+  forgotDisabled: {
+    color: colors.labelTertiary,
   },
-  fieldLine: {
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    marginTop: vs(-20),
-  },
-  errorText: {
-    color: '#FFD0D0',
-    fontSize: ms(13),
-    textAlign: 'center',
-    marginTop: vs(-12),
-  },
-  fieldLineError: {
-    backgroundColor: '#FFD0D0',
-  },
-  fieldError: {
-    color: '#FFD0D0',
-    fontSize: ms(12),
-    marginTop: vs(-20),
-  },
-  button: {
-    backgroundColor: '#9B989D',
-    borderRadius: s(48),
-    height: vs(51),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#646464',
-    marginTop: vs(8),
-  },
-  buttonActive: {
-    backgroundColor: '#7D08FA',
-    borderColor: '#6A00D4',
-  },
-  buttonText: {
-    color: '#FFF',
-    fontSize: ms(20),
-    fontWeight: '700',
-  },
-  linkText: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: ms(15),
+  formError: {
+    ...typography.footnote,
+    color: colors.danger,
     textAlign: 'center',
   },
-  linkHighlight: {
-    color: '#FFF',
-    fontWeight: '700',
-    textDecorationLine: 'underline',
+  footer: {
+    alignItems: 'center',
+    marginTop: 'auto',
+    paddingTop: spacing.xl,
+  },
+  footerText: {
+    ...typography.subheadline,
+    color: colors.labelSecondary,
+  },
+  footerLink: {
+    color: colors.brand.magenta,
+    fontWeight: weights.semibold,
+  },
+  footerLinkDisabled: {
+    color: colors.labelTertiary,
   },
 });

@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj": {}
+    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj": {
+    "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj",
+        "projectUniqueName": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj",
         "projectName": "FindMyParty.ServiceDefaults",
-        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj",
+        "projectPath": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\FindMyParty.ServiceDefaults.csproj",
         "packagesPath": "C:\\Users\\Lenovo\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Lenovo\\source\\repos\\findmyparty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\obj\\",
+        "outputPath": "C:\\Users\\Lenovo\\source\\repos\\FindMyParty\\FindMyParty\\src\\BuildingBlocks\\FindMyParty.ServiceDefaults\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

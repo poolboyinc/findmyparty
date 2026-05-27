@@ -12,16 +12,20 @@ import {
   Alert,
   Platform,
   Modal,
+  Share,
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { partyService } from '@/services/partyService';
 import { resolveMediaUrl } from '@/constants/api';
 import { bookingService } from '@/services/bookingService';
+import { useFavorites } from '@/hooks/useFavorites';
+import { colors } from '@/theme';
 import type { PartyDetail } from '@/types/parties';
 import { s, vs, ms } from '@/constants/responsive';
 
@@ -56,12 +60,14 @@ function GlassButton({
   children,
   onPress,
   style,
+  accessibilityLabel,
 }: {
   size?: number;
   tint?: 'dark' | 'light';
   children: React.ReactNode;
   onPress?: () => void;
   style?: object;
+  accessibilityLabel?: string;
 }) {
   return (
     <TouchableOpacity
@@ -78,6 +84,8 @@ function GlassButton({
       ]}
       onPress={onPress}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
     >
       <BlurView
         intensity={Platform.OS === 'ios' ? 60 : 80}
@@ -128,6 +136,7 @@ export default function PartyDetailScreen() {
   const [ticketModalVisible, setTicketModalVisible] = useState(false);
   const [ticketCount, setTicketCount] = useState(1);
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
+  const { isFavorite, toggle: toggleFavorite } = useFavorites();
 
   useEffect(() => {
     if (!id) return;
@@ -165,6 +174,25 @@ export default function PartyDetailScreen() {
     if (party.isSoldOut || booking) return;
     setTicketCount(1);
     setTicketModalVisible(true);
+  };
+
+  const handleHeartPress = () => {
+    if (!party) return;
+    Haptics.selectionAsync();
+    toggleFavorite(party.id);
+  };
+
+  const handleShare = async () => {
+    if (!party) return;
+    Haptics.selectionAsync();
+    try {
+      await Share.share({
+        title: party.title,
+        message: `Check out ${party.title} on FindMyParty — https://findmyparty.app/p/${party.id}`,
+      });
+    } catch {
+      // User dismissed or share failed — no-op.
+    }
   };
 
   const handleConfirmBooking = async () => {
@@ -223,16 +251,25 @@ export default function PartyDetailScreen() {
             size={44}
             style={{ position: 'absolute', left: s(16), top: insets.top + vs(12) }}
             onPress={() => router.back()}
+            accessibilityLabel="Back"
           >
             <Ionicons name="chevron-back" size={ms(22)} color="#FFF" />
           </GlassButton>
 
           {/* Heart + Share — liquid glass */}
           <View style={[styles.actionRow, { top: insets.top + vs(12) }]}>
-            <GlassButton size={48}>
-              <Ionicons name="heart-outline" size={ms(22)} color="#FFF" />
+            <GlassButton
+              size={48}
+              onPress={handleHeartPress}
+              accessibilityLabel={isFavorite(party.id) ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <Ionicons
+                name={isFavorite(party.id) ? 'heart' : 'heart-outline'}
+                size={ms(22)}
+                color={isFavorite(party.id) ? colors.pink : '#FFF'}
+              />
             </GlassButton>
-            <GlassButton size={48}>
+            <GlassButton size={48} onPress={handleShare} accessibilityLabel="Share party">
               <Ionicons name="share-outline" size={ms(22)} color="#FFF" />
             </GlassButton>
           </View>
@@ -319,17 +356,6 @@ export default function PartyDetailScreen() {
               {party.isSoldOut ? 'Sold Out' : 'Reserve / Tickets'}
             </Text>
           )}
-        </TouchableOpacity>
-
-        {/* ── Other Dates — liquid glass white ── */}
-        <TouchableOpacity style={styles.otherDatesBtn} activeOpacity={0.85}>
-          <BlurView
-            intensity={Platform.OS === 'ios' ? 30 : 50}
-            tint="light"
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={[StyleSheet.absoluteFill, styles.otherDatesOverlay]} />
-          <Text style={styles.otherDatesText}>Other Dates</Text>
         </TouchableOpacity>
 
         <View style={{ height: insets.bottom + vs(24) }} />
@@ -580,28 +606,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(125,8,250,0.45)',
   },
   reserveText: {
-    color: '#FFF',
-    fontSize: ms(20),
-    fontWeight: '700',
-  },
-
-  // ── Other Dates — liquid glass white ──
-  otherDatesBtn: {
-    marginHorizontal: s(10),
-    marginTop: vs(12),
-    height: vs(52),
-    borderRadius: s(30),
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  otherDatesOverlay: {
-    borderRadius: s(30),
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  otherDatesText: {
     color: '#FFF',
     fontSize: ms(20),
     fontWeight: '700',

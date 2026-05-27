@@ -2,7 +2,6 @@ import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { authService, fetchWithTimeout } from './authService';
 import { ApiConstants } from '../constants/api';
-import { Alert } from 'react-native';
 import type { BookingItem } from '../types/bookings';
 
 export const bookingService = {
@@ -17,7 +16,8 @@ export const bookingService = {
       if (!response.ok) return [];
       return response.json();
     } catch {
-      Alert.alert('Connection error', 'Could not load your bookings.');
+      // Network/timeout failure — return empty so callers can render an empty
+      // state. Do NOT pop a modal alert from a passive fetch on tab focus.
       return [];
     }
   },
@@ -51,7 +51,8 @@ export const bookingService = {
       });
       return response.ok;
     } catch {
-      Alert.alert('Connection error', 'Could not cancel booking.');
+      // Caller (my-bookings screen) already shows its own "Failed" alert on
+      // false return. Service layer stays silent.
       return false;
     }
   },
@@ -70,7 +71,7 @@ export const bookingService = {
       );
       return response.ok;
     } catch {
-      Alert.alert('Connection error', 'Could not confirm booking.');
+      // Caller owns the failure UX (currently unused, but pattern preserved).
       return false;
     }
   },
@@ -87,7 +88,7 @@ export const bookingService = {
       if (!response.ok) return [];
       return response.json();
     } catch {
-      Alert.alert('Connection error', 'Could not load bookings.');
+      // Host party-bookings screen renders empty list on failure.
       return [];
     }
   },

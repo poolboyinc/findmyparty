@@ -144,6 +144,8 @@ export default function CreatePartyScreen() {
     }
 
     setLoading(true);
+    // TEMP DEBUG: tracks which network step throws so the catch can report it.
+    let step = 'createParty';
     try {
       const title = performerName.trim()
         ? `${partyName.trim()} – ${performerName.trim()}`
@@ -173,11 +175,24 @@ export default function CreatePartyScreen() {
       }
 
       // Upload the first selected image (backend supports one image per party)
+      step = 'uploadPartyImage';
       const firstImage = images.find(Boolean);
       if (firstImage) {
-        await partyService.uploadPartyImage(partyId, firstImage);
+        // TEMP DEBUG: log the URI scheme — ph:// (Photos) often fails FormData on iOS.
+        console.log('[create-party] uploading image uri:', firstImage);
+        const imageUrl = await partyService.uploadPartyImage(partyId, firstImage);
+        console.log('[create-party] upload result:', imageUrl);
+        if (!imageUrl) {
+          // Upload returned null (non-ok response) instead of throwing — surface
+          // it rather than silently continuing to publish without an image.
+          Alert.alert(
+            'Image upload failed',
+            'The party was created but the image did not upload (server rejected it). Check the image format/size.',
+          );
+        }
       }
 
+      step = 'publishParty';
       if (publish) {
         const published = await partyService.publishParty(partyId);
         if (!published) {
@@ -193,8 +208,13 @@ export default function CreatePartyScreen() {
           { text: 'OK', onPress: () => router.back() },
         ]);
       }
-    } catch {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } catch (e) {
+      // TEMP DEBUG: surface the real error + which step threw. On TestFlight
+      // there's no Metro console, so the alert is the only channel. REVERT this
+      // to the generic "Something went wrong" message once the bug is found.
+      const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      console.error(`[create-party] threw during ${step}:`, e);
+      Alert.alert('Debug error', `Step: ${step}\n${detail}`);
     } finally {
       setLoading(false);
     }

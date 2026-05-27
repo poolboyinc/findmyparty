@@ -2,16 +2,29 @@ import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
-import { BlurView } from 'expo-blur';
 import { useFonts } from 'expo-font';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { s, vs, ms } from '@/constants/responsive';
 import { ApiConstants } from '@/constants/api';
+import { CookiesUrl, PrivacyUrl, TermsUrl } from '@/constants/legal';
+import { ms, s, vs } from '@/constants/responsive';
+import { colors, layout, radii, spacing, typography, weights } from '@/theme';
 import { authService } from '../services/authService';
 
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
@@ -19,7 +32,7 @@ const GOOGLE_REVERSED_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_REVERSED_CLIENT
 
 WebBrowser.maybeCompleteAuthSession();
 
-export default function OnboardingPage() {
+export default function WelcomeScreen() {
   const [loading, setLoading] = useState<'google' | 'apple' | null>(null);
   const [backendDown, setBackendDown] = useState(false);
 
@@ -45,34 +58,9 @@ export default function OnboardingPage() {
     Coolvetica: require('../assets/fonts/coolvetica.ttf'),
   });
 
-  // ─── Responsive layout ────────────────────────────────────────────────────────
-  // All proportions are derived from the reference device (390×844 pt).
-  // useWindowDimensions re-evaluates if the window ever changes (e.g. split-view on iPad).
-  const { width: W, height: H } = useWindowDimensions();
+  const { height: H } = useWindowDimensions();
+  const logoSize = Math.min(H * 0.28, 254);
 
-  const rs = useMemo(() => {
-    const ellipseW = W * 2.2;
-    return {
-      ellipseW,
-      ellipseH:          H * 1.2,
-      ellipseLeft:       (W - ellipseW) / 2,
-      ellipseBorderRadius: ellipseW / 2,
-      // Logo sits at the top — fixed proportion of screen height
-      logoSize:          H * 0.284,
-      logoMarginBottom:  H * 0.148,
-      appNameMarginTop:  H * -0.036,
-      // Safe-area padding
-      paddingTop:        H * 0.028,
-      paddingBottom:     H * 0.047,
-      paddingHorizontal: W * 0.092,
-      // Spacing between bottom elements
-      loginMarginTop:    H * 0.033,
-      adminMarginTop:    H * 0.031,
-      legalMarginTop:    H * 0.024,
-    };
-  }, [W, H]);
-
-  // ─── Auth ────────────────────────────────────────────────────────────────────
   const redirectUri = AuthSession.makeRedirectUri({ scheme: GOOGLE_REVERSED_CLIENT_ID });
 
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -117,11 +105,13 @@ export default function OnboardingPage() {
   };
 
   const handleGoogleSignIn = () => {
+    Haptics.selectionAsync();
     setLoading('google');
     promptAsync();
   };
 
   const handleAppleSignIn = async () => {
+    Haptics.selectionAsync();
     setLoading('apple');
     try {
       const credential = await AppleAuthentication.signInAsync({
@@ -150,160 +140,225 @@ export default function OnboardingPage() {
     }
   };
 
+  const goRegister = () => {
+    Haptics.selectionAsync();
+    router.push('/register');
+  };
+
+  const goLogin = () => {
+    Haptics.selectionAsync();
+    router.push('/login');
+  };
+
+  const inputDisabled = backendDown || loading !== null;
+
+  const triggerAdminEntry = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    router.push('/admin/login');
+  };
+
+  const midHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleMidHoldTick = () => {
+    if (midHoldTimerRef.current !== null) {
+      clearTimeout(midHoldTimerRef.current);
+    }
+    midHoldTimerRef.current = setTimeout(() => {
+      Haptics.selectionAsync();
+      midHoldTimerRef.current = null;
+    }, 800);
+  };
+
+  const clearMidHoldTick = () => {
+    if (midHoldTimerRef.current !== null) {
+      clearTimeout(midHoldTimerRef.current);
+      midHoldTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (midHoldTimerRef.current !== null) {
+        clearTimeout(midHoldTimerRef.current);
+        midHoldTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const adminGesture = useMemo(
+    () =>
+      Gesture.LongPress()
+        .minDuration(1500)
+        .onBegin(() => {
+          runOnJS(scheduleMidHoldTick)();
+        })
+        .onStart(() => {
+          runOnJS(triggerAdminEntry)();
+        })
+        .onFinalize(() => {
+          runOnJS(clearMidHoldTick)();
+        }),
+    [],
+  );
+
   return (
     <View style={styles.root}>
-      {/* Pure black background */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000000' }]} />
-
-      {/* Sphere — wide gradient orb in the lower portion of the screen */}
-      <View
-        style={[
-          styles.ellipseBase,
-          {
-            width:        rs.ellipseW,
-            height:       rs.ellipseH,
-            left:         rs.ellipseLeft,
-            borderRadius: rs.ellipseBorderRadius,
-          },
-        ]}
-      >
-        <LinearGradient
-          colors={['#8B0DFF', '#C2007A', '#FF5230', '#FF8C48']}
-          locations={[0, 0.4, 0.75, 1]}
-          style={StyleSheet.absoluteFill}
-        />
-      </View>
-
-      <SafeAreaView
-        style={[
-          styles.safeArea,
-          {
-            paddingTop:        rs.paddingTop,
-            paddingBottom:     rs.paddingBottom,
-            paddingHorizontal: rs.paddingHorizontal,
-          },
-        ]}
-      >
-        {/* Logo section */}
-        <View style={[styles.logoSection, { marginBottom: rs.logoMarginBottom }]}>
-          <Image
-            source={require('@/assets/images/fmp_logo.png')}
-            style={{ width: rs.logoSize, height: rs.logoSize }}
-            resizeMode="contain"
-          />
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        {/* Brand */}
+        <View style={styles.logoSection}>
+          <GestureDetector gesture={adminGesture}>
+            <Image
+              source={require('@/assets/images/fmp_logo.png')}
+              style={{ width: logoSize, height: logoSize }}
+              resizeMode="contain"
+              accessibilityIgnoresInvertColors
+              accessible={false}
+            />
+          </GestureDetector>
           <Text
+            accessibilityRole="header"
             style={[
               styles.appName,
-              { marginTop: rs.appNameMarginTop },
-              fontsLoaded ? { fontFamily: 'Coolvetica' } : {},
+              fontsLoaded ? { fontFamily: 'Coolvetica' } : null,
             ]}
           >
             FindMyParty
           </Text>
         </View>
 
-        {/* Bottom group */}
+        {/* Auth group */}
         <View style={styles.bottomGroup}>
-          {/* Connection banner */}
           {backendDown && (
-            <View style={styles.connectionBanner}>
-              <Ionicons name="cloud-offline-outline" size={ms(16)} color="#FFF" />
+            <View style={styles.connectionBanner} accessibilityRole="alert">
+              <Ionicons name="cloud-offline-outline" size={ms(16)} color={colors.label} />
               <Text style={styles.connectionBannerText}>
                 Unable to connect to server. Please check your connection.
               </Text>
             </View>
           )}
 
-          {/* Buttons */}
-          <View style={[styles.buttonsSection, backendDown && { opacity: 0.4 }]}>
+          <Pressable
+            onPress={handleGoogleSignIn}
+            disabled={inputDisabled}
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Google"
+            accessibilityState={{ busy: loading === 'google', disabled: inputDisabled }}
+            style={({ pressed }) => [
+              styles.socialButton,
+              pressed && !inputDisabled && styles.pressed,
+              inputDisabled && styles.disabled,
+            ]}
+          >
             {loading === 'google' ? (
-              <View style={styles.socialButtonLoading}>
-                <ActivityIndicator size="small" color="#000000" />
-              </View>
+              <ActivityIndicator color={colors.label} />
             ) : (
-              <TouchableOpacity
-                style={styles.googleButton}
-                onPress={handleGoogleSignIn}
-                disabled={loading !== null || backendDown}
-                activeOpacity={0.85}
-              >
+              <View style={styles.socialButtonContent}>
                 <Image
                   source={require('../assets/images/google_logo.png')}
-                  style={styles.googleLogo}
+                  style={styles.socialIcon}
                   resizeMode="contain"
                 />
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
-              </TouchableOpacity>
-            )}
-
-            {loading === 'apple' ? (
-              <View style={styles.socialButtonLoading}>
-                <ActivityIndicator size="small" color="#000000" />
+                <Text style={styles.socialButtonText}>Continue with Google</Text>
               </View>
-            ) : (
-              <AppleAuthentication.AppleAuthenticationButton
-                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-                cornerRadius={48}
-                style={styles.appleButton}
-                onPress={handleAppleSignIn}
-              />
             )}
+          </Pressable>
 
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>Or</Text>
-              <View style={styles.dividerLine} />
-            </View>
+          <Pressable
+            onPress={handleAppleSignIn}
+            disabled={inputDisabled}
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Apple"
+            accessibilityState={{ busy: loading === 'apple', disabled: inputDisabled }}
+            style={({ pressed }) => [
+              styles.socialButton,
+              pressed && !inputDisabled && styles.pressed,
+              inputDisabled && styles.disabled,
+            ]}
+          >
+            {loading === 'apple' ? (
+              <ActivityIndicator color={colors.label} />
+            ) : (
+              <View style={styles.socialButtonContent}>
+                <Ionicons name="logo-apple" size={ms(28)} color={colors.label} style={styles.appleIcon} />
+                <Text style={styles.socialButtonText}>Continue with Apple</Text>
+              </View>
+            )}
+          </Pressable>
 
-            <TouchableOpacity style={styles.signUpButton} onPress={() => router.push('/register')} activeOpacity={0.85} disabled={backendDown}>
-              <Text style={styles.signUpText}>Sign Up</Text>
-            </TouchableOpacity>
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>Or</Text>
+            <View style={styles.dividerLine} />
           </View>
 
-          {/* Login link */}
-          <TouchableOpacity
-            onPress={() => router.push('/login')}
-            activeOpacity={0.7}
-            disabled={backendDown}
-            style={{ marginTop: rs.loginMarginTop }}
+          <Pressable
+            onPress={goRegister}
+            disabled={inputDisabled}
+            accessibilityRole="button"
+            accessibilityLabel="Sign up with email"
+            accessibilityState={{ disabled: inputDisabled }}
+            style={({ pressed }) => [
+              styles.signUpWrapper,
+              pressed && !inputDisabled && styles.pressed,
+              inputDisabled && styles.disabled,
+            ]}
+          >
+            <LinearGradient
+              colors={colors.brand.gradient.colors}
+              locations={colors.brand.gradient.locations}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.signUpGradient}
+            >
+              <Text style={styles.signUpText}>Sign Up</Text>
+            </LinearGradient>
+          </Pressable>
+
+          <Pressable
+            onPress={goLogin}
+            disabled={inputDisabled}
+            hitSlop={layout.hitSlop}
+            accessibilityRole="link"
+            accessibilityLabel="Log in to existing account"
+            style={({ pressed }) => [
+              styles.loginPress,
+              pressed && !inputDisabled && { opacity: 0.7 },
+            ]}
           >
             <Text style={styles.loginText}>
-              Have an account already?{'  '}
+              Have an account already?{' '}
               <Text style={styles.loginTextHighlight}>Log in</Text>
             </Text>
-          </TouchableOpacity>
-
-          {/* Admin portal */}
-          <TouchableOpacity
-            activeOpacity={0.82}
-            onPress={() => router.push('/admin')}
-            disabled={backendDown}
-            style={[styles.adminBtnWrapper, { marginTop: rs.adminMarginTop }]}
-          >
-            <BlurView intensity={20} tint="dark" style={styles.adminBtnBlur}>
-              <LinearGradient
-                colors={['#3D0080', '#7E0AFA', '#FF6E00']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.adminBtnGradient}
-              >
-                <Ionicons name="shield-checkmark-outline" size={ms(17)} color="rgba(255,255,255,0.85)" />
-                <Text style={styles.adminBtnText}>Transfer to Admin Portal</Text>
-              </LinearGradient>
-            </BlurView>
-          </TouchableOpacity>
-
-          {/* Legal */}
-          <Text style={[styles.legal, { marginTop: rs.legalMarginTop }]}>
-            {'By continuing you automatically accept our '}
-            <Text style={styles.legalUnderline}>Terms & Conditions</Text>
-            {', '}
-            <Text style={styles.legalUnderline}>Privacy Policy</Text>
-            {' and '}
-            <Text style={styles.legalUnderline}>Cookies Policy</Text>
-          </Text>
+          </Pressable>
         </View>
+
+        {/* Legal — pinned to the bottom (mirrors Figma frame y=792 of 874) */}
+        <Text style={styles.legal}>
+          {'By continuing you automatically accept our '}
+          <Text
+            style={styles.legalUnderline}
+            accessibilityRole="link"
+            onPress={() => WebBrowser.openBrowserAsync(TermsUrl)}
+          >
+            Terms & Conditions
+          </Text>
+          {', '}
+          <Text
+            style={styles.legalUnderline}
+            accessibilityRole="link"
+            onPress={() => WebBrowser.openBrowserAsync(PrivacyUrl)}
+          >
+            Privacy Policy
+          </Text>
+          {' and '}
+          <Text
+            style={styles.legalUnderline}
+            accessibilityRole="link"
+            onPress={() => WebBrowser.openBrowserAsync(CookiesUrl)}
+          >
+            Cookies Policy
+          </Text>
+        </Text>
       </SafeAreaView>
     </View>
   );
@@ -312,163 +367,147 @@ export default function OnboardingPage() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#000000',
-    overflow: 'hidden',
-  },
-  // Dimension-dependent width/height/left/borderRadius are applied inline via `rs`
-  ellipseBase: {
-    position: 'absolute',
-    top: '40%',
-    overflow: 'hidden',
+    backgroundColor: colors.bg,
   },
   safeArea: {
     flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: vs(8),
+    paddingBottom: vs(24),
     alignItems: 'center',
-    justifyContent: 'space-between',
-    // padding values applied inline via `rs`
+    // Top-aligned flow: logo + auth block sit together near the top,
+    // legal text is pushed to the bottom via marginTop:'auto'.
   },
   logoSection: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 'auto',
-    // marginBottom applied inline via `rs`
+    marginTop: vs(24),
   },
   appName: {
-    color: '#FFFFFF',
-    fontSize: ms(30),
-    fontWeight: '800',
+    color: colors.label,
+    fontSize: ms(44),
+    fontWeight: weights.heavy,
     letterSpacing: 0.5,
-    // marginTop applied inline via `rs`
+    textAlign: 'center',
+    marginTop: vs(-24),
+  },
+  bottomGroup: {
+    width: '100%',
+    alignItems: 'center',
+    gap: vs(12),
+    marginTop: vs(32),
   },
   connectionBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: s(8),
-    backgroundColor: 'rgba(255,60,60,0.75)',
-    borderRadius: s(10),
+    gap: spacing.sm,
+    backgroundColor: 'rgba(255,69,58,0.85)',
+    borderRadius: radii.md,
     paddingVertical: vs(8),
-    paddingHorizontal: s(16),
-    marginBottom: vs(12),
+    paddingHorizontal: spacing.base,
+    marginBottom: vs(4),
     width: '100%',
   },
   connectionBannerText: {
-    color: '#FFF',
-    fontSize: ms(12),
-    fontWeight: '500',
+    ...typography.footnote,
+    color: colors.label,
+    fontWeight: weights.medium,
     flexShrink: 1,
   },
-  bottomGroup: {
+  socialButton: {
     width: '100%',
+    height: vs(48),
+    minHeight: layout.minTouchTarget,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.hairline,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonsSection: {
-    width: '100%',
-    gap: vs(14),
-  },
-  googleButton: {
-    width: '100%',
-    height: vs(44),
-    backgroundColor: '#FFFFFF',
-    borderRadius: s(48),
+  socialButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#646464',
-    gap: s(10),
+    gap: spacing.md,
   },
-  googleLogo: {
-    width: s(20),
-    height: vs(20),
+  socialIcon: {
+    width: s(28),
+    height: s(28),
   },
-  googleButtonText: {
-    color: '#3C4043',
-    fontSize: ms(15),
-    fontWeight: '600',
+  appleIcon: {
+    marginTop: -2,
   },
-  socialButtonLoading: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: s(48),
-    height: vs(44),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#646464',
-  },
-  appleButton: {
-    width: '100%',
-    height: vs(44),
+  socialButtonText: {
+    color: colors.label,
+    fontSize: ms(17),
+    fontWeight: weights.semibold,
+    letterSpacing: -0.4,
   },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    width: '100%',
     marginVertical: vs(2),
   },
   dividerLine: {
     flex: 1,
-    height: 1,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: 'rgba(255,255,255,0.45)',
   },
   dividerText: {
-    color: '#FFFFFF',
+    color: colors.label,
     fontSize: ms(12),
-    fontWeight: '100',
-    marginHorizontal: s(12),
+    fontWeight: weights.thin,
+    marginHorizontal: spacing.md,
   },
-  signUpButton: {
-    backgroundColor: '#7E0AFA',
-    borderRadius: s(48),
-    height: vs(44),
+  signUpWrapper: {
+    width: '100%',
+    height: vs(48),
+    minHeight: layout.minTouchTarget,
+    borderRadius: radii.pill,
+    overflow: 'hidden',
+  },
+  signUpGradient: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   signUpText: {
-    color: '#FFFFFF',
-    fontSize: ms(16),
-    fontWeight: '700',
+    color: colors.label,
+    fontSize: ms(17),
+    fontWeight: weights.bold,
+    letterSpacing: -0.4,
+  },
+  pressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.99 }],
+  },
+  disabled: {
+    opacity: 0.4,
+  },
+  loginPress: {
+    paddingVertical: vs(6),
   },
   loginText: {
-    color: '#FFFFFF',
-    fontSize: ms(16),
-    fontWeight: '400',
+    ...typography.body,
+    color: colors.label,
     textAlign: 'center',
   },
   loginTextHighlight: {
-    color: '#7E0AFA',
-    fontWeight: '700',
+    color: colors.tint,
+    fontWeight: weights.bold,
   },
   legal: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: ms(11),
+    ...typography.caption1,
+    color: colors.gray,
     textAlign: 'center',
-    lineHeight: vs(17),
+    marginTop: 'auto',
+    paddingHorizontal: spacing.sm,
+    paddingTop: vs(16),
   },
   legalUnderline: {
     textDecorationLine: 'underline',
-  },
-  adminBtnWrapper: {
-    width: '100%',
-    height: vs(42),
-    borderRadius: s(48),
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  adminBtnBlur: {
-    flex: 1,
-  },
-  adminBtnGradient: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: s(8),
-  },
-  adminBtnText: {
-    color: 'rgba(255,255,255,0.88)',
-    fontSize: ms(14),
-    fontWeight: '600',
-    letterSpacing: 0.3,
   },
 });
