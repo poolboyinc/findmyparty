@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Image,
   StatusBar,
@@ -20,14 +19,30 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
+import Animated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
+import {
+  BottomSheetModal,
+  BottomSheetBackdrop,
+  BottomSheetView,
+  type BottomSheetBackdropProps,
+} from '@gorhom/bottom-sheet';
 import { partyService } from '@/services/partyService';
-import { resolveMediaUrl } from '@/constants/api';
+import { ApiConstants, resolveMediaUrl } from '@/constants/api';
 import { bookingService } from '@/services/bookingService';
 import { useFavorites } from '@/hooks/useFavorites';
-import { colors } from '@/theme';
+import { Icon } from '@/components/ui/icon';
+import { PrimaryButton } from '@/components/ui/primary-button';
+import { colors, radii, spacing, typography, weights, layout } from '@/theme';
 import type { PartyDetail } from '@/types/parties';
-import { s, vs, ms } from '@/constants/responsive';
+import { ms } from '@/constants/responsive';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function formatDate(iso: string): string {
@@ -48,10 +63,16 @@ function formatTime(iso: string): string {
 
 function priceTier(price: number): string {
   if (price === 0) return 'Free';
-  if (price <= 10) return '$';
-  if (price <= 25) return '$$';
-  return '$$$';
+  if (price <= 10) return '€';
+  if (price <= 25) return '€€';
+  return '€€€';
 }
+
+// Fixed-width leading-icon column so info-row labels left-align cleanly.
+const ICON_COL = 28;
+// Static-map snapshot dimensions (px requested at @2x; rendered ~150pt tall).
+const MAP_SNAPSHOT_HEIGHT = 150;
+const MAP_SNAPSHOT_WIDTH = 600;
 
 // ─── Liquid Glass button ───────────────────────────────────────────────────────
 function GlassButton({
@@ -78,7 +99,7 @@ function GlassButton({
           borderRadius: size / 2,
           overflow: 'hidden',
           borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.28)',
+          borderColor: colors.hairline,
         },
         style,
       ]}
@@ -92,36 +113,37 @@ function GlassButton({
         tint={tint}
         style={StyleSheet.absoluteFill}
       />
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: 'rgba(255,255,255,0.12)' },
-        ]}
-      />
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {children}
-      </View>
+      <View style={[StyleSheet.absoluteFill, styles.glassOverlay]} />
+      <View style={styles.glassInner}>{children}</View>
     </TouchableOpacity>
+  );
+}
+
+// ─── Info row ─────────────────────────────────────────────────────────────────
+function InfoRow({
+  sfSymbol,
+  ionicon,
+  children,
+  iconColor = colors.label,
+}: {
+  sfSymbol: Parameters<typeof Icon>[0]['sfSymbol'];
+  ionicon: Parameters<typeof Icon>[0]['ionicon'];
+  children: React.ReactNode;
+  iconColor?: string;
+}) {
+  return (
+    <View style={styles.infoRow}>
+      <View style={styles.infoIconCol}>
+        <Icon sfSymbol={sfSymbol} ionicon={ionicon} size={22} color={iconColor} />
+      </View>
+      <View style={styles.infoBody}>{children}</View>
+    </View>
   );
 }
 
 // ─── Divider ──────────────────────────────────────────────────────────────────
 function Divider() {
-  return (
-    <View
-      style={{
-        height: 1,
-        backgroundColor: 'rgba(255,255,255,0.12)',
-        marginHorizontal: s(18),
-      }}
-    />
-  );
+  return <View style={styles.divider} />;
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
@@ -129,14 +151,51 @@ export default function PartyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { height: H } = useWindowDimensions();
-  const HERO_HEIGHT = H * 0.42;   // 354/844
+  const HERO_HEIGHT = H * 0.42; // 354/844
   const [party, setParty] = useState<PartyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
-  const [ticketModalVisible, setTicketModalVisible] = useState(false);
   const [ticketCount, setTicketCount] = useState(1);
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
+  const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const { isFavorite, toggle: toggleFavorite } = useFavorites();
+
+  const ticketSheetRef = useRef<BottomSheetModal>(null);
+
+  // iOS bounce + scroll position captured for the (scaffolded) hero parallax.
+  const scrollY = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      scrollY.value = e.contentOffset.y;
+    },
+  });
+  const heroAnimatedStyle = useAnimatedStyle(() => {
+    // Parallax: as content scrolls up, the hero drifts up at half-rate so it
+    // trails the content (classic iOS detail-header feel). Clamped so it never
+    // moves on overscroll (that's the stretch's job).
+    const parallax = interpolate(
+      scrollY.value,
+      [0, HERO_HEIGHT],
+      [0, HERO_HEIGHT * 0.5],
+      Extrapolation.CLAMP,
+    );
+    // Stretch: on overscroll (negative scrollY) the hero scales up. Pairing it
+    // with a top-anchored upward translate (half the added height) makes the
+    // image grow DOWNWARD from the top edge instead of from its center — so it
+    // fills the gap the bounce opens, no seam at the top.
+    const scale = interpolate(
+      scrollY.value,
+      [-HERO_HEIGHT, 0],
+      [1.6, 1],
+      Extrapolation.CLAMP,
+    );
+    return {
+      transform: [
+        { translateY: scrollY.value < 0 ? -scrollY.value * 0.5 : parallax },
+        { scale },
+      ],
+    };
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -146,10 +205,40 @@ export default function PartyDetailScreen() {
     });
   }, [id]);
 
+  // Reverse-geocode the coordinates into a human label ("District, City").
+  // Never surface raw coordinates — null out on failure.
+  useEffect(() => {
+    if (!party) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const results = await Location.reverseGeocodeAsync({
+          latitude: party.latitude,
+          longitude: party.longitude,
+        });
+        if (cancelled) return;
+        const first = results[0];
+        if (!first) {
+          setLocationLabel(null);
+          return;
+        }
+        const area = first.district ?? first.subregion ?? null;
+        const city = first.city ?? first.region ?? null;
+        const label = [area, city].filter(Boolean).join(', ');
+        setLocationLabel(label.length > 0 ? label : null);
+      } catch {
+        if (!cancelled) setLocationLabel(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [party?.latitude, party?.longitude]);
+
   if (loading) {
     return (
       <View style={styles.loadingRoot}>
-        <ActivityIndicator size="large" color="#7D08FA" />
+        <ActivityIndicator size="large" color={colors.tint} />
       </View>
     );
   }
@@ -166,14 +255,23 @@ export default function PartyDetailScreen() {
   }
 
   const mapsUrl = `https://maps.google.com/?q=${party.latitude},${party.longitude}`;
+  const hasToken = !!ApiConstants.MapboxPublicToken;
+  const staticMapUrl = hasToken
+    ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/pin-s+8B5CF6(${party.longitude},${party.latitude})/${party.longitude},${party.latitude},14,0/${MAP_SNAPSHOT_WIDTH}x${MAP_SNAPSHOT_HEIGHT}@2x?access_token=${ApiConstants.MapboxPublicToken}`
+    : null;
 
   const remainingCapacity = party.capacity - (party.ticketsSold ?? 0);
   const maxTickets = Math.min(remainingCapacity, 10);
+  const ctaLabel = party.isSoldOut
+    ? 'Sold Out'
+    : party.price > 0
+      ? 'Get Tickets'
+      : 'Reserve a Spot';
 
   const handleReserve = () => {
     if (party.isSoldOut || booking) return;
     setTicketCount(1);
-    setTicketModalVisible(true);
+    ticketSheetRef.current?.present();
   };
 
   const handleHeartPress = () => {
@@ -196,137 +294,184 @@ export default function PartyDetailScreen() {
   };
 
   const handleConfirmBooking = async () => {
-    setTicketModalVisible(false);
+    ticketSheetRef.current?.dismiss();
     setBooking(true);
     try {
       const bookingId = await bookingService.createBooking(party.id, ticketCount);
       if (bookingId) {
-        Alert.alert('You\'re in!', `${ticketCount} ticket${ticketCount > 1 ? 's' : ''} reserved. Check your bookings for details.`);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert(
+          'You\'re in!',
+          `${ticketCount} ticket${ticketCount > 1 ? 's' : ''} reserved. Check your bookings for details.`,
+        );
       } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         Alert.alert('Could not reserve', 'Something went wrong. Please try again.');
       }
     } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert('Error', 'Something went wrong. Please try again.');
     } finally {
       setBooking(false);
     }
   };
 
+  const renderBackdrop = (props: BottomSheetBackdropProps) => (
+    <BottomSheetBackdrop
+      {...props}
+      appearsOnIndex={0}
+      disappearsOnIndex={-1}
+      opacity={0.5}
+      pressBehavior="close"
+    />
+  );
+
+  // Floating CTA bar height — content gets a matching bottom spacer so the bar
+  // never occludes the description.
+  const ctaBarHeight = layout.buttonHeight + spacing.base * 2 + insets.bottom;
+
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-
+      <Animated.ScrollView
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        bounces
+      >
         {/* ── Hero ── */}
-        <TouchableOpacity
-          style={[styles.heroWrapper, { height: HERO_HEIGHT }]}
-          activeOpacity={0.9}
-          onPress={resolveMediaUrl(party.imageUrl) ? () => setImagePreviewVisible(true) : undefined}
-        >
-          {resolveMediaUrl(party.imageUrl) ? (
-            <Image
-              source={{ uri: resolveMediaUrl(party.imageUrl)! }}
-              style={[styles.heroImage, { height: HERO_HEIGHT }]}
-              resizeMode="cover"
-            />
-          ) : (
-            <LinearGradient
-              colors={['#1a0030', '#3D0880', '#7D08FA']}
-              style={[styles.heroImage, { height: HERO_HEIGHT }]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-          )}
-
-          {/* Gradient fade to black */}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.55)', '#000']}
-            style={styles.heroFade}
-            pointerEvents="none"
-          />
-
-          {/* Back button — liquid glass */}
-          <GlassButton
-            size={44}
-            style={{ position: 'absolute', left: s(16), top: insets.top + vs(12) }}
-            onPress={() => router.back()}
-            accessibilityLabel="Back"
+        <Animated.View style={heroAnimatedStyle}>
+          <TouchableOpacity
+            style={[styles.heroWrapper, { height: HERO_HEIGHT }]}
+            activeOpacity={0.9}
+            onPress={resolveMediaUrl(party.imageUrl) ? () => setImagePreviewVisible(true) : undefined}
           >
-            <Ionicons name="chevron-back" size={ms(22)} color="#FFF" />
-          </GlassButton>
-
-          {/* Heart + Share — liquid glass */}
-          <View style={[styles.actionRow, { top: insets.top + vs(12) }]}>
-            <GlassButton
-              size={48}
-              onPress={handleHeartPress}
-              accessibilityLabel={isFavorite(party.id) ? 'Remove from favorites' : 'Add to favorites'}
-            >
-              <Ionicons
-                name={isFavorite(party.id) ? 'heart' : 'heart-outline'}
-                size={ms(22)}
-                color={isFavorite(party.id) ? colors.pink : '#FFF'}
+            {resolveMediaUrl(party.imageUrl) ? (
+              <Image
+                source={{ uri: resolveMediaUrl(party.imageUrl)! }}
+                style={[styles.heroImage, { height: HERO_HEIGHT }]}
+                resizeMode="cover"
               />
-            </GlassButton>
-            <GlassButton size={48} onPress={handleShare} accessibilityLabel="Share party">
-              <Ionicons name="share-outline" size={ms(22)} color="#FFF" />
-            </GlassButton>
-          </View>
+            ) : (
+              <LinearGradient
+                colors={['#1a0030', '#3D0880', '#7D08FA']}
+                style={[styles.heroImage, { height: HERO_HEIGHT }]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              />
+            )}
 
-          {/* Club name + rating */}
-          <View style={styles.heroOverlay} pointerEvents="none">
-            <Text style={styles.clubName}>{party.title}</Text>
+            {/* Gradient fade to the screen background — final stop matches
+                colors.bg so there's no seam where the hero meets content. */}
             <LinearGradient
-              colors={['#7D08FA', '#FF6E00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.ratingBadge}
-            >
-              <Text style={styles.ratingText}>
-                {party.isSoldOut ? 'Sold Out' : `${priceTier(party.price)}`}
-              </Text>
-            </LinearGradient>
-          </View>
-        </TouchableOpacity>
+              colors={['transparent', 'rgba(10,10,12,0.55)', colors.bg]}
+              style={styles.heroFade}
+              pointerEvents="none"
+            />
 
-        {/* ── Glass info card ── */}
+            {/* Back button — liquid glass */}
+            <GlassButton
+              size={44}
+              style={{ position: 'absolute', left: spacing.base, top: insets.top + spacing.md }}
+              onPress={() => router.back()}
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="chevron-back" size={ms(22)} color={colors.label} />
+            </GlassButton>
+
+            {/* Heart + Share — liquid glass */}
+            <View style={[styles.actionRow, { top: insets.top + spacing.md }]}>
+              <GlassButton
+                size={48}
+                onPress={handleHeartPress}
+                accessibilityLabel={isFavorite(party.id) ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <Ionicons
+                  name={isFavorite(party.id) ? 'heart' : 'heart-outline'}
+                  size={ms(22)}
+                  color={isFavorite(party.id) ? colors.pink : colors.label}
+                />
+              </GlassButton>
+              <GlassButton size={48} onPress={handleShare} accessibilityLabel="Share party">
+                <Ionicons name="share-outline" size={ms(22)} color={colors.label} />
+              </GlassButton>
+            </View>
+
+            {/* Club name + price tier */}
+            <View style={styles.heroOverlay} pointerEvents="none">
+              <Text style={styles.clubName}>{party.title}</Text>
+              <LinearGradient
+                colors={[colors.brand.deep, colors.brand.orange]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.priceBadge}
+              >
+                <Text style={styles.priceBadgeText}>
+                  {party.isSoldOut ? 'Sold Out' : priceTier(party.price)}
+                </Text>
+              </LinearGradient>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* ── Info card ── */}
         <View style={styles.infoCard}>
           {/* Date & time */}
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar-outline" size={ms(26)} color="#FFF" />
+          <InfoRow sfSymbol="calendar" ionicon="calendar-outline">
             <Text style={styles.infoText}>{formatDate(party.startsAt)}</Text>
-            <Text style={styles.infoSep}>{'  |  '}</Text>
-            <Text style={styles.infoTextBold}>
-              {formatTime(party.startsAt)} – {formatTime(party.endsAt)}
+            <Text style={styles.infoTextStrong}>
+              {formatTime(party.startsAt)}–{formatTime(party.endsAt)}
             </Text>
-          </View>
+          </InfoRow>
 
           <Divider />
 
-          {/* Location */}
-          <View style={styles.infoRow}>
-            <Ionicons name="location-outline" size={ms(26)} color="#FFF" />
-            <Text style={[styles.infoText, { flex: 1 }]} numberOfLines={1}>
-              {party.latitude.toFixed(3)}, {party.longitude.toFixed(3)}
-            </Text>
-            <TouchableOpacity onPress={() => Linking.openURL(mapsUrl)}>
-              <Text style={styles.openMaps}>Open in maps</Text>
-            </TouchableOpacity>
-          </View>
-
-          <Divider />
-
-          {/* Price */}
-          <View style={styles.infoRow}>
-            <Ionicons name="cash-outline" size={ms(26)} color="rgba(255,255,255,0.4)" />
-            <Text style={styles.priceGray}>{priceTier(party.price)}</Text>
-            {party.price > 0 && (
-              <Text style={styles.infoText}>
-                {' – '}Entrance €{party.price.toFixed(0)}
+          {/* Location — static map snapshot + reverse-geocoded label */}
+          <InfoRow sfSymbol="mappin.and.ellipse" ionicon="location-outline">
+            {locationLabel ? (
+              <Text style={styles.infoText} numberOfLines={2}>
+                {locationLabel}
               </Text>
+            ) : null}
+            <TouchableOpacity onPress={() => Linking.openURL(mapsUrl)}>
+              <Text style={styles.openMaps}>Open in Maps</Text>
+            </TouchableOpacity>
+          </InfoRow>
+
+          <TouchableOpacity
+            style={styles.mapSnapshot}
+            activeOpacity={0.9}
+            onPress={() => Linking.openURL(mapsUrl)}
+            accessibilityRole="button"
+            accessibilityLabel="Open location in Maps"
+          >
+            {staticMapUrl ? (
+              <Image
+                source={{ uri: staticMapUrl }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.mapPlaceholder}>
+                <Icon
+                  sfSymbol="map"
+                  ionicon="map-outline"
+                  size={28}
+                  color={colors.labelTertiary}
+                />
+              </View>
             )}
-          </View>
+          </TouchableOpacity>
+
+          <Divider />
+
+          {/* Price — one concise line */}
+          <InfoRow sfSymbol="eurosign.circle" ionicon="cash-outline" iconColor={colors.labelSecondary}>
+            <Text style={styles.infoText}>
+              {party.price > 0 ? `Entrance €${party.price.toFixed(0)}` : 'Free entrance'}
+            </Text>
+          </InfoRow>
         </View>
 
         {/* Description */}
@@ -336,93 +481,96 @@ export default function PartyDetailScreen() {
           </View>
         )}
 
-        {/* ── Reserve / Tickets — liquid glass purple ── */}
-        <TouchableOpacity
-          style={[styles.reserveBtn, (party.isSoldOut || booking) && { opacity: 0.5 }]}
-          activeOpacity={0.85}
-          onPress={handleReserve}
-          disabled={party.isSoldOut || booking}
-        >
-          <BlurView
-            intensity={Platform.OS === 'ios' ? 40 : 60}
-            tint="dark"
-            style={StyleSheet.absoluteFill}
+        {/* Bottom spacer — equals the floating CTA bar height so content isn't occluded. */}
+        <View style={{ height: ctaBarHeight + spacing.lg }} />
+      </Animated.ScrollView>
+
+      {/* ── Pinned CTA bar ── */}
+      <View style={[styles.ctaBar, { paddingBottom: insets.bottom + spacing.base }]}>
+        <BlurView
+          intensity={Platform.OS === 'ios' ? 40 : 70}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.ctaBarInner}>
+          <PrimaryButton
+            label={ctaLabel}
+            variant="gradient"
+            onPress={handleReserve}
+            loading={booking}
+            disabled={party.isSoldOut}
+            accessibilityHint="Reserve tickets for this party"
           />
-          <View style={[StyleSheet.absoluteFill, styles.reserveOverlay]} />
-          {booking ? (
-            <ActivityIndicator color="#FFF" />
-          ) : (
-            <Text style={styles.reserveText}>
-              {party.isSoldOut ? 'Sold Out' : 'Reserve / Tickets'}
-            </Text>
-          )}
-        </TouchableOpacity>
-
-        <View style={{ height: insets.bottom + vs(24) }} />
-      </ScrollView>
-
-      {/* ── Ticket picker modal ── */}
-      <Modal
-        visible={ticketModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setTicketModalVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>How many tickets?</Text>
-
-            <View style={styles.ticketRow}>
-              <TouchableOpacity
-                style={styles.ticketBtn}
-                onPress={() => setTicketCount(c => Math.max(1, c - 1))}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="remove" size={ms(24)} color="#FFF" />
-              </TouchableOpacity>
-
-              <Text style={styles.ticketNum}>{ticketCount}</Text>
-
-              <TouchableOpacity
-                style={styles.ticketBtn}
-                onPress={() => setTicketCount(c => Math.min(maxTickets, c + 1))}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="add" size={ms(24)} color="#FFF" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalTotal}>
-              Total: €{(ticketCount * party.price).toFixed(2)}
-            </Text>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => setTicketModalVisible(false)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.modalConfirmBtn}
-                onPress={handleConfirmBooking}
-                activeOpacity={0.85}
-              >
-                <LinearGradient
-                  colors={['#7D08FA', '#FF6E00']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.modalConfirmGradient}
-                >
-                  <Text style={styles.modalConfirmText}>Confirm</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
         </View>
-      </Modal>
+      </View>
+
+      {/* ── Ticket picker sheet ── */}
+      <BottomSheetModal
+        ref={ticketSheetRef}
+        enableDynamicSizing
+        backdropComponent={renderBackdrop}
+        handleIndicatorStyle={styles.sheetHandle}
+        backgroundStyle={styles.sheetBackground}
+      >
+        <BottomSheetView style={[styles.sheetContent, { paddingBottom: insets.bottom + spacing.lg }]}>
+          <Text style={styles.sheetTitle} accessibilityRole="header">
+            How many tickets?
+          </Text>
+
+          <View style={styles.stepperRow}>
+            <TouchableOpacity
+              style={styles.stepperBtn}
+              onPress={() => {
+                // Haptic only on a real change — silence at the lower bound (1)
+                // signals the wall to the user without a misleading buzz.
+                setTicketCount((c) => {
+                  if (c <= 1) return c;
+                  Haptics.selectionAsync();
+                  return c - 1;
+                });
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Decrease ticket count"
+            >
+              <Ionicons name="remove" size={ms(24)} color={colors.label} />
+            </TouchableOpacity>
+
+            <Text style={styles.stepperValue}>{ticketCount}</Text>
+
+            <TouchableOpacity
+              style={styles.stepperBtn}
+              onPress={() => {
+                // Haptic only on a real change — silence at the upper bound
+                // (maxTickets) is the deliberate "wall" cue, matching decrement.
+                setTicketCount((c) => {
+                  if (c >= maxTickets) return c;
+                  Haptics.selectionAsync();
+                  return c + 1;
+                });
+              }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Increase ticket count"
+            >
+              <Ionicons name="add" size={ms(24)} color={colors.label} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.sheetTotal}>
+            Total: €{(ticketCount * party.price).toFixed(2)}
+          </Text>
+
+          <View style={styles.sheetCta}>
+            <PrimaryButton
+              label="Confirm"
+              variant="gradient"
+              onPress={handleConfirmBooking}
+              accessibilityHint="Confirm and reserve your tickets"
+            />
+          </View>
+        </BottomSheetView>
+      </BottomSheetModal>
 
       {/* ── Fullscreen image preview ── */}
       <Modal
@@ -454,36 +602,44 @@ export default function PartyDetailScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.bg,
   },
   loadingRoot: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: vs(16),
+    gap: spacing.base,
   },
   errorText: {
-    color: '#FFF',
-    fontSize: ms(16),
+    ...typography.body,
+    color: colors.label,
   },
   backFallback: {
-    paddingHorizontal: s(24),
-    paddingVertical: vs(12),
-    backgroundColor: '#7D08FA',
-    borderRadius: s(30),
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.tint,
+    borderRadius: radii.pill,
   },
   backFallbackText: {
-    color: '#FFF',
-    fontWeight: '700',
+    ...typography.bodyEmphasized,
+    color: colors.label,
+  },
+
+  // ── Glass button ──
+  glassOverlay: {
+    backgroundColor: colors.fillTertiary,
+  },
+  glassInner: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   // ── Hero ──
   heroWrapper: {
     // height applied inline from useWindowDimensions
     overflow: 'hidden',
-    borderBottomLeftRadius: s(6),
-    borderBottomRightRadius: s(6),
   },
   heroImage: {
     width: '100%',
@@ -494,209 +650,183 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: '45%',  // relative to heroWrapper height
+    height: '45%', // relative to heroWrapper height
   },
   actionRow: {
     position: 'absolute',
-    right: s(16),
+    right: spacing.base,
     flexDirection: 'row',
-    gap: s(8),
+    gap: spacing.sm,
   },
   heroOverlay: {
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: vs(32),
+    bottom: spacing.xxl,
     alignItems: 'center',
-    gap: vs(10),
+    gap: spacing.sm,
   },
   clubName: {
-    color: '#FFF',
-    fontSize: ms(36),
-    fontWeight: '800',
+    ...typography.largeTitle,
+    fontWeight: weights.heavy,
+    color: colors.label,
     textAlign: 'center',
-    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowColor: colors.scrim,
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 8,
-    paddingHorizontal: s(16),
+    paddingHorizontal: spacing.base,
   },
-  ratingBadge: {
-    height: vs(28),
-    paddingHorizontal: s(16),
-    borderRadius: s(30),
+  priceBadge: {
+    height: 28,
+    paddingHorizontal: spacing.base,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.32)',
+    borderColor: colors.hairline,
   },
-  ratingText: {
-    color: '#FFF',
-    fontSize: ms(14),
-    fontWeight: '700',
+  priceBadgeText: {
+    ...typography.subheadline,
+    fontWeight: weights.bold,
+    color: colors.label,
   },
 
-  // ── Info glass card ──
+  // ── Info card ──
   infoCard: {
-    marginHorizontal: s(10),
-    marginTop: vs(14),
-    borderRadius: s(34),
+    marginHorizontal: spacing.md,
+    marginTop: spacing.base,
+    borderRadius: radii.card,
     overflow: 'hidden',
-    backgroundColor: 'rgba(38,38,38,0.92)',
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: colors.hairline,
+    paddingVertical: spacing.xs,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s(8),
-    paddingVertical: vs(16),
-    paddingHorizontal: s(18),
-    flexWrap: 'wrap',
+    paddingVertical: spacing.base,
+    paddingHorizontal: spacing.base,
+    gap: spacing.md,
+  },
+  infoIconCol: {
+    width: ICON_COL,
+    alignItems: 'center',
+  },
+  infoBody: {
+    flex: 1,
+    gap: spacing.xxs,
   },
   infoText: {
-    color: '#FFF',
-    fontSize: ms(17),
-    fontWeight: '400',
+    ...typography.body,
+    color: colors.label,
   },
-  infoTextBold: {
-    color: '#FFF',
-    fontSize: ms(17),
-    fontWeight: '700',
-  },
-  infoSep: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: ms(17),
+  infoTextStrong: {
+    ...typography.bodyEmphasized,
+    color: colors.label,
   },
   openMaps: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: ms(13),
-    textDecorationLine: 'underline',
+    ...typography.footnote,
+    color: colors.tint,
+    fontWeight: weights.semibold,
   },
-  priceGray: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: ms(17),
-    fontWeight: '500',
+  mapSnapshot: {
+    height: MAP_SNAPSHOT_HEIGHT,
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    borderRadius: radii.card,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+  },
+  mapPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.separator,
+    marginHorizontal: spacing.base,
   },
 
-  // Description
+  // ── Description ──
   descBlock: {
-    marginHorizontal: s(14),
-    marginTop: vs(16),
+    marginHorizontal: spacing.base,
+    marginTop: spacing.base,
   },
   descText: {
-    color: 'rgba(255,255,255,0.65)',
-    fontSize: ms(15),
-    lineHeight: vs(22),
+    ...typography.subheadline,
+    color: colors.labelSecondary,
+    lineHeight: 22,
   },
 
-  // ── Reserve / Tickets — liquid glass purple ──
-  reserveBtn: {
-    marginHorizontal: s(10),
-    marginTop: vs(28),
-    height: vs(52),
-    borderRadius: s(30),
+  // ── Pinned CTA bar ──
+  ctaBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: spacing.base,
+    paddingHorizontal: spacing.base,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairline,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  reserveOverlay: {
-    borderRadius: s(30),
-    backgroundColor: 'rgba(125,8,250,0.45)',
-  },
-  reserveText: {
-    color: '#FFF',
-    fontSize: ms(20),
-    fontWeight: '700',
+  ctaBarInner: {
+    // PrimaryButton fills the width.
   },
 
-  // ── Ticket picker modal ──
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+  // ── Ticket sheet ──
+  sheetBackground: {
+    backgroundColor: colors.surfaceElevated,
+    borderTopLeftRadius: radii.xxl,
+    borderTopRightRadius: radii.xxl,
+  },
+  sheetHandle: {
+    backgroundColor: colors.labelTertiary,
+    width: layout.sheetHandleWidth,
+  },
+  sheetContent: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    gap: spacing.lg,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  modalCard: {
-    width: '85%',
-    backgroundColor: '#1A1A2E',
-    borderRadius: s(24),
-    padding: s(24),
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+  sheetTitle: {
+    ...typography.title2,
+    fontWeight: weights.bold,
+    color: colors.label,
   },
-  modalTitle: {
-    color: '#FFF',
-    fontSize: ms(20),
-    fontWeight: '700',
-    marginBottom: vs(20),
-  },
-  ticketRow: {
+  stepperRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s(24),
-    marginBottom: vs(16),
+    gap: spacing.xl,
   },
-  ticketBtn: {
-    width: s(48),
-    height: s(48),
-    borderRadius: s(24),
-    backgroundColor: 'rgba(125,8,250,0.35)',
+  stepperBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: radii.pill,
+    backgroundColor: colors.brand.tintBg,
     borderWidth: 1,
-    borderColor: 'rgba(125,8,250,0.6)',
+    borderColor: colors.tint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ticketNum: {
-    color: '#FFF',
-    fontSize: ms(36),
-    fontWeight: '800',
-    minWidth: s(50),
+  stepperValue: {
+    ...typography.largeTitle,
+    fontWeight: weights.heavy,
+    color: colors.label,
+    minWidth: 50,
     textAlign: 'center',
   },
-  modalTotal: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: ms(16),
-    fontWeight: '600',
-    marginBottom: vs(24),
+  sheetTotal: {
+    ...typography.callout,
+    fontWeight: weights.semibold,
+    color: colors.labelSecondary,
   },
-  modalActions: {
-    flexDirection: 'row',
-    gap: s(12),
+  sheetCta: {
     width: '100%',
-  },
-  modalCancelBtn: {
-    flex: 1,
-    height: vs(46),
-    borderRadius: s(23),
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCancelText: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: ms(16),
-    fontWeight: '600',
-  },
-  modalConfirmBtn: {
-    flex: 1,
-    height: vs(46),
-    borderRadius: s(23),
-    overflow: 'hidden',
-  },
-  modalConfirmGradient: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalConfirmText: {
-    color: '#FFF',
-    fontSize: ms(16),
-    fontWeight: '700',
   },
 
   // ── Fullscreen image preview ──
@@ -708,6 +838,6 @@ const styles = StyleSheet.create({
   imagePreviewImage: {
     width: '92%',
     height: '60%',
-    borderRadius: s(16),
+    borderRadius: radii.card,
   },
 });

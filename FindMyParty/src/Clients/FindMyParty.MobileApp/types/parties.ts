@@ -37,6 +37,12 @@ export interface HostPartyResponse {
   latitude: number;
   longitude: number;
   status: string;
+  imageUrl?: string;
+  revenue: number;
+  genre?: string;
+  performerName?: string;
+  performerType?: string;
+  featured: boolean;
 }
 
 export interface PartyAvailability {

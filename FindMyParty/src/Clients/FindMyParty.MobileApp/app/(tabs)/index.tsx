@@ -2,14 +2,11 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
-  Animated,
   Modal,
   Platform,
   StatusBar,
-  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,10 +17,15 @@ import MapboxGL from '@rnmapbox/maps';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import { ApiConstants, resolveMediaUrl } from '@/constants/api';
+import { ApiConstants } from '@/constants/api';
 import { s, vs, ms } from '@/constants/responsive';
 import { colors, layout, spacing } from '@/theme';
 import { EmptyState } from '@/components/ui/empty-state';
+import {
+  PartyPeekSheet,
+  PARTY_PEEK_HEIGHT,
+  type PartyPeekSheetRef,
+} from '@/components/ui/party-peek-sheet';
 import { useExplore } from '@/hooks/useExplore';
 import { useFavorites } from '@/hooks/useFavorites';
 import type { PartyMapItem } from '@/types/parties';
@@ -31,11 +33,6 @@ import type { PartyMapItem } from '@/types/parties';
 // Set Mapbox access token once (only if present — missing token redirects to onboarding at runtime)
 if (ApiConstants.MapboxPublicToken) {
   MapboxGL.setAccessToken(ApiConstants.MapboxPublicToken);
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function formatTime(isoString: string): string {
-  return new Date(isoString).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
 // ─── Party Marker ─────────────────────────────────────────────────────────────
@@ -109,252 +106,6 @@ const markerStyles = StyleSheet.create({
   },
   pinTipActive: {
     borderTopColor: '#9B20FF',
-  },
-});
-
-// ─── Party Popup Card ─────────────────────────────────────────────────────────
-function PartyCard({
-  party,
-  onClose,
-  translateY,
-  onDirections,
-  hasLocation,
-  isFavorited,
-  onHeartPress,
-}: {
-  party: PartyMapItem;
-  onClose: () => void;
-  translateY: Animated.Value;
-  onDirections?: () => void;
-  hasLocation?: boolean;
-  isFavorited: boolean;
-  onHeartPress: () => void;
-}) {
-  const { height: H } = useWindowDimensions();
-  const imageSectionHeight = H * 0.213;  // 180/844
-  return (
-    <Animated.View style={[cardStyles.container, { transform: [{ translateY }] }]}>
-      {/* Image section */}
-      <View style={[cardStyles.imageSection, { height: imageSectionHeight }]}>
-        {resolveMediaUrl(party.imageUrl) ? (
-          <Image
-            source={{ uri: resolveMediaUrl(party.imageUrl)! }}
-            style={cardStyles.imagePlaceholder}
-            resizeMode="cover"
-          />
-        ) : (
-          <LinearGradient
-            colors={['#1a0030', '#3D0880', '#7D08FA']}
-            style={cardStyles.imagePlaceholder}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Ionicons name="musical-notes" size={ms(48)} color="rgba(255,255,255,0.3)" />
-          </LinearGradient>
-        )}
-
-        {/* Heart + Close buttons */}
-        <View style={cardStyles.imageActions}>
-          <TouchableOpacity
-            style={cardStyles.actionBtn}
-            onPress={onHeartPress}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
-          >
-            <Ionicons
-              name={isFavorited ? 'heart' : 'heart-outline'}
-              size={ms(20)}
-              color={isFavorited ? colors.pink : '#7D08FA'}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity style={cardStyles.actionBtn} onPress={onClose} activeOpacity={0.8}>
-            <Ionicons name="close" size={ms(20)} color="#333" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Info section */}
-      <LinearGradient
-        colors={['#7D08FA', '#5B0297']}
-        style={cardStyles.infoSection}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={cardStyles.infoRow}>
-          <View style={cardStyles.infoLeft}>
-            <Text style={cardStyles.partyName} numberOfLines={1}>
-              {party.title}
-            </Text>
-            <Text style={cardStyles.partyMeta}>
-              {formatTime(party.startsAt)}{'  ·  '}€{party.price}
-            </Text>
-          </View>
-
-          {/* Sold out badge */}
-          {party.isSoldOut && (
-            <View style={cardStyles.ratingBadge}>
-              <Text style={cardStyles.ratingText}>Sold Out</Text>
-            </View>
-          )}
-        </View>
-
-        {/* CTA row */}
-        <View style={cardStyles.ctaRow}>
-          <TouchableOpacity
-            style={[cardStyles.ctaButton, { flex: 1 }]}
-            activeOpacity={0.85}
-            onPress={() => router.push(`/party/${party.id}`)}
-          >
-            <Text style={cardStyles.ctaText}>View Details</Text>
-          </TouchableOpacity>
-          {hasLocation && onDirections && (
-            <TouchableOpacity
-              style={cardStyles.directionsBtn}
-              activeOpacity={0.85}
-              onPress={onDirections}
-            >
-              <Ionicons name="navigate" size={ms(18)} color="#FFF" />
-            </TouchableOpacity>
-          )}
-        </View>
-      </LinearGradient>
-    </Animated.View>
-  );
-}
-
-const cardStyles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    left: s(16),
-    right: s(16),
-    bottom: vs(16),
-    borderRadius: s(24),
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 16,
-  },
-  imageSection: {
-    // height applied inline via useWindowDimensions
-    position: 'relative',
-  },
-  imagePlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotsRow: {
-    position: 'absolute',
-    bottom: vs(10),
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: s(6),
-  },
-  dot: {
-    width: s(6),
-    height: s(6),
-    borderRadius: s(3),
-    backgroundColor: 'rgba(255,255,255,0.4)',
-  },
-  dotActive: {
-    backgroundColor: '#FFF',
-    width: s(18),
-  },
-  imageActions: {
-    position: 'absolute',
-    top: s(12),
-    right: s(12),
-    flexDirection: 'row',
-    gap: s(8),
-  },
-  actionBtn: {
-    width: s(36),
-    height: s(36),
-    borderRadius: s(18),
-    backgroundColor: '#FFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  infoSection: {
-    paddingHorizontal: s(18),
-    paddingTop: vs(14),
-    paddingBottom: vs(18),
-    gap: vs(12),
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  infoLeft: {
-    flex: 1,
-    marginRight: s(12),
-    gap: vs(4),
-  },
-  partyName: {
-    color: '#FFF',
-    fontSize: ms(18),
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  partyMeta: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: ms(14),
-    fontWeight: '400',
-  },
-  ratingBadge: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: s(20),
-    paddingHorizontal: s(10),
-    paddingVertical: vs(6),
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  ratingText: {
-    color: '#FFF',
-    fontSize: ms(13),
-    fontWeight: '700',
-  },
-
-  ctaRow: {
-    flexDirection: 'row',
-    gap: s(10),
-    alignItems: 'center',
-  },
-  ctaButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: s(30),
-    height: vs(44),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-  },
-  ctaText: {
-    color: '#FFF',
-    fontSize: ms(15),
-    fontWeight: '700',
-  },
-  directionsBtn: {
-    width: vs(44),
-    height: vs(44),
-    borderRadius: vs(22),
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
   },
 });
 
@@ -621,6 +372,7 @@ export default function ExploreScreen() {
   const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
   const [locationDenied, setLocationDenied] = useState(false);
   const cameraRef = useRef<MapboxGL.Camera>(null);
+  const peekSheetRef = useRef<PartyPeekSheetRef>(null);
 
   // Navigation / routing state
   const [showModePicker, setShowModePicker] = useState(false);
@@ -658,6 +410,7 @@ export default function ExploreScreen() {
 
   // Start directions from party card
   const handleDirections = useCallback(() => {
+    Haptics.selectionAsync();
     if (!userCoords) return;
     setShowModePicker(true);
   }, [userCoords]);
@@ -733,35 +486,24 @@ export default function ExploreScreen() {
 
   const handleMarkerPress = useCallback((party: PartyMapItem) => {
     setSelectedParty(party);
-  }, []);
-
-  // Card slide-up animation
-  const cardAnim = useRef(new Animated.Value(300)).current;
-
-  useEffect(() => {
-    if (selectedParty) {
-      Animated.spring(cardAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 80,
-        friction: 12,
-      }).start();
-    } else {
-      Animated.timing(cardAnim, {
-        toValue: 300,
-        duration: 220,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [selectedParty]);
-
-  const handleCloseCard = () => {
-    Animated.timing(cardAnim, {
-      toValue: 300,
-      duration: 220,
-      useNativeDriver: true,
-    }).start(() => setSelectedParty(null));
-  };
+    peekSheetRef.current?.present();
+    // Center on the TRUE pin coordinate and let Mapbox do the screen-space math:
+    // padding the bottom by the peek-sheet footprint (+ safe area + a cushion)
+    // shrinks the effective viewport so the pin lands centered in the visible
+    // strip above the sheet — no fragile lat/zoom magic numbers. easeTo at ~450ms
+    // glides the camera in sync with the sheet's present animation.
+    cameraRef.current?.setCamera({
+      centerCoordinate: [party.longitude, party.latitude],
+      padding: {
+        paddingBottom: PARTY_PEEK_HEIGHT + insets.bottom + 24,
+        paddingTop: 0,
+        paddingLeft: 0,
+        paddingRight: 0,
+      },
+      animationMode: 'easeTo',
+      animationDuration: 450,
+    });
+  }, [insets.bottom]);
 
   return (
     <View style={styles.root}>
@@ -895,22 +637,6 @@ export default function ExploreScreen() {
         </TouchableOpacity>
       )}
 
-      {/* ── Party popup card ── */}
-      {hasMap && selectedParty && (
-        <PartyCard
-          party={selectedParty}
-          onClose={handleCloseCard}
-          translateY={cardAnim}
-          onDirections={handleDirections}
-          hasLocation={!!userCoords}
-          isFavorited={isFavorite(selectedParty.id)}
-          onHeartPress={() => {
-            Haptics.selectionAsync();
-            toggleFavorite(selectedParty.id);
-          }}
-        />
-      )}
-
       {/* ── Travel mode picker ── */}
       <TravelModePicker
         visible={showModePicker}
@@ -932,6 +658,21 @@ export default function ExploreScreen() {
             loadParties(0, 0, dateStr);
           }
         }}
+      />
+
+      {/* ── Party peek sheet ── */}
+      <PartyPeekSheet
+        ref={peekSheetRef}
+        party={selectedParty}
+        onDirections={handleDirections}
+        hasLocation={!!userCoords}
+        isFavorited={selectedParty ? isFavorite(selectedParty.id) : false}
+        onHeartPress={() => {
+          if (!selectedParty) return;
+          Haptics.selectionAsync();
+          toggleFavorite(selectedParty.id);
+        }}
+        onDismiss={() => setSelectedParty(null)}
       />
     </View>
   );

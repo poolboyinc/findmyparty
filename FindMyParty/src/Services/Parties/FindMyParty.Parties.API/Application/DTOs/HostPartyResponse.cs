@@ -13,5 +13,14 @@ namespace FindMyParty.Parties.API.Application.DTOs
         public double Latitude { get; set; }
         public double Longitude { get; set; }
         public string Status { get; set; } = null!;
+        public string? ImageUrl { get; set; }
+        /// <summary>Derived: TicketsSold × Price. Exact because pricing is flat
+        /// (one Price per party, editable only while Draft) and TicketsSold is
+        /// denormalized via BookingCreated/Cancelled events.</summary>
+        public decimal Revenue { get; set; }
+        public string? Genre { get; set; }
+        public string? PerformerName { get; set; }
+        public string? PerformerType { get; set; }
+        public bool Featured { get; set; }
     }
 }

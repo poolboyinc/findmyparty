@@ -25,6 +25,14 @@ namespace FindMyParty.Parties.API.Domain.Entities
 
         public string? ImageUrl { get; private set; }
 
+        // Structured event metadata. Previously these were smashed into Title /
+        // Description by the client; now first-class so they round-trip and can
+        // be filtered/displayed properly.
+        public string? Genre { get; private set; }
+        public string? PerformerName { get; private set; }
+        public string? PerformerType { get; private set; }
+        public bool Featured { get; private set; }
+
         public PartyStatus Status { get; private set; }
         public bool IsDeleted { get; private set; }
 
@@ -42,7 +50,11 @@ namespace FindMyParty.Parties.API.Domain.Entities
             DateTime endsAt,
             double latitude,
             double longitude,
-            string? imageUrl = null)
+            string? imageUrl = null,
+            string? genre = null,
+            string? performerName = null,
+            string? performerType = null,
+            bool featured = false)
         {
             Id = Guid.NewGuid();
             HostId = hostId;
@@ -55,6 +67,10 @@ namespace FindMyParty.Parties.API.Domain.Entities
             Latitude = latitude;
             Longitude = longitude;
             ImageUrl = imageUrl;
+            Genre = genre;
+            PerformerName = performerName;
+            PerformerType = performerType;
+            Featured = featured;
             Status = PartyStatus.Draft;
         }
 
@@ -70,7 +86,7 @@ namespace FindMyParty.Parties.API.Domain.Entities
             _domainEvents.Add(new PartyPublishedDomainEvent(Id));
         }
 
-        public void Update(string title, string description, decimal price, int capacity, DateTime startsAt, DateTime endsAt, double latitude, double longitude, string? imageUrl = null)
+        public void Update(string title, string description, decimal price, int capacity, DateTime startsAt, DateTime endsAt, double latitude, double longitude, string? imageUrl = null, string? genre = null, string? performerName = null, string? performerType = null, bool featured = false)
         {
             if (Status != PartyStatus.Draft)
                 throw new InvalidOperationException("Only draft parties can be edited.");
@@ -84,6 +100,10 @@ namespace FindMyParty.Parties.API.Domain.Entities
             Latitude = latitude;
             Longitude = longitude;
             ImageUrl = imageUrl;
+            Genre = genre;
+            PerformerName = performerName;
+            PerformerType = performerType;
+            Featured = featured;
         }
 
         public void Cancel()
