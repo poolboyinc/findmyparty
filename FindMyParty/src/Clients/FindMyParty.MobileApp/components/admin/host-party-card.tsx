@@ -1,9 +1,12 @@
+import { useEffect, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
+  interpolateColor,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -16,6 +19,16 @@ const SEP = ' · ';
 const CARD_PRESS_SCALE = 0.98;
 const PRESS_SPRING = { damping: 15, stiffness: 400, mass: 0.8 } as const;
 
+// One-shot "this is the one you just made" highlight. A subtle brand tint
+// washes over the card surface and a gentle scale pop draws the eye, then both
+// settle back to rest — the iOS "new row inserted" spotlight (Reminders/Notes).
+const HIGHLIGHT_POP_SCALE = 1.03;
+const HIGHLIGHT_RISE_MS = 220; // active phase: tint in + scale up
+const HIGHLIGHT_SETTLE_MS = 520; // soft fade-out back to rest
+// Peak tint is `colors.brand.tintBgSolid` — an OPAQUE surface biased toward brand
+// purple. We can't interpolate toward `colors.brand.tintBg` (rgba .15 alpha): the
+// opaque card would go translucent at peak and the screen bg would bleed through.
+
 export type HostPartyStatus = 'draft' | 'published' | 'soldout';
 
 type StatusBadgeProps = {
@@ -24,7 +37,7 @@ type StatusBadgeProps = {
 
 const STATUS_META: Record<HostPartyStatus, { label: string; color: string }> = {
   draft: { label: 'Draft', color: colors.labelSecondary },
-  published: { label: 'Published', color: colors.green },
+  published: { label: 'Published', color: colors.tint },
   soldout: { label: 'Sold out', color: colors.orange },
 };
 
@@ -54,6 +67,8 @@ type Props = {
   onPress: () => void;
   /** Optional ellipsis "more" affordance (publish/cancel/delete menu, etc.). */
   onMorePress?: () => void;
+  /** Set true when this card was just created/updated — anchor for the pulse. */
+  isNew?: boolean;
 };
 
 /**
@@ -80,12 +95,39 @@ export function HostPartyCard({
   revenue,
   onPress,
   onMorePress,
+  isNew = false,
 }: Props) {
   const cardScale = useSharedValue(1);
+  // Separate channel for the new-party highlight so it never fights the press
+  // scale: `highlight` 0→1→0 drives both the tint wash and a multiplicative
+  // scale pop, leaving `cardScale` free to keep handling press after it settles.
+  const highlight = useSharedValue(0);
 
-  const cardAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: cardScale.value }],
-  }));
+  // One-shot on mount: fires only when this card is the freshly created/edited
+  // one. Guarded by a ref so a refresh re-render can never replay it.
+  const hasPulsed = useRef(false);
+  useEffect(() => {
+    if (!isNew || hasPulsed.current) return;
+    hasPulsed.current = true;
+    highlight.value = withSequence(
+      withTiming(1, { duration: HIGHLIGHT_RISE_MS, easing: Easing.out(Easing.quad) }),
+      withTiming(0, { duration: HIGHLIGHT_SETTLE_MS, easing: Easing.inOut(Easing.quad) }),
+    );
+  }, [isNew, highlight]);
+
+  const cardAnimatedStyle = useAnimatedStyle(() => {
+    // Compose the highlight pop with the press scale (multiply, so a press
+    // mid-pulse still reads). 1 → ~1.03 → 1 as `highlight` rides 0 → 1 → 0.
+    const popScale = 1 + (HIGHLIGHT_POP_SCALE - 1) * highlight.value;
+    return {
+      transform: [{ scale: cardScale.value * popScale }],
+      backgroundColor: interpolateColor(
+        highlight.value,
+        [0, 1],
+        [colors.surface, colors.brand.tintBgSolid],
+      ),
+    };
+  });
 
   const handlePressIn = () => {
     Haptics.selectionAsync();

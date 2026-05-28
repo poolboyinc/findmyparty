@@ -20,7 +20,7 @@ import { StatTile, SummaryStrip } from '@/components/admin/stat-tile';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { SettingRow } from '@/components/ui/setting-row';
-import { useHostDashboard, toCardStatus } from '@/hooks/useHostDashboard';
+import { useHostDashboard, toCardStatus, formatTimeRange } from '@/hooks/useHostDashboard';
 import { authService } from '@/services/authService';
 import { resolveMediaUrl } from '@/constants/api';
 import { colors, radii, spacing, typography, weights } from '@/theme';
@@ -39,21 +39,6 @@ function timeGreeting(): string {
   if (hour < 12) return 'Good morning,';
   if (hour < 18) return 'Good afternoon,';
   return 'Good evening,';
-}
-
-function formatTimeRange(startsAt: string, endsAt: string): string {
-  const fmt = (iso: string) => {
-    const d = new Date(iso);
-    return isNaN(d.getTime())
-      ? ''
-      : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  };
-  const start = fmt(startsAt);
-  const end = fmt(endsAt);
-  if (!start && !end) return '';
-  if (!end) return start;
-  if (!start) return end;
-  return `${start} – ${end}`;
 }
 
 export default function AdminHomeScreen() {

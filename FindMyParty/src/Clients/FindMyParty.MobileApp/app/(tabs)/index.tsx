@@ -1,4 +1,12 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   View,
   Text,
@@ -6,12 +14,19 @@ import {
   StyleSheet,
   Modal,
   Platform,
+  Pressable,
   StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import {
+  BottomSheetBackdrop,
+  type BottomSheetBackdropProps,
+  BottomSheetModal,
+  BottomSheetView,
+} from '@gorhom/bottom-sheet';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import MapboxGL from '@rnmapbox/maps';
 import * as Haptics from 'expo-haptics';
@@ -19,8 +34,9 @@ import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { ApiConstants } from '@/constants/api';
 import { s, vs, ms } from '@/constants/responsive';
-import { colors, layout, spacing } from '@/theme';
+import { colors, layout, radii, spacing, typography, weights } from '@/theme';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Icon } from '@/components/ui/icon';
 import {
   PartyPeekSheet,
   PARTY_PEEK_HEIGHT,
@@ -246,102 +262,168 @@ const dpStyles = StyleSheet.create({
   },
 });
 
-// ─── Travel Mode Picker ──────────────────────────────────────────────────────
-function TravelModePicker({
-  visible,
-  onClose,
-  onSelect,
-}: {
-  visible: boolean;
-  onClose: () => void;
+// ─── Travel Mode Sheet ───────────────────────────────────────────────────────
+//
+// Bottom sheet that asks how the user wants to get to the selected party.
+// Replaces the legacy `LinearGradient` center-screen modal — same shape as
+// the `ConfirmCancelSheet` in `app/my-bookings.tsx`, just with two large
+// option tiles instead of stacked buttons.
+
+type TravelModeSheetRef = {
+  present: () => void;
+  dismiss: () => void;
+};
+
+type TravelModeSheetProps = {
+  /**
+   * The party the user is asking directions to. Shown in the subtitle so the
+   * user has context. May be null between dismissal and re-present; the sheet
+   * gracefully falls back to a generic subtitle.
+   */
+  target: PartyMapItem | null;
   onSelect: (mode: 'driving' | 'walking') => void;
-}) {
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity style={modeStyles.overlay} activeOpacity={1} onPress={onClose}>
-        <View style={modeStyles.card}>
-          <Text style={modeStyles.title}>Get Directions</Text>
+  onDismiss: () => void;
+};
+
+const TravelModeSheet = forwardRef<TravelModeSheetRef, TravelModeSheetProps>(
+  function TravelModeSheet({ target, onSelect, onDismiss }, ref) {
+    const sheetRef = useRef<BottomSheetModal>(null);
+    const snapPoints = useMemo(() => ['34%'], []);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        present: () => sheetRef.current?.present(),
+        dismiss: () => sheetRef.current?.dismiss(),
+      }),
+      [],
+    );
+
+    const renderBackdrop = useCallback(
+      (props: BottomSheetBackdropProps) => (
+        <BottomSheetBackdrop
+          {...props}
+          appearsOnIndex={0}
+          disappearsOnIndex={-1}
+          opacity={0.5}
+          pressBehavior="close"
+        />
+      ),
+      [],
+    );
+
+    const handlePick = (mode: 'driving' | 'walking') => {
+      Haptics.selectionAsync();
+      onSelect(mode);
+      sheetRef.current?.dismiss();
+    };
+
+    return (
+      <BottomSheetModal
+        ref={sheetRef}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        onDismiss={onDismiss}
+        backdropComponent={renderBackdrop}
+        handleIndicatorStyle={modeStyles.handle}
+        backgroundStyle={modeStyles.background}
+      >
+        <BottomSheetView style={modeStyles.content}>
+          <Text style={modeStyles.title} accessibilityRole="header">
+            Get directions
+          </Text>
+          <Text style={modeStyles.body}>
+            {target ? `How are you getting to ${target.title}?` : 'How are you getting there?'}
+          </Text>
           <View style={modeStyles.options}>
-            <TouchableOpacity
-              style={modeStyles.option}
-              activeOpacity={0.8}
-              onPress={() => { onSelect('driving'); onClose(); }}
+            <Pressable
+              onPress={() => handlePick('driving')}
+              accessibilityRole="button"
+              accessibilityLabel="Driving"
+              accessibilityHint="Show driving directions"
+              style={({ pressed }) => [modeStyles.option, pressed && modeStyles.optionPressed]}
             >
-              <LinearGradient colors={['#9B20FF', '#6500D2']} style={modeStyles.optionGradient}>
-                <Ionicons name="car" size={ms(28)} color="#FFF" />
-                <Text style={modeStyles.optionText}>Driving</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={modeStyles.option}
-              activeOpacity={0.8}
-              onPress={() => { onSelect('walking'); onClose(); }}
+              <View style={modeStyles.iconBubble}>
+                <Icon sfSymbol="car.fill" ionicon="car" size={24} color={colors.tint} />
+              </View>
+              <Text style={modeStyles.optionLabel}>Driving</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => handlePick('walking')}
+              accessibilityRole="button"
+              accessibilityLabel="Walking"
+              accessibilityHint="Show walking directions"
+              style={({ pressed }) => [modeStyles.option, pressed && modeStyles.optionPressed]}
             >
-              <LinearGradient colors={['#9B20FF', '#6500D2']} style={modeStyles.optionGradient}>
-                <Ionicons name="walk" size={ms(28)} color="#FFF" />
-                <Text style={modeStyles.optionText}>Walking</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+              <View style={modeStyles.iconBubble}>
+                <Icon sfSymbol="figure.walk" ionicon="walk" size={24} color={colors.tint} />
+              </View>
+              <Text style={modeStyles.optionLabel}>Walking</Text>
+            </Pressable>
           </View>
-          <TouchableOpacity onPress={onClose} activeOpacity={0.7} style={modeStyles.cancelBtn}>
-            <Text style={modeStyles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    </Modal>
-  );
-}
+        </BottomSheetView>
+      </BottomSheetModal>
+    );
+  },
+);
 
 const modeStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  background: {
+    backgroundColor: colors.surfaceElevated,
+    borderTopLeftRadius: radii.xxl,
+    borderTopRightRadius: radii.xxl,
   },
-  card: {
-    backgroundColor: '#1A1620',
-    borderRadius: s(24),
-    paddingTop: vs(24),
-    paddingBottom: vs(20),
-    paddingHorizontal: s(24),
-    width: '80%',
-    alignItems: 'center',
+  handle: {
+    backgroundColor: colors.labelTertiary,
+    width: layout.sheetHandleWidth,
+  },
+  content: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
+    gap: spacing.md,
   },
   title: {
-    color: '#FFF',
-    fontSize: ms(20),
-    fontWeight: '700',
-    marginBottom: vs(20),
+    ...typography.title3,
+    fontWeight: weights.bold,
+    color: colors.label,
+    textAlign: 'center',
+  },
+  body: {
+    ...typography.callout,
+    color: colors.labelSecondary,
+    textAlign: 'center',
   },
   options: {
     flexDirection: 'row',
-    gap: s(16),
-    marginBottom: vs(16),
+    gap: spacing.md,
+    marginTop: spacing.md,
   },
   option: {
     flex: 1,
-    borderRadius: s(16),
-    overflow: 'hidden',
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    paddingVertical: spacing.lg,
+    alignItems: 'center',
+    gap: spacing.sm,
   },
-  optionGradient: {
+  optionPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
+  iconBubble: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.brand.tintBg,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: vs(20),
-    gap: vs(8),
   },
-  optionText: {
-    color: '#FFF',
-    fontSize: ms(15),
-    fontWeight: '600',
-  },
-  cancelBtn: {
-    paddingVertical: vs(8),
-  },
-  cancelText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: ms(15),
-    fontWeight: '500',
+  optionLabel: {
+    ...typography.bodyEmphasized,
+    color: colors.label,
   },
 });
 
@@ -373,9 +455,17 @@ export default function ExploreScreen() {
   const [locationDenied, setLocationDenied] = useState(false);
   const cameraRef = useRef<MapboxGL.Camera>(null);
   const peekSheetRef = useRef<PartyPeekSheetRef>(null);
+  const modeSheetRef = useRef<TravelModeSheetRef>(null);
 
-  // Navigation / routing state
-  const [showModePicker, setShowModePicker] = useState(false);
+  // Navigation / routing state.
+  //
+  // `directionsTarget` captures the party at the moment the user taps the
+  // peek's Directions button. We need this because tapping Directions now
+  // dismisses the peek sheet (whose `onDismiss` clears `selectedParty`),
+  // so by the time the mode sheet's `onSelect` fires `selectedParty` is
+  // already null. Hold the target on a separate slot so the two sheets can
+  // overlap their animations without state collisions.
+  const [directionsTarget, setDirectionsTarget] = useState<PartyMapItem | null>(null);
   const [travelMode, setTravelMode] = useState<'driving' | 'walking'>('driving');
   const [routeGeoJSON, setRouteGeoJSON] = useState<RouteGeoJSON | null>(null);
   const [navigating, setNavigating] = useState(false);
@@ -408,19 +498,27 @@ export default function ExploreScreen() {
     }
   }, [userCoords]);
 
-  // Start directions from party card
+  // Start directions from party card. Capture the target FIRST, then dismiss
+  // the peek sheet (which fires `onDismiss` → `setSelectedParty(null)`), then
+  // present the travel-mode sheet. Sequencing matters: the peek sheet's
+  // animation begins before the mode sheet's, so the two slide past each
+  // other rather than overlapping.
   const handleDirections = useCallback(() => {
+    if (!userCoords || !selectedParty) return;
     Haptics.selectionAsync();
-    if (!userCoords) return;
-    setShowModePicker(true);
-  }, [userCoords]);
+    setDirectionsTarget(selectedParty);
+    peekSheetRef.current?.dismiss();
+    modeSheetRef.current?.present();
+  }, [userCoords, selectedParty]);
 
-  // Handle mode selection
+  // Mode picked in the bottom sheet — fetch and draw the route. Uses the
+  // captured `directionsTarget` rather than `selectedParty` (which the peek
+  // dismissal has already cleared).
   const handleModeSelect = useCallback((mode: 'driving' | 'walking') => {
-    if (selectedParty) {
-      fetchRoute(mode, selectedParty);
+    if (directionsTarget) {
+      fetchRoute(mode, directionsTarget);
     }
-  }, [selectedParty, fetchRoute]);
+  }, [directionsTarget, fetchRoute]);
 
   // Cancel navigation
   const handleCancelNavigation = useCallback(() => {
@@ -637,11 +735,12 @@ export default function ExploreScreen() {
         </TouchableOpacity>
       )}
 
-      {/* ── Travel mode picker ── */}
-      <TravelModePicker
-        visible={showModePicker}
-        onClose={() => setShowModePicker(false)}
+      {/* ── Travel mode sheet (themed BottomSheetModal) ── */}
+      <TravelModeSheet
+        ref={modeSheetRef}
+        target={directionsTarget}
         onSelect={handleModeSelect}
+        onDismiss={() => setDirectionsTarget(null)}
       />
 
       {/* ── Date picker modal ── */}

@@ -32,9 +32,9 @@ public class BookingsController(
     }
 
     [HttpGet("my")]
-    public async Task<IActionResult> GetMine()
+    public async Task<IActionResult> GetMine(CancellationToken ct)
     {
-        var bookings = await queryHandler.Handle(new GetUserBookingsQuery());
+        var bookings = await queryHandler.Handle(new GetUserBookingsQuery(), ct);
         return Ok(bookings);
     }
 

@@ -1,23 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  ScrollView,
   ActivityIndicator,
   RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
+import Animated, { Easing, FadeInDown } from 'react-native-reanimated';
+import { AdminScreen } from '@/components/admin/admin-screen';
+import { DashboardSectionHeader } from '@/components/admin/dashboard-section-header';
+import { StatTile, SummaryStrip } from '@/components/admin/stat-tile';
+import { EmptyState } from '@/components/ui/empty-state';
 import { bookingService } from '@/services/bookingService';
 import type { BookingItem } from '@/types/bookings';
-import { getStatusColor, getStatusBackgroundColor } from '@/types/bookings';
-import { s, vs, ms } from '@/constants/responsive';
+import { colors, radii, spacing, typography, weights } from '@/theme';
+
+// Entrance choreography: content blocks fade/slide in top→bottom (party context →
+// summary strip → Confirmed & pending → Cancelled). Same FadeInDown + Easing.out(quad)
+// shape as the dashboard and manage screens, for cross-screen consistency.
+const ENTER_STAGGER_STEP_MS = 60;
+const ENTER_DURATION_MS = 250;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-GB', {
@@ -27,8 +30,60 @@ function formatDate(iso: string): string {
   });
 }
 
+type StatusStyle = { dot: string; label: string; fill: string };
+
+/**
+ * Visual treatment for a free-string booking status. `default` falls through to
+ * the Pending styling so an unexpected server value renders safely (warning
+ * amber) rather than crashing or rendering blank. Distinct from HostPartyCard's
+ * `StatusBadge` (which describes a party's lifecycle, not a booking's payment
+ * state), hence local to this screen.
+ */
+function statusStyle(status: string): StatusStyle {
+  switch (status) {
+    case 'Confirmed':
+      return { dot: colors.success, label: colors.success, fill: colors.brand.tintBg };
+    case 'Cancelled':
+      return { dot: colors.labelTertiary, label: colors.labelTertiary, fill: colors.fillTertiary };
+    case 'Pending':
+    default:
+      return { dot: colors.warning, label: colors.warning, fill: colors.fillQuaternary };
+  }
+}
+
+/** Dot + label pill describing a single booking's status. */
+function BookingStatusPill({ status }: { status: string }) {
+  const s = statusStyle(status);
+  return (
+    <View
+      style={[styles.pill, { backgroundColor: s.fill }]}
+      accessibilityLabel={`Status: ${status}`}
+    >
+      <View style={[styles.pillDot, { backgroundColor: s.dot }]} />
+      <Text style={[styles.pillLabel, { color: s.label }]}>{status}</Text>
+    </View>
+  );
+}
+
+/** A single booking row: tickets + date on the left, price + status on the right. */
+function BookingRow({ booking }: { booking: BookingItem }) {
+  return (
+    <View style={styles.row}>
+      <View style={styles.rowLeft}>
+        <Text style={styles.rowTickets}>
+          {booking.ticketCount} {booking.ticketCount === 1 ? 'ticket' : 'tickets'}
+        </Text>
+        <Text style={styles.rowDate}>{formatDate(booking.createdAt)}</Text>
+      </View>
+      <View style={styles.rowRight}>
+        <Text style={styles.rowPrice}>€{booking.totalPrice.toFixed(2)}</Text>
+        <BookingStatusPill status={booking.status} />
+      </View>
+    </View>
+  );
+}
+
 export default function PartyBookingsScreen() {
-  const insets = useSafeAreaInsets();
   const { partyId, partyTitle } = useLocalSearchParams<{ partyId: string; partyTitle: string }>();
 
   const [bookings, setBookings] = useState<BookingItem[]>([]);
@@ -42,6 +97,7 @@ export default function PartyBookingsScreen() {
 
   useEffect(() => {
     loadBookings().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partyId]);
 
   const onRefresh = async () => {
@@ -50,210 +106,174 @@ export default function PartyBookingsScreen() {
     setRefreshing(false);
   };
 
-  const activeBookings = bookings.filter(b => b.status !== 'Cancelled');
+  // Play the staggered entrance once on first content paint. This is a pushed
+  // screen (not a persistent tab), so it plays when opened — correct. The ref
+  // also stops a pull-to-refresh re-render from replaying the stagger. No
+  // entrance haptic by design (read-only screen).
+  const hasEntered = useRef(false);
+  const playEntrance = !hasEntered.current;
+  const buildEnter = (index: number) =>
+    playEntrance
+      ? FadeInDown.delay(index * ENTER_STAGGER_STEP_MS)
+          .duration(ENTER_DURATION_MS)
+          .easing(Easing.out(Easing.quad))
+      : undefined;
+  // Mark as entered once real content paints (loader gone) so the stagger plays
+  // on this render only, never on a later refresh re-render.
+  useEffect(() => {
+    if (!loading) hasEntered.current = true;
+  }, [loading]);
 
-  const totalTickets = activeBookings
-    .reduce((sum, b) => sum + b.ticketCount, 0);
+  const activeBookings = bookings.filter((b) => b.status !== 'Cancelled');
+  const cancelledBookings = bookings.filter((b) => b.status === 'Cancelled');
 
-  const totalRevenue = activeBookings
-    .reduce((sum, b) => sum + b.totalPrice, 0);
+  // Stats cover active (non-cancelled) bookings only — the sectioned list below
+  // surfaces cancelled rows separately so the figures and the list reconcile.
+  const totalTickets = activeBookings.reduce((sum, b) => sum + b.ticketCount, 0);
+  const totalRevenue = activeBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+
+  if (loading) {
+    return (
+      <AdminScreen title="Bookings">
+        <View style={styles.loader}>
+          <ActivityIndicator color={colors.tint} />
+        </View>
+      </AdminScreen>
+    );
+  }
 
   return (
-    <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <LinearGradient
-        colors={['#000000', '#0A001A', '#7D08FA']}
-        locations={[0, 0.62, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+    <AdminScreen
+      title="Bookings"
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.labelSecondary}
+        />
+      }
+    >
+      {/* Party-context block — nav says "Bookings"; content names the party so
+          the create→manage→bookings trail stays legible. */}
+      {partyTitle ? (
+        <Animated.View entering={buildEnter(0)} style={styles.contextBlock}>
+          <Text style={styles.partyTitle} accessibilityRole="header" numberOfLines={2}>
+            {partyTitle}
+          </Text>
+        </Animated.View>
+      ) : null}
 
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={ms(28)} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Bookings</Text>
-      </View>
-
-      {partyTitle && (
-        <Text style={styles.partyTitle} numberOfLines={1}>{partyTitle}</Text>
-      )}
-
-      {loading ? (
-        <View style={styles.loader}>
-          <ActivityIndicator size="large" color="#7D08FA" />
-        </View>
-      ) : bookings.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="ticket-outline" size={ms(60)} color="rgba(255,255,255,0.25)" />
-          <Text style={styles.emptyText}>No bookings yet</Text>
-        </View>
+      {bookings.length === 0 ? (
+        <Animated.View entering={buildEnter(1)}>
+          <EmptyState
+            sfSymbol="ticket"
+            ionicon="ticket-outline"
+            title="No bookings yet"
+            body="Bookings will appear here once guests start buying tickets."
+          />
+        </Animated.View>
       ) : (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 30 }]}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D08FA" colors={['#7D08FA']} />
-          }
-        >
-          {/* Summary strip */}
-          <BlurView intensity={10} tint="dark" style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{activeBookings.length}</Text>
-              <Text style={styles.summaryLabel}>Bookings</Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>{totalTickets}</Text>
-              <Text style={styles.summaryLabel}>Tickets</Text>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryValue}>€{totalRevenue.toFixed(0)}</Text>
-              <Text style={styles.summaryLabel}>Revenue</Text>
-            </View>
-          </BlurView>
+        <>
+          {/* Summary values are not cross-faded on refresh: this read-only screen
+              is rarely pulled, so the micro-interaction is low payoff for the
+              added per-tile mount/layout complexity — the once-per-open entrance
+              stagger below is the screen's motion. */}
+          <Animated.View entering={buildEnter(1)} style={styles.summaryBlock}>
+            <SummaryStrip>
+              <StatTile value={String(activeBookings.length)} label="Bookings" />
+              <StatTile value={String(totalTickets)} label="Tickets" />
+              <StatTile value={`€${Math.round(totalRevenue).toLocaleString()}`} label="Revenue" />
+            </SummaryStrip>
+          </Animated.View>
 
-          {/* Booking list */}
-          {bookings.map(b => (
-            <BlurView key={b.id} intensity={10} tint="dark" style={styles.card}>
-              <View style={styles.cardRow}>
-                <View style={styles.cardLeft}>
-                  <Text style={styles.cardTickets}>
-                    {b.ticketCount} {b.ticketCount === 1 ? 'ticket' : 'tickets'}
-                  </Text>
-                  <Text style={styles.cardDate}>{formatDate(b.createdAt)}</Text>
-                </View>
-                <View style={styles.cardRight}>
-                  <Text style={styles.cardPrice}>€{b.totalPrice.toFixed(2)}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusBackgroundColor(b.status) }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(b.status) }]}>{b.status}</Text>
-                  </View>
-                </View>
-              </View>
-            </BlurView>
-          ))}
-        </ScrollView>
+          <Animated.View entering={buildEnter(2)} style={styles.section}>
+            <DashboardSectionHeader title="Confirmed & pending" />
+            {activeBookings.map((b) => (
+              <BookingRow key={b.id} booking={b} />
+            ))}
+          </Animated.View>
+
+          {cancelledBookings.length > 0 ? (
+            <Animated.View entering={buildEnter(3)} style={styles.section}>
+              <DashboardSectionHeader title="Cancelled" />
+              {cancelledBookings.map((b) => (
+                <BookingRow key={b.id} booking={b} />
+              ))}
+            </Animated.View>
+          ) : null}
+        </>
       )}
-    </View>
+    </AdminScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: s(8),
-    paddingBottom: vs(4),
-    gap: s(8),
-  },
-  backBtn: { padding: s(8) },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: ms(30),
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'center',
-    marginRight: s(44),
-  },
-  partyTitle: {
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: ms(14),
-    textAlign: 'center',
-    paddingHorizontal: s(20),
-    marginBottom: vs(12),
-  },
   loader: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: vs(12),
+  contextBlock: {
+    marginBottom: spacing.lg,
   },
-  emptyText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: ms(22),
-    fontWeight: '600',
+  partyTitle: {
+    ...typography.title2,
+    fontWeight: weights.bold,
+    color: colors.label,
   },
-  scroll: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: s(12),
-    gap: vs(8),
+  summaryBlock: {
+    marginBottom: spacing.xl,
   },
-  summaryRow: {
-    borderRadius: s(15),
-    overflow: 'hidden',
-    backgroundColor: 'rgba(43,43,43,0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    flexDirection: 'row',
-    paddingVertical: vs(16),
-    marginBottom: vs(8),
+  section: {
+    marginBottom: spacing.xl,
+    gap: spacing.md,
   },
-  summaryItem: {
-    flex: 1,
-    alignItems: 'center',
-    gap: vs(4),
-  },
-  summaryValue: {
-    color: '#FFF',
-    fontSize: ms(22),
-    fontWeight: '700',
-  },
-  summaryLabel: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: ms(12),
-  },
-  summaryDivider: {
-    width: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  card: {
-    borderRadius: s(15),
-    overflow: 'hidden',
-    backgroundColor: 'rgba(43,43,43,0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  cardRow: {
+  row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: s(14),
-    paddingVertical: vs(14),
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.base,
   },
-  cardLeft: { gap: vs(4) },
-  cardTickets: {
-    color: '#FFF',
-    fontSize: ms(17),
-    fontWeight: '600',
+  rowLeft: {
+    gap: spacing.xs,
   },
-  cardDate: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: ms(13),
+  rowTickets: {
+    ...typography.headline,
+    color: colors.label,
   },
-  cardRight: {
+  rowDate: {
+    ...typography.footnote,
+    color: colors.labelSecondary,
+  },
+  rowRight: {
     alignItems: 'flex-end',
-    gap: vs(6),
+    gap: spacing.sm,
   },
-  cardPrice: {
-    color: '#FFF',
-    fontSize: ms(17),
-    fontWeight: '700',
+  rowPrice: {
+    ...typography.headline,
+    fontWeight: weights.bold,
+    color: colors.label,
   },
-  statusBadge: {
-    borderRadius: s(20),
-    paddingHorizontal: s(10),
-    paddingVertical: vs(3),
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
   },
-  statusText: {
-    fontSize: ms(12),
-    fontWeight: '600',
+  pillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: radii.pill,
+  },
+  pillLabel: {
+    ...typography.caption1,
+    fontWeight: weights.semibold,
   },
 });

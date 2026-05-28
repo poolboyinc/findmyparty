@@ -3,10 +3,15 @@ export interface PartyMapItem {
   title: string;
   price: number;
   startsAt: string;
+  endsAt: string;
   latitude: number;
   longitude: number;
   isSoldOut: boolean;
   imageUrl?: string;
+  /** Music genre tag, e.g. "Techno". Optional — older records may omit it. */
+  genre?: string;
+  /** Tickets sold so far. Drives the "{n} going" count on the consumer card. */
+  attendeeCount: number;
 }
 
 export interface PartyDetail {
@@ -59,6 +64,10 @@ export interface CreatePartyRequest {
   endsAt: string;
   latitude: number;
   longitude: number;
+  genre?: string;
+  performerName?: string;
+  performerType?: string;
+  featured: boolean;
 }
 
 export interface UpdatePartyRequest {
@@ -70,4 +79,9 @@ export interface UpdatePartyRequest {
   endsAt: string;
   latitude: number;
   longitude: number;
+  imageUrl?: string;
+  genre?: string;
+  performerName?: string;
+  performerType?: string;
+  featured: boolean;
 }

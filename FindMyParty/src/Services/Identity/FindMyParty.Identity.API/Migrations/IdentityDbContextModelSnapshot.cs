@@ -118,6 +118,15 @@ namespace FindMyParty.Identity.API.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("WorkingDays")
+                        .HasColumnType("text");
+
+                    b.Property<TimeOnly?>("WorkingHoursClose")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<TimeOnly?>("WorkingHoursOpen")
+                        .HasColumnType("time without time zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("UserId")

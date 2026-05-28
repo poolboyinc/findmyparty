@@ -137,17 +137,23 @@ export const partyService = {
   },
 
   async cancelParty(partyId: string): Promise<boolean> {
-    const token = await authService.getToken();
-    if (!token) return false;
+    try {
+      const token = await authService.getToken();
+      if (!token) return false;
 
-    const response = await fetchWithTimeout(
-      `${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/cancel`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
-    return response.ok;
+      const response = await fetchWithTimeout(
+        `${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/cancel`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      return response.ok;
+    } catch {
+      // Network/timeout — return false so the caller surfaces a failure notice
+      // (a throw would otherwise skip the caller's error handling entirely).
+      return false;
+    }
   },
 
   async uploadPartyImage(partyId: string, imageUri: string): Promise<string | null> {
@@ -170,13 +176,18 @@ export const partyService = {
   },
 
   async deleteParty(partyId: string): Promise<boolean> {
-    const token = await authService.getToken();
-    if (!token) return false;
+    try {
+      const token = await authService.getToken();
+      if (!token) return false;
 
-    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    return response.ok;
+      const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.ok;
+    } catch {
+      // Network/timeout — return false so the caller surfaces a failure notice.
+      return false;
+    }
   },
 };
