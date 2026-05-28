@@ -76,6 +76,16 @@ builder.Services.AddHttpClient<IPartyAvailabilityService, PartyAvailabilityServi
         client.BaseAddress = new Uri(url);
     });
 
+builder.Services.AddHttpClient<IPartyLookupService, PartyLookupService>(
+    client =>
+    {
+        var url = builder.Configuration["Services:PartiesBaseUrl"] ?? "http://localhost:5246";
+        client.BaseAddress = new Uri(url);
+        // Keep the timeout tight — this enriches the bookings list and we'd
+        // rather degrade to "no party metadata" than block the user's request.
+        client.Timeout = TimeSpan.FromSeconds(5);
+    });
+
 builder.Services.AddSingleton<IOutboxSignal, OutboxSignal>();
 builder.Services.AddHostedService<OutboxProcessorService>();
 

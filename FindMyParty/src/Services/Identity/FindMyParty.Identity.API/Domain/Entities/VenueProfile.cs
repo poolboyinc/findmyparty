@@ -14,6 +14,15 @@ namespace FindMyParty.Identity.API.Domain.Entities
 
         public double Longitude { get; set; }
 
+        // Host-editable schedule. All nullable so existing rows backfill cleanly
+        // and new hosts can set them later from the admin Edit Profile screen.
+        public TimeOnly? WorkingHoursOpen { get; set; }
+
+        public TimeOnly? WorkingHoursClose { get; set; }
+
+        /// <summary>Comma-separated active days, e.g. "MON,TUE,WED". Null when not set.</summary>
+        public string? WorkingDays { get; set; }
+
         public ApplicationUser User { get; set; } = default!;
     }
 }

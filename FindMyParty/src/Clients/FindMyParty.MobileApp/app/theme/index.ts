@@ -56,6 +56,10 @@ export const colors = {
     orange: BRAND_ORANGE_HEX,
     /** Low-opacity tint for selection/active backgrounds (active tab bubble, active chip). */
     tintBg: 'rgba(157,107,255,0.15)',
+    /** Opaque ~12% blend of `surface` toward brand purple. For one-shot highlights
+     *  over an opaque card where a translucent tint would let the bg bleed through
+     *  (e.g. the "just created" pulse on HostPartyCard). */
+    tintBgSolid: '#26203A',
     /** Magenta accent — auth-screen text links (Forgot password, Sign up / Sign in
      *  footers) and the right anchor of `authGradient` below. */
     magenta: '#C040C8',

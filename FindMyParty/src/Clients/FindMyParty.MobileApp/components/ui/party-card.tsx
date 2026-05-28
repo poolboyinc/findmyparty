@@ -25,8 +25,7 @@ type Props = {
   imageUrl?: string | null;
   title: string;
   attendeeCount: number;
-  distanceKm: number;
-  /** Genre tag, e.g. "Techno". */
+  /** Genre tag, e.g. "Techno". Empty string hides the segment. */
   genre: string;
   /** Time range, e.g. "23–03h". Use an en-dash, not a hyphen. */
   hours: string;
@@ -65,7 +64,6 @@ export function PartyCard({
   imageUrl,
   title,
   attendeeCount,
-  distanceKm,
   genre,
   hours,
   priceLevel,
@@ -76,6 +74,18 @@ export function PartyCard({
   onHeartPress,
 }: Props) {
   const showRating = typeof rating === 'number';
+
+  // Middle-dot meta strip. Genre is dropped when empty so the row never shows
+  // a dangling " ·  · " gap. Order: social proof → genre → time → price.
+  const metaLine = [
+    // Hide the attendee segment for a brand-new party — "0 going" reads weak.
+    attendeeCount > 0 ? `${attendeeCount} going` : '',
+    genre,
+    hours,
+    priceLevel,
+  ]
+    .filter((segment) => segment.length > 0)
+    .join(SEP);
 
   const cardScale = useSharedValue(1);
   const heartScale = useSharedValue(1);
@@ -157,21 +167,12 @@ export function PartyCard({
             </View>
 
             <Text
-              style={styles.attendance}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.9}
-            >
-              {`${attendeeCount} people going${SEP}${distanceKm.toFixed(1)}km away`}
-            </Text>
-
-            <Text
               style={styles.metadata}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.9}
             >
-              {`${genre}${SEP}${hours}${SEP}${priceLevel}`}
+              {metaLine}
             </Text>
           </View>
         </Animated.View>
@@ -281,10 +282,6 @@ const styles = StyleSheet.create({
     ...typography.footnote,
     color: colors.labelSecondary,
     fontWeight: weights.regular,
-  },
-  attendance: {
-    ...typography.footnote,
-    color: colors.labelSecondary,
   },
   metadata: {
     ...typography.footnote,

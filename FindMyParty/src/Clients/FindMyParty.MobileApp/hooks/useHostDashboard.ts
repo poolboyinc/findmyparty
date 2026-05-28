@@ -22,6 +22,26 @@ export function toCardStatus(status: string | undefined): HostPartyStatus {
   }
 }
 
+/**
+ * Formats a start/end ISO pair into a "23:00 – 03:00" range, tolerating a
+ * missing or invalid bound. Co-located with `toCardStatus` so Home and Manage
+ * share one implementation.
+ */
+export function formatTimeRange(startsAt: string, endsAt: string): string {
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    return isNaN(d.getTime())
+      ? ''
+      : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  };
+  const start = fmt(startsAt);
+  const end = fmt(endsAt);
+  if (!start && !end) return '';
+  if (!end) return start;
+  if (!start) return end;
+  return `${start} – ${end}`;
+}
+
 export type HostDashboard = {
   /** Count of upcoming published/soldout parties. */
   activeCount: number;
@@ -56,6 +76,12 @@ export function useHostDashboard() {
     }
   }, [load]);
 
+  // Optimistic local removal for delete/cancel so the card disappears instantly
+  // without waiting on a full refetch round-trip.
+  const removeParty = useCallback((partyId: string) => {
+    setParties((prev) => prev.filter((p) => p.id !== partyId));
+  }, []);
+
   // Single pass over the parties array: the three stats + the next-up pick.
   const dashboard = useMemo<HostDashboard>(() => {
     const now = Date.now();
@@ -87,5 +113,5 @@ export function useHostDashboard() {
     };
   }, [parties]);
 
-  return { loading, refreshing, refresh, dashboard };
+  return { loading, refreshing, refresh, dashboard, parties, removeParty };
 }

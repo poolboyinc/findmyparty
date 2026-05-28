@@ -20,6 +20,7 @@ public class PartiesController(
     DeletePartyCommandHandler deleteHandler,
     GetPublishedPartiesQueryHandler queryHandler,
     GetPartyByIdQueryHandler getByIdHandler,
+    GetPartiesByIdsQueryHandler getPartiesByIdsHandler,
     GetHostPartiesQueryHandler hostPartiesHandler,
     PartiesDbContext db,
     IDistributedCache cache,
@@ -132,6 +133,23 @@ public class PartiesController(
         return Ok(parties);
     }
 
+
+    // Anonymous on purpose — intended caller is Bookings.API (service-to-service)
+    // but the gateway also routes here. Same exposure level as GET /api/parties/{id}
+    // which is also anonymous. The response DTO deliberately omits price /
+    // capacity / ticketsSold so the public reach surface stays the same as today.
+    [HttpPost("by-ids")]
+    public async Task<IActionResult> GetByIds([FromBody] PartyByIdsRequest request)
+    {
+        if (request.Ids == null || request.Ids.Length == 0)
+            return Ok(Array.Empty<BookingPartyDto>());
+
+        if (request.Ids.Length > 100)
+            return BadRequest("Max 100 ids per request");
+
+        var parties = await getPartiesByIdsHandler.Handle(new GetPartiesByIdsQuery(request.Ids));
+        return Ok(parties);
+    }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)

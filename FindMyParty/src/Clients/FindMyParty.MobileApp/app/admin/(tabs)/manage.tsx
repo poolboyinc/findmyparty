@@ -1,395 +1,332 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  ScrollView,
+  ActionSheetIOS,
   ActivityIndicator,
-  RefreshControl,
   Alert,
-  useWindowDimensions,
+  Platform,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, {
+  Easing,
+  FadeInDown,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { router, useLocalSearchParams } from 'expo-router';
+import { AdminScreen } from '@/components/admin/admin-screen';
+import { DashboardSectionHeader } from '@/components/admin/dashboard-section-header';
+import { HostPartyCard } from '@/components/admin/host-party-card';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SwipeDeleteAction, SWIPE_DEFAULTS } from '@/components/ui/swipe-delete-action';
+import { useHostDashboard, toCardStatus, formatTimeRange } from '@/hooks/useHostDashboard';
+import { setEditDraft } from '@/hooks/useEditPartyDraft';
 import { partyService } from '@/services/partyService';
+import { resolveMediaUrl } from '@/constants/api';
 import type { HostPartyResponse } from '@/types/parties';
-import { s, vs, ms } from '@/constants/responsive';
+import { colors, radii, spacing, typography, weights } from '@/theme';
 
-function formatDateHeader(isoString: string): string {
-  return new Date(isoString).toLocaleDateString('en-GB', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
+// Card entrance stagger — same FadeInDown + Easing.out(quad) shape the dashboard
+// uses, for cross-screen consistency.
+const ENTER_STAGGER_STEP_MS = 60;
+const ENTER_DURATION_MS = 250;
 
-function formatTimeRange(startsAt: string, endsAt: string): string {
-  const fmt = (s: string) =>
-    new Date(s).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  return `${fmt(startsAt)} – ${fmt(endsAt)}`;
-}
+type StatusGroup = {
+  key: 'draft' | 'published' | 'soldout';
+  title: string;
+  items: HostPartyResponse[];
+};
 
-function groupByDate(parties: HostPartyResponse[]): { date: string; items: HostPartyResponse[] }[] {
-  const map = new Map<string, HostPartyResponse[]>();
-  for (const p of parties) {
-    const key = new Date(p.startsAt).toDateString();
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(p);
+/** Partitions parties into the Drafts → Published → Sold out sections. */
+function groupByStatus(parties: HostPartyResponse[]): StatusGroup[] {
+  const groups: StatusGroup[] = [
+    { key: 'draft', title: 'Drafts', items: [] },
+    { key: 'published', title: 'Published', items: [] },
+    { key: 'soldout', title: 'Sold out', items: [] },
+  ];
+  for (const party of parties) {
+    const status = toCardStatus(party.status);
+    groups.find((g) => g.key === status)?.items.push(party);
   }
-  return Array.from(map.entries()).map(([, items]) => ({
-    date: items[0].startsAt,
-    items,
-  }));
-}
-
-function PartyCard({ party, onPublish, onDelete, onCancel }: {
-  party: HostPartyResponse;
-  onPublish: (id: string) => void;
-  onDelete: (id: string) => void;
-  onCancel: (id: string) => void;
-}) {
-  const isDraft = party.status?.toLowerCase() === 'draft';
-  const isPublished = party.status?.toLowerCase() === 'published' || party.status?.toLowerCase() === 'soldout';
-  const { height: H } = useWindowDimensions();
-
-  const handleEditPress = () => {
-    const options: { text: string; style?: 'destructive' | 'cancel' | 'default'; onPress?: () => void }[] = [];
-
-    if (isDraft) {
-      options.push({ text: 'Delete Draft', style: 'destructive', onPress: () => onDelete(party.id) });
-    }
-    if (isPublished) {
-      options.push({ text: 'Cancel Party', style: 'destructive', onPress: () => onCancel(party.id) });
-    }
-    options.push({ text: 'Dismiss', style: 'cancel' });
-
-    Alert.alert(party.title, undefined, options);
-  };
-  const imageAreaHeight = H * 0.129;  // 109/844
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={() => router.push({ pathname: '/admin/party-bookings', params: { partyId: party.id, partyTitle: party.title } })}
-    >
-    <BlurView intensity={12} tint="dark" style={styles.card}>
-      {/* Image area */}
-      <View style={[styles.imageArea, { height: imageAreaHeight }]}>
-        <LinearGradient
-          colors={['#1a0030', '#3D0880', '#7D08FA']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        {isDraft && (
-          <View style={styles.draftBadge}>
-            <Text style={styles.draftBadgeText}>Draft</Text>
-          </View>
-        )}
-        {/* Edit button */}
-        <TouchableOpacity
-          style={styles.editBtn}
-          activeOpacity={0.8}
-          onPress={handleEditPress}
-        >
-          <BlurView intensity={30} tint="light" style={styles.editBtnBlur}>
-            <Ionicons name="create-outline" size={ms(22)} color="#FFF" />
-          </BlurView>
-        </TouchableOpacity>
-      </View>
-
-      {/* Info strip */}
-      <View style={styles.infoStrip}>
-        <View style={styles.infoLeft}>
-          <View style={styles.infoTitleRow}>
-            <Text style={styles.infoTitle} numberOfLines={1}>{party.title}</Text>
-          </View>
-          <Text style={styles.infoTime}>{formatTimeRange(party.startsAt, party.endsAt)}</Text>
-          {isDraft && (
-            <TouchableOpacity
-              style={styles.publishBtn}
-              activeOpacity={0.8}
-              onPress={() => onPublish(party.id)}
-            >
-              <Text style={styles.publishBtnText}>Publish →</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        <View style={styles.infoRight}>
-          <Text style={styles.infoMeta}>Entrance: €{party.price}</Text>
-          <Text style={styles.infoMeta}>RSVPs: {party.ticketsSold}</Text>
-          {!isDraft && <Text style={styles.viewBookings}>View bookings →</Text>}
-        </View>
-      </View>
-    </BlurView>
-    </TouchableOpacity>
-  );
+  return groups.filter((g) => g.items.length > 0);
 }
 
 export default function ManagePartiesScreen() {
-  const insets = useSafeAreaInsets();
-  const [parties, setParties] = useState<HostPartyResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { loading, refreshing, refresh, parties, removeParty } = useHostDashboard();
+  const { newPartyId, updatedPartyId } = useLocalSearchParams<{
+    newPartyId?: string;
+    updatedPartyId?: string;
+  }>();
 
-  const loadParties = () => partyService.getMyParties().then(setParties);
-
+  // The card to pulse this paint, captured once so a later refresh re-render
+  // can't re-trigger it. Cleared from the route after first paint below.
+  const highlightId = newPartyId ?? updatedPartyId ?? null;
+  const [pulseId, setPulseId] = useState<string | null>(highlightId);
   useEffect(() => {
-    loadParties().finally(() => setLoading(false));
-  }, []);
-
-  const handlePublish = useCallback(async (partyId: string) => {
-    const success = await partyService.publishParty(partyId);
-    if (success) {
-      await loadParties();
-    } else {
-      Alert.alert('Failed', 'Could not publish the party. Please try again.');
+    if (highlightId) {
+      // Drop the param so a tab revisit doesn't replay the pulse.
+      router.setParams({ newPartyId: undefined, updatedPartyId: undefined });
     }
+    // Run once for the incoming param; subsequent renders keep `pulseId` until
+    // the host navigates away.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleDelete = useCallback((partyId: string) => {
-    Alert.alert('Delete Draft', 'This will permanently delete the draft. Continue?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          const success = await partyService.deleteParty(partyId);
-          if (success) {
-            await loadParties();
-          } else {
-            Alert.alert('Failed', 'Could not delete the party. Please try again.');
-          }
+  // Play the staggered entrance once on first content paint (not on refresh).
+  const hasEntered = useRef(false);
+  const playEntrance = !hasEntered.current;
+  const buildEnter = (index: number) =>
+    playEntrance
+      ? FadeInDown.delay(index * ENTER_STAGGER_STEP_MS)
+          .duration(ENTER_DURATION_MS)
+          .easing(Easing.out(Easing.quad))
+      : undefined;
+  useEffect(() => {
+    if (!loading) hasEntered.current = true;
+  }, [loading]);
+
+  const goCreate = () => router.push('/admin/create');
+
+  const openBookings = useCallback((party: HostPartyResponse) => {
+    router.push({
+      pathname: '/admin/party-bookings',
+      params: { partyId: party.id, partyTitle: party.title },
+    });
+  }, []);
+
+  // ─── Per-status actions ───
+  const handleEdit = useCallback((party: HostPartyResponse) => {
+    setEditDraft(party);
+    router.push({ pathname: '/admin/edit', params: { partyId: party.id } });
+  }, []);
+
+  const handlePublish = useCallback(
+    async (party: HostPartyResponse) => {
+      const success = await partyService.publishParty(party.id);
+      if (success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await refresh();
+      } else {
+        Alert.alert('Failed', 'Could not publish the party. Please try again.');
+      }
+    },
+    [refresh],
+  );
+
+  const handleDeleteDraft = useCallback(
+    (party: HostPartyResponse) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert('Delete draft', 'This will permanently delete the draft. Continue?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const success = await partyService.deleteParty(party.id);
+            if (success) {
+              removeParty(party.id);
+            } else {
+              Alert.alert('Failed', 'Could not delete the draft. Please try again.');
+            }
+          },
         },
-      },
-    ]);
-  }, []);
+      ]);
+    },
+    [removeParty],
+  );
 
-  const handleCancel = useCallback((partyId: string) => {
-    Alert.alert('Cancel Party', 'This will cancel the party and notify all attendees. Continue?', [
-      { text: 'Go back', style: 'cancel' },
-      {
-        text: 'Cancel Party', style: 'destructive', onPress: async () => {
-          const success = await partyService.cancelParty(partyId);
-          if (success) {
-            setParties(prev => prev.filter(p => p.id !== partyId));
-          } else {
-            Alert.alert('Failed', 'Could not cancel the party. Please try again.');
-          }
-        },
-      },
-    ]);
-  }, []);
+  const handleCancelParty = useCallback(
+    (party: HostPartyResponse) => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert(
+        'Cancel party',
+        'This will cancel the party and notify all attendees. Continue?',
+        [
+          { text: 'Go back', style: 'cancel' },
+          {
+            text: 'Cancel party',
+            style: 'destructive',
+            onPress: async () => {
+              const success = await partyService.cancelParty(party.id);
+              if (success) {
+                removeParty(party.id);
+              } else {
+                Alert.alert('Failed', 'Could not cancel the party. Please try again.');
+              }
+            },
+          },
+        ],
+      );
+    },
+    [removeParty],
+  );
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadParties();
-    setRefreshing(false);
-  };
+  // Ellipsis menu — iOS action sheet; Android falls back to an Alert. Mirrors
+  // create's `openOptionPicker` shape.
+  const openActions = useCallback(
+    (party: HostPartyResponse) => {
+      Haptics.selectionAsync();
+      const isDraft = toCardStatus(party.status) === 'draft';
 
-  const groups = groupByDate(parties);
+      if (Platform.OS === 'ios') {
+        if (isDraft) {
+          ActionSheetIOS.showActionSheetWithOptions(
+            {
+              title: party.title,
+              options: ['Edit', 'Publish', 'Delete draft', 'Cancel'],
+              destructiveButtonIndex: 2,
+              cancelButtonIndex: 3,
+              userInterfaceStyle: 'dark',
+            },
+            (index) => {
+              if (index === 0) handleEdit(party);
+              else if (index === 1) handlePublish(party);
+              else if (index === 2) handleDeleteDraft(party);
+            },
+          );
+        } else {
+          ActionSheetIOS.showActionSheetWithOptions(
+            {
+              title: party.title,
+              options: ['Cancel party', 'Dismiss'],
+              destructiveButtonIndex: 0,
+              cancelButtonIndex: 1,
+              userInterfaceStyle: 'dark',
+            },
+            (index) => {
+              if (index === 0) handleCancelParty(party);
+            },
+          );
+        }
+        return;
+      }
+
+      // Android
+      if (isDraft) {
+        Alert.alert(party.title, undefined, [
+          { text: 'Edit', onPress: () => handleEdit(party) },
+          { text: 'Publish', onPress: () => handlePublish(party) },
+          { text: 'Delete draft', style: 'destructive', onPress: () => handleDeleteDraft(party) },
+          { text: 'Cancel', style: 'cancel' },
+        ]);
+      } else {
+        Alert.alert(party.title, undefined, [
+          { text: 'Cancel party', style: 'destructive', onPress: () => handleCancelParty(party) },
+          { text: 'Dismiss', style: 'cancel' },
+        ]);
+      }
+    },
+    [handleEdit, handlePublish, handleDeleteDraft, handleCancelParty],
+  );
+
+  const groups = useMemo(() => groupByStatus(parties), [parties]);
+
+  // Hold the first paint on the hook's loading flag (no per-screen role gate —
+  // the tab area is already gated).
+  if (loading) {
+    return (
+      <AdminScreen showBack={false}>
+        <View style={styles.loader}>
+          <ActivityIndicator color={colors.tint} />
+        </View>
+      </AdminScreen>
+    );
+  }
 
   return (
-    <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <LinearGradient
-        colors={['#000000', '#0A001A', '#7D08FA']}
-        locations={[0, 0.62, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+    <AdminScreen
+      showBack={false}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.labelSecondary} />
+      }
+    >
+      <Animated.View entering={buildEnter(0)} style={styles.titleBlock}>
+        <Text style={styles.largeTitle} accessibilityRole="header">
+          My Parties
+        </Text>
+      </Animated.View>
 
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={ms(28)} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Parties</Text>
-      </View>
-
-      {loading ? (
-        <View style={styles.loader}>
-          <ActivityIndicator size="large" color="#7D08FA" />
-        </View>
-      ) : parties.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="calendar-outline" size={ms(60)} color="rgba(255,255,255,0.25)" />
-          <Text style={styles.emptyText}>No parties yet</Text>
-          <Text style={styles.emptySubtext}>Tap "Create party" to get started</Text>
-        </View>
+      {parties.length === 0 ? (
+        <EmptyState
+          sfSymbol="calendar.badge.plus"
+          ionicon="calendar-outline"
+          title="No parties yet"
+          body="Create your first party to start selling tickets."
+          action={{ label: 'Create party', onPress: goCreate }}
+        />
       ) : (
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 30 }]}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7D08FA" colors={['#7D08FA']} />
-          }
-        >
-          {groups.map((group, gi) => (
-            <View key={gi} style={styles.group}>
-              <Text style={styles.dateLabel}>{formatDateHeader(group.date)}</Text>
-              {group.items.map(party => (
-                <PartyCard key={party.id} party={party} onPublish={handlePublish} onDelete={handleDelete} onCancel={handleCancel} />
-              ))}
-            </View>
-          ))}
-        </ScrollView>
+        groups.map((group, gi) => (
+          <Animated.View key={group.key} entering={buildEnter(gi + 1)} style={styles.group}>
+            <DashboardSectionHeader title={group.title} />
+            {group.items.map((party) => {
+              const isDraft = group.key === 'draft';
+              const revenue =
+                party.revenue > 0 ? `€${Math.round(party.revenue).toLocaleString()}` : undefined;
+              const destructiveLabel = isDraft ? 'Delete' : 'Cancel';
+              const onDestructive = () =>
+                isDraft ? handleDeleteDraft(party) : handleCancelParty(party);
+
+              return (
+                <ReanimatedSwipeable
+                  key={party.id}
+                  friction={SWIPE_DEFAULTS.friction}
+                  rightThreshold={SWIPE_DEFAULTS.rightThreshold}
+                  overshootRight={false}
+                  overshootFriction={SWIPE_DEFAULTS.overshootFriction}
+                  activeOffsetX={SWIPE_DEFAULTS.activeOffsetX}
+                  containerStyle={styles.swipeContainer}
+                  renderRightActions={(progress) => (
+                    <SwipeDeleteAction
+                      progress={progress}
+                      label={destructiveLabel}
+                      onPress={onDestructive}
+                    />
+                  )}
+                >
+                  <HostPartyCard
+                    imageUrl={resolveMediaUrl(party.imageUrl)}
+                    title={party.title}
+                    status={toCardStatus(party.status)}
+                    timeRange={formatTimeRange(party.startsAt, party.endsAt)}
+                    rsvps={party.ticketsSold}
+                    capacity={party.capacity}
+                    revenue={revenue}
+                    isNew={party.id === pulseId}
+                    onPress={() => openBookings(party)}
+                    onMorePress={() => openActions(party)}
+                  />
+                </ReanimatedSwipeable>
+              );
+            })}
+          </Animated.View>
+        ))
       )}
-    </View>
+    </AdminScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: s(8),
-    paddingBottom: vs(12),
-    gap: s(8),
-  },
-  backBtn: { padding: s(8) },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: ms(30),
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'center',
-    marginRight: s(44),
-  },
   loader: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: vs(12),
+  titleBlock: {
+    marginBottom: spacing.lg,
   },
-  emptyText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: ms(22),
-    fontWeight: '600',
-  },
-  emptySubtext: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: ms(15),
-  },
-  scroll: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: s(12),
-    gap: vs(4),
+  largeTitle: {
+    ...typography.largeTitle,
+    fontWeight: weights.bold,
+    color: colors.label,
   },
   group: {
-    gap: vs(8),
-    marginBottom: vs(20),
+    marginBottom: spacing.xl,
+    gap: spacing.md,
   },
-  dateLabel: {
-    color: '#FFF',
-    fontSize: ms(19),
-    fontWeight: '500',
-  },
-  card: {
-    borderRadius: s(15),
+  swipeContainer: {
+    borderRadius: radii.card,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(30,20,50,0.5)',
-  },
-  imageArea: {
-    // height applied inline via useWindowDimensions
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  draftBadge: {
-    position: 'absolute',
-    top: vs(10),
-    left: s(10),
-    backgroundColor: '#7D08FA',
-    borderRadius: s(10),
-    paddingHorizontal: s(10),
-    paddingVertical: vs(3),
-  },
-  draftBadgeText: {
-    color: '#FFF',
-    fontSize: ms(13),
-    fontWeight: '500',
-  },
-  editBtn: {
-    position: 'absolute',
-    top: vs(8),
-    right: s(8),
-    width: s(40),
-    height: vs(40),
-    borderRadius: s(20),
-    overflow: 'hidden',
-  },
-  editBtnBlur: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  infoStrip: {
-    flexDirection: 'row',
-    backgroundColor: '#2B2B2B',
-    paddingHorizontal: s(10),
-    paddingVertical: vs(10),
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    minHeight: vs(80),
-  },
-  infoLeft: {
-    flex: 1,
-    gap: vs(4),
-  },
-  infoTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s(8),
-    flexWrap: 'wrap',
-  },
-  infoTitle: {
-    color: '#FFF',
-    fontSize: ms(22),
-    fontWeight: '600',
-  },
-  infoTime: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: ms(14),
-  },
-  infoRight: {
-    alignItems: 'flex-end',
-    gap: vs(4),
-  },
-  infoMeta: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: ms(14),
-  },
-  viewBookings: {
-    color: '#9B5EFA',
-    fontSize: ms(12),
-    fontWeight: '500',
-    marginTop: vs(2),
-  },
-  publishBtn: {
-    marginTop: vs(6),
-    backgroundColor: '#7D08FA',
-    borderRadius: s(8),
-    paddingHorizontal: s(10),
-    paddingVertical: vs(4),
-    alignSelf: 'flex-start',
-  },
-  publishBtnText: {
-    color: '#FFF',
-    fontSize: ms(13),
-    fontWeight: '600',
   },
 });

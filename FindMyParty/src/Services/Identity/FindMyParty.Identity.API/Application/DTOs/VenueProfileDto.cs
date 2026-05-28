@@ -5,5 +5,8 @@ namespace FindMyParty.Identity.API.Application.DTOs
         string VenueName,
         string Address,
         double Latitude,
-        double Longitude);
+        double Longitude,
+        TimeOnly? WorkingHoursOpen,
+        TimeOnly? WorkingHoursClose,
+        string? WorkingDays);
 }

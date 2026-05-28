@@ -1,123 +1,239 @@
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  ScrollView,
-  Alert,
-  Platform,
-  useWindowDimensions,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { s, vs, ms } from '@/constants/responsive';
+import * as Haptics from 'expo-haptics';
+import { AdminScreen } from '@/components/admin/admin-screen';
+import { FormField } from '@/components/admin/form-field';
+import { PickerField } from '@/components/admin/picker-field';
+import { PrimaryButton } from '@/components/ui/primary-button';
+import { Icon } from '@/components/ui/icon';
 import { adminService } from '@/services/adminService';
 import type { HostProfile } from '@/types/auth';
+import { colors, radii, spacing, typography, weights } from '@/theme';
 
 const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'] as const;
+type DayCode = (typeof DAYS)[number];
+
+const AVATAR_SIZE = 112;
+const DAY_CHIP_HEIGHT = 44;
+const SUCCESS_DISMISS_MS = 2400;
+
+// ─── Time helpers ─────────────────────────────────────────────────────────
+// Parse a .NET TimeOnly string ("HH:mm:ss") into today-anchored Date.
+// Anything malformed/empty returns null so the UI falls back to "Set time".
+function parseTimeString(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = match[3] ? Number(match[3]) : 0;
+  if (
+    Number.isNaN(hours) ||
+    Number.isNaN(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+  const d = new Date();
+  d.setHours(hours, minutes, seconds, 0);
+  return d;
+}
+
+// Serialize a Date back to "HH:mm:ss" for the PATCH payload.
+function formatTimeForApi(value: Date | null): string | null {
+  if (!value) return null;
+  const hh = String(value.getHours()).padStart(2, '0');
+  const mm = String(value.getMinutes()).padStart(2, '0');
+  // Seconds aren't user-editable here; persist as :00 to match .NET TimeOnly precision.
+  return `${hh}:${mm}:00`;
+}
+
+// "HH:mm" for the PickerField display value. Null/undefined → placeholder.
+function formatTimeForDisplay(value: Date | null): string {
+  if (!value) return 'Set time';
+  return value.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+
+// First two word-initials of the venue name, uppercased. Falls back to "?".
+function getInitials(venueName: string): string {
+  const trimmed = venueName.trim();
+  if (!trimmed) return '?';
+  const initials = trimmed
+    .split(/\s+/)
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+  return initials || '?';
+}
 
 export default function EditProfileScreen() {
-  const insets = useSafeAreaInsets();
-  const { height: H } = useWindowDimensions();
-  const avatarSize = H * 0.186;       // 157/844
-  const avatarInnerSize = H * 0.175;  // 148/844
-
   const [hostProfile, setHostProfile] = useState<HostProfile | null>(null);
-
-  useEffect(() => {
-    adminService.getHostProfile().then(profile => {
-      if (profile) setHostProfile(profile);
-    });
-  }, []);
-
-  const [openTime, setOpenTime] = useState(() => {
-    const d = new Date(); d.setHours(8, 0, 0, 0); return d;
-  });
-  const [closeTime, setCloseTime] = useState(() => {
-    const d = new Date(); d.setHours(3, 0, 0, 0); return d;
-  });
+  const [venueName, setVenueName] = useState('');
+  const [openTime, setOpenTime] = useState<Date | null>(null);
+  const [closeTime, setCloseTime] = useState<Date | null>(null);
+  const [activeDays, setActiveDays] = useState<Set<string>>(new Set());
   const [showOpenPicker, setShowOpenPicker] = useState(false);
   const [showClosePicker, setShowClosePicker] = useState(false);
-  const [activeDays, setActiveDays] = useState<Set<string>>(
-    new Set(['TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'])
-  );
+  const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [successVisible, setSuccessVisible] = useState(false);
 
-  const formatTime = (d: Date) =>
-    d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  // ─── Hydrate from the API once on mount. The `cancelled` flag guards a
+  // late response from setting state on an unmounted component.
+  useEffect(() => {
+    let cancelled = false;
+    adminService.getHostProfile().then((profile) => {
+      if (cancelled || !profile) return;
+      setHostProfile(profile);
+      setVenueName(profile.venueName);
+      setOpenTime(parseTimeString(profile.workingHoursOpen));
+      setCloseTime(parseTimeString(profile.workingHoursClose));
+      setActiveDays(
+        new Set(
+          profile.workingDays
+            ? profile.workingDays
+                .split(',')
+                .map((d) => d.trim())
+                .filter(Boolean)
+            : [],
+        ),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const toggleDay = (day: string) => {
-    setActiveDays(prev => {
+  // ─── Auto-dismiss the success notice. Clears on unmount or when the notice
+  // is toggled off early by another save attempt.
+  useEffect(() => {
+    if (!successVisible) return;
+    const handle = setTimeout(() => setSuccessVisible(false), SUCCESS_DISMISS_MS);
+    return () => clearTimeout(handle);
+  }, [successVisible]);
+
+  const onChangeVenueName = (next: string) => {
+    setVenueName(next);
+    if (nameError) setNameError(null);
+  };
+
+  const toggleDay = (day: DayCode) => {
+    Haptics.selectionAsync();
+    setActiveDays((prev) => {
       const next = new Set(prev);
-      next.has(day) ? next.delete(day) : next.add(day);
+      if (next.has(day)) {
+        next.delete(day);
+      } else {
+        next.add(day);
+      }
       return next;
     });
   };
 
-  const handleSave = () => {
-    // TODO: Persist working hours & days via venue profile API endpoint
-    Alert.alert('Saved', 'Profile settings updated.');
+  const handleSave = async () => {
+    setSubmitError(null);
+    setNameError(null);
+    Haptics.selectionAsync();
+
+    const trimmedName = venueName.trim();
+    if (!trimmedName) {
+      setNameError('Venue name is required.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const ok = await adminService.updateMyVenueProfile({
+        venueName: trimmedName,
+        workingHoursOpen: formatTimeForApi(openTime),
+        workingHoursClose: formatTimeForApi(closeTime),
+        workingDays: activeDays.size > 0 ? Array.from(activeDays).join(',') : null,
+      });
+      if (!ok) {
+        setSubmitError("Couldn't save your changes. Check your connection and try again.");
+        setLoading(false);
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSuccessVisible(true);
+      // Refresh the local profile so the header initials/name reflect the save.
+      setHostProfile((prev) => (prev ? { ...prev, venueName: trimmedName } : prev));
+    } catch {
+      setSubmitError("Couldn't save your changes. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <LinearGradient
-        colors={['#000000', '#0A001A', '#7D08FA']}
-        locations={[0, 0.62, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+  // Header display values: prefer the saved profile name so the initials don't
+  // shimmer as the host types. Fall back to placeholders while loading.
+  const displayName = hostProfile?.venueName ?? (venueName || '—');
+  const initials = hostProfile ? getInitials(hostProfile.venueName) : '?';
 
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={ms(28)} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Profile</Text>
+  return (
+    <AdminScreen title="Edit Profile">
+      {/* ─── Avatar + venue name ─── */}
+      <View style={styles.avatarBlock}>
+        <View
+          style={styles.avatar}
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={`Venue initials ${initials}`}
+        >
+          <Text style={styles.avatarInitials}>{initials}</Text>
+        </View>
+        <Text style={styles.venueHeading} numberOfLines={2}>
+          {displayName}
+        </Text>
       </View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Avatar + Name */}
-        <View style={styles.profileSection}>
-          <View style={[styles.avatarRing, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}>
-            <LinearGradient
-              colors={['#9B20FF', '#7D08FA']}
-              style={StyleSheet.absoluteFill}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-            <View style={[styles.avatarInner, { width: avatarInnerSize, height: avatarInnerSize, borderRadius: avatarInnerSize / 2 }]}>
-              <Text style={styles.avatarInitials}>
-                {hostProfile?.venueName
-                  ? hostProfile.venueName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
-                  : '??'}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.venueName}>{hostProfile?.venueName ?? '—'}</Text>
-          <TouchableOpacity style={styles.editRow} activeOpacity={0.7}>
-            <Text style={styles.editLabel}>Edit</Text>
-            <Ionicons name="create-outline" size={ms(20)} color="rgba(255,255,255,0.5)" />
-          </TouchableOpacity>
-        </View>
+      {/* ─── Venue Details ─── */}
+      <View style={styles.section}>
+        <Text style={styles.sectionHeader}>Venue Details</Text>
+        <FormField
+          label="Venue Name"
+          value={venueName}
+          onChangeText={onChangeVenueName}
+          maxLength={120}
+          helper="Shown to guests across FindMyParty."
+          error={nameError}
+          returnKeyType="done"
+          autoCapitalize="words"
+        />
+      </View>
 
-        {/* ─── Venue Location (read-only, set by FindMyParty team) ─── */}
-        <Text style={styles.sectionTitle}>Venue Location</Text>
-        <BlurView intensity={10} tint="dark" style={styles.locationBox}>
-          <Ionicons name="location-outline" size={ms(22)} color="rgba(255,255,255,0.6)" />
-          <View style={styles.locationText}>
+      {/* ─── Location (read-only) ─── */}
+      <View style={styles.section}>
+        <Text style={styles.sectionHeader}>Location</Text>
+        <View
+          style={styles.locationCard}
+          accessible
+          accessibilityLabel={
+            hostProfile
+              ? `Venue location: ${hostProfile.address}. This field is managed by the FindMyParty team.`
+              : 'Loading venue location'
+          }
+        >
+          <Icon
+            sfSymbol="mappin.and.ellipse"
+            ionicon="location-outline"
+            size={20}
+            color={colors.labelSecondary}
+          />
+          <View style={styles.locationTextCol}>
             {hostProfile ? (
               <>
-                <Text style={styles.locationAddress}>{hostProfile.address}</Text>
+                <Text style={styles.locationAddress} numberOfLines={2}>
+                  {hostProfile.address}
+                </Text>
                 <Text style={styles.locationCoords}>
                   {hostProfile.latitude.toFixed(5)}, {hostProfile.longitude.toFixed(5)}
                 </Text>
@@ -126,296 +242,288 @@ export default function EditProfileScreen() {
               <Text style={styles.locationAddress}>Loading venue location…</Text>
             )}
           </View>
-          <Ionicons name="lock-closed-outline" size={ms(18)} color="rgba(255,255,255,0.35)" />
-        </BlurView>
-        <Text style={styles.locationHint}>
-          Location is managed by the FindMyParty team. Contact support to update it.
+          <Icon
+            sfSymbol="lock.fill"
+            ionicon="lock-closed"
+            size={16}
+            color={colors.labelTertiary}
+          />
+        </View>
+        <Text style={styles.helperText}>
+          Location is managed by the FindMyParty team. Contact support to move your venue.
         </Text>
+      </View>
 
-        {/* ─── Working Hours ─── */}
-        <Text style={[styles.sectionTitle, { marginTop: vs(16) }]}>Working Hours</Text>
+      {/* ─── Working Hours ─── */}
+      <View style={styles.section}>
+        <Text style={styles.sectionHeader}>Working Hours</Text>
         <View style={styles.row}>
-          <View style={styles.halfCol}>
-            <Text style={styles.fieldLabel}>Open</Text>
-            <TouchableOpacity onPress={() => setShowOpenPicker(true)} activeOpacity={0.85}>
-              <BlurView intensity={10} tint="dark" style={styles.inputBox}>
-                <View style={styles.rowSpaced}>
-                  <Text style={styles.inputText}>{formatTime(openTime)}</Text>
-                  <Ionicons name="time-outline" size={ms(26)} color="rgba(255,255,255,0.7)" />
-                </View>
-              </BlurView>
-            </TouchableOpacity>
+          <View style={styles.half}>
+            <PickerField
+              label="Opens"
+              value={formatTimeForDisplay(openTime)}
+              icon={
+                <Icon
+                  sfSymbol="clock"
+                  ionicon="time-outline"
+                  size={20}
+                  color={colors.labelSecondary}
+                />
+              }
+              onPress={() => setShowOpenPicker(true)}
+            />
           </View>
-          <View style={styles.halfCol}>
-            <Text style={styles.fieldLabel}>Close</Text>
-            <TouchableOpacity onPress={() => setShowClosePicker(true)} activeOpacity={0.85}>
-              <BlurView intensity={10} tint="dark" style={styles.inputBox}>
-                <View style={styles.rowSpaced}>
-                  <Text style={styles.inputText}>{formatTime(closeTime)}</Text>
-                  <Ionicons name="time-outline" size={ms(26)} color="rgba(255,255,255,0.7)" />
-                </View>
-              </BlurView>
-            </TouchableOpacity>
+          <View style={styles.half}>
+            <PickerField
+              label="Closes"
+              value={formatTimeForDisplay(closeTime)}
+              icon={
+                <Icon
+                  sfSymbol="clock"
+                  ionicon="time-outline"
+                  size={20}
+                  color={colors.labelSecondary}
+                />
+              }
+              onPress={() => setShowClosePicker(true)}
+            />
           </View>
         </View>
         {showOpenPicker && (
           <DateTimePicker
-            value={openTime}
+            // Seed the spinner with the current value, or 22:00 today as a sensible
+            // default when nothing has been set yet.
+            value={openTime ?? (() => {
+              const d = new Date();
+              d.setHours(22, 0, 0, 0);
+              return d;
+            })()}
             mode="time"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(_, t) => { setShowOpenPicker(false); if (t) setOpenTime(t); }}
+            onChange={(_, t) => {
+              setShowOpenPicker(false);
+              if (t) setOpenTime(t);
+            }}
             themeVariant="dark"
-            accentColor="#7D08FA"
+            accentColor={colors.tint}
           />
         )}
         {showClosePicker && (
           <DateTimePicker
-            value={closeTime}
+            value={closeTime ?? (() => {
+              const d = new Date();
+              d.setHours(3, 0, 0, 0);
+              return d;
+            })()}
             mode="time"
             display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(_, t) => { setShowClosePicker(false); if (t) setCloseTime(t); }}
+            onChange={(_, t) => {
+              setShowClosePicker(false);
+              if (t) setCloseTime(t);
+            }}
             themeVariant="dark"
-            accentColor="#7D08FA"
+            accentColor={colors.tint}
           />
         )}
+        <Text style={styles.helperText}>Used to show guests when your venue is open.</Text>
+      </View>
 
-        {/* ─── Working Days ─── */}
-        <Text style={[styles.sectionTitle, { marginTop: vs(24) }]}>Working Days</Text>
+      {/* ─── Working Days ─── */}
+      <View style={styles.section}>
+        <Text style={styles.sectionHeader}>Working Days</Text>
         <View style={styles.daysRow}>
-          {DAYS.map(day => {
+          {DAYS.map((day) => {
             const active = activeDays.has(day);
             return (
-              <TouchableOpacity
+              <Pressable
                 key={day}
                 onPress={() => toggleDay(day)}
-                activeOpacity={0.8}
-                style={styles.dayBtnWrapper}
+                accessibilityRole="button"
+                accessibilityLabel={day}
+                accessibilityState={{ selected: active }}
+                accessibilityHint={
+                  active ? 'Removes this day from your working days' : 'Adds this day to your working days'
+                }
+                style={({ pressed }) => [
+                  styles.dayChip,
+                  active ? styles.dayChipActive : styles.dayChipInactive,
+                  pressed && styles.dayChipPressed,
+                ]}
               >
-                {active ? (
-                  <LinearGradient
-                    colors={['#FF6E00', '#7E0AFA']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 0, y: 1 }}
-                    style={styles.dayBtn}
-                  >
-                    <Text style={styles.dayText}>{day}</Text>
-                  </LinearGradient>
-                ) : (
-                  <BlurView intensity={8} tint="dark" style={styles.dayBtnInactive}>
-                    <Text style={styles.dayText}>{day}</Text>
-                  </BlurView>
-                )}
-              </TouchableOpacity>
+                <Text style={active ? styles.dayChipTextActive : styles.dayChipTextInactive}>
+                  {day}
+                </Text>
+              </Pressable>
             );
           })}
         </View>
+      </View>
 
-        {/* ─── Save button ─── */}
-        <TouchableOpacity
-          activeOpacity={0.82}
-          onPress={handleSave}
-          style={styles.saveBtnWrapper}
+      {/* ─── Inline submit / success rows ─── */}
+      {submitError ? (
+        <Animated.Text
+          entering={FadeIn.duration(200)}
+          style={styles.submitError}
+          accessibilityLiveRegion="polite"
         >
-          <BlurView intensity={14} tint="light" style={styles.btnBlur}>
-            <LinearGradient
-              colors={['#7E0AFA', '#FF6E00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.saveBtnGradient}
-            >
-              <Text style={styles.saveBtnText}>Save Changes</Text>
-            </LinearGradient>
-          </BlurView>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
+          {submitError}
+        </Animated.Text>
+      ) : null}
+      {successVisible ? (
+        <Animated.Text
+          entering={FadeIn.duration(200)}
+          style={styles.submitSuccess}
+          accessibilityLiveRegion="polite"
+        >
+          Profile saved.
+        </Animated.Text>
+      ) : null}
+
+      <View style={styles.saveBlock}>
+        <PrimaryButton
+          label="Save Changes"
+          onPress={handleSave}
+          loading={loading}
+          disabled={loading}
+          accessibilityHint="Saves your venue profile changes"
+        />
+      </View>
+    </AdminScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
-  header: {
-    flexDirection: 'row',
+  // ─── Avatar block
+  avatarBlock: {
     alignItems: 'center',
-    paddingHorizontal: s(8),
-    paddingBottom: vs(12),
-    gap: s(8),
+    gap: spacing.md,
+    marginBottom: spacing.lg,
   },
-  backBtn: { padding: s(8) },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: ms(28),
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'center',
-    marginRight: s(44),
-  },
-  scroll: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: s(16),
-    gap: vs(10),
-  },
-  profileSection: {
-    alignItems: 'center',
-    gap: vs(8),
-    marginBottom: vs(16),
-  },
-  avatarRing: {
-    // width/height/borderRadius applied inline via useWindowDimensions
-    padding: s(3),
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarInner: {
-    // width/height/borderRadius applied inline via useWindowDimensions
-    backgroundColor: '#1A0030',
+  avatar: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.hairline,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarInitials: {
-    color: '#FFF',
-    fontSize: ms(48),
-    fontWeight: '700',
+    ...typography.largeTitle,
+    fontWeight: weights.bold,
+    color: colors.label,
   },
-  venueName: {
-    color: '#FFF',
-    fontSize: ms(30),
-    fontWeight: '700',
+  venueHeading: {
+    ...typography.title2,
+    fontWeight: weights.bold,
+    color: colors.label,
     textAlign: 'center',
   },
-  editRow: {
+
+  // ─── Sections
+  section: {
+    gap: spacing.sm,
+    marginBottom: spacing.xl,
+  },
+  sectionHeader: {
+    ...typography.subheadline,
+    fontWeight: weights.semibold,
+    color: colors.labelSecondary,
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  helperText: {
+    ...typography.footnote,
+    color: colors.labelSecondary,
+    paddingHorizontal: spacing.xs,
+  },
+
+  // ─── Location card
+  locationCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: s(6),
-  },
-  editLabel: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: ms(22),
-    fontWeight: '400',
-  },
-  sectionTitle: {
-    color: '#FFF',
-    fontSize: ms(20),
-    fontWeight: '600',
-    marginBottom: vs(4),
-    marginTop: vs(8),
-  },
-  locationBox: {
-    borderRadius: s(15),
-    overflow: 'hidden',
-    backgroundColor: 'rgba(43,43,43,0.85)',
+    gap: spacing.md,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.field,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: s(14),
-    paddingVertical: vs(12),
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: s(10),
+    borderColor: colors.hairline,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md,
   },
-  locationText: {
+  locationTextCol: {
     flex: 1,
-    gap: vs(2),
+    gap: spacing.xxs,
   },
   locationAddress: {
-    color: '#FFF',
-    fontSize: ms(15),
-    fontWeight: '400',
+    ...typography.body,
+    color: colors.label,
   },
   locationCoords: {
-    color: 'rgba(255,255,255,0.45)',
-    fontSize: ms(12),
+    ...typography.caption2,
+    color: colors.labelTertiary,
   },
-  locationHint: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: ms(12),
-    marginLeft: s(4),
-    marginTop: vs(4),
-  },
-  fieldLabel: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: ms(13),
-    marginBottom: vs(4),
-    marginLeft: s(4),
-  },
+
+  // ─── Working hours row
   row: {
     flexDirection: 'row',
-    gap: s(8),
+    gap: spacing.sm,
   },
-  halfCol: {
+  half: {
     flex: 1,
-    gap: vs(4),
   },
-  inputBox: {
-    borderRadius: s(15),
-    overflow: 'hidden',
-    backgroundColor: 'rgba(43,43,43,0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    height: vs(55),
-    justifyContent: 'center',
-    paddingHorizontal: s(14),
-  },
-  inputText: {
-    color: '#FFF',
-    fontSize: ms(18),
-    fontWeight: '400',
-  },
-  rowSpaced: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
+
+  // ─── Day chips
   daysRow: {
     flexDirection: 'row',
-    gap: s(2),
+    gap: spacing.xs,
   },
-  dayBtnWrapper: {
+  dayChip: {
     flex: 1,
-    height: vs(55),
-    borderRadius: s(10),
-    overflow: 'hidden',
-  },
-  dayBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: s(10),
-  },
-  dayBtnInactive: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(43,43,43,0.85)',
+    height: DAY_CHIP_HEIGHT,
+    borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: 'rgba(112,112,112,0.5)',
-    borderRadius: s(10),
-  },
-  dayText: {
-    color: '#FFF',
-    fontSize: ms(13),
-    fontWeight: '300',
-  },
-  saveBtnWrapper: {
-    width: '100%',
-    height: vs(54),
-    borderRadius: s(48),
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    marginTop: vs(32),
-    alignSelf: 'center',
-    maxWidth: s(331),
-  },
-  btnBlur: { flex: 1 },
-  saveBtnGradient: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  saveBtnText: {
-    color: '#FFF',
-    fontSize: ms(20),
-    fontWeight: '700',
+  dayChipInactive: {
+    backgroundColor: colors.surfaceElevated,
+    borderColor: colors.hairline,
+  },
+  dayChipActive: {
+    backgroundColor: colors.brand.tintBg,
+    borderColor: colors.tint,
+  },
+  dayChipPressed: {
+    opacity: 0.85,
+  },
+  dayChipTextInactive: {
+    ...typography.caption1,
+    fontWeight: weights.semibold,
+    color: colors.labelSecondary,
+  },
+  dayChipTextActive: {
+    ...typography.caption1,
+    fontWeight: weights.semibold,
+    color: colors.tint,
+  },
+
+  // ─── Status rows
+  submitError: {
+    ...typography.footnote,
+    color: colors.danger,
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  submitSuccess: {
+    ...typography.footnote,
+    color: colors.success,
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+
+  // ─── Save block
+  saveBlock: {
+    marginTop: spacing.lg,
   },
 });

@@ -86,6 +86,7 @@ builder.Services.AddScoped<CancelPartyCommandHandler>();
 builder.Services.AddScoped<DeletePartyCommandHandler>();
 builder.Services.AddScoped<GetPublishedPartiesQueryHandler>();
 builder.Services.AddScoped<GetPartyByIdQueryHandler>();
+builder.Services.AddScoped<GetPartiesByIdsQueryHandler>();
 builder.Services.AddScoped<GetHostPartiesQueryHandler>();
 
 builder.Services.AddSingleton<IAmazonS3>(_ =>

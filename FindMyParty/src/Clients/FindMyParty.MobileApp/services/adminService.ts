@@ -1,6 +1,12 @@
 import { authService, fetchWithTimeout } from './authService';
 import { ApiConstants } from '../constants/api';
-import type { AssignRoleRequest, HostProfile, UpdateSubscriptionRequest, UserListItem } from '../types/auth';
+import type {
+  AssignRoleRequest,
+  HostProfile,
+  UpdateMyVenueProfileRequest,
+  UpdateSubscriptionRequest,
+  UserListItem,
+} from '../types/auth';
 
 export const adminService = {
   async getUsers(page = 1, pageSize = 20): Promise<UserListItem[]> {
@@ -53,6 +59,21 @@ export const adminService = {
     });
     if (!response.ok) return null;
     return response.json();
+  },
+
+  async updateMyVenueProfile(request: UpdateMyVenueProfileRequest): Promise<boolean> {
+    const token = await authService.getToken();
+    if (!token) return false;
+
+    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/hosts/profile`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(request),
+    });
+    return response.ok;
   },
 
   async updateSubscription(userId: string, subscription: string): Promise<boolean> {

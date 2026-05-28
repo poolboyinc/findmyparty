@@ -82,11 +82,17 @@ export function AdminScreen({
     />
   ) : null;
 
+  // When a header is rendered, AuthHeader already pads for `insets.top`. When
+  // it isn't (e.g. tab-root screens that bring their own greeting / large
+  // title inside the scroll), the body must add the top safe-area itself so
+  // content doesn't sit under the Dynamic Island / notch.
+  const topPadding = header ? spacing.lg : insets.top + spacing.lg;
+
   const body = scroll ? (
     <ScrollView
       contentContainerStyle={[
         styles.scrollContent,
-        { paddingBottom: bottomClearance },
+        { paddingTop: topPadding, paddingBottom: bottomClearance },
         contentContainerStyle,
       ]}
       keyboardShouldPersistTaps="handled"
@@ -96,7 +102,15 @@ export function AdminScreen({
       {children}
     </ScrollView>
   ) : (
-    <View style={[styles.plainBody, contentContainerStyle]}>{children}</View>
+    <View
+      style={[
+        styles.plainBody,
+        { paddingTop: topPadding },
+        contentContainerStyle,
+      ]}
+    >
+      {children}
+    </View>
   );
 
   return (
@@ -127,7 +141,8 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: layout.screenMargin,
-    paddingTop: spacing.lg,
+    // `paddingTop` is computed in the component to layer in the safe-area
+    // inset when no `AuthHeader` is rendered.
   },
   plainBody: {
     flex: 1,

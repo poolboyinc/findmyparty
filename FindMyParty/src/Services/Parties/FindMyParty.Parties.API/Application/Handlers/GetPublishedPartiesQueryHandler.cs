@@ -48,10 +48,13 @@ namespace FindMyParty.Parties.API.Application.Handlers
                     Title = p.Title,
                     Price = p.Price,
                     StartsAt = p.StartsAt,
+                    EndsAt = p.EndsAt,
                     Latitude = p.Latitude,
                     Longitude = p.Longitude,
                     IsSoldOut = p.TicketsSold >= p.Capacity,
-                    ImageUrl = p.ImageUrl
+                    ImageUrl = p.ImageUrl,
+                    Genre = p.Genre,
+                    AttendeeCount = p.TicketsSold
                 })
                 .ToListAsync();
 

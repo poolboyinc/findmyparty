@@ -1,636 +1,150 @@
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  ScrollView,
-  Switch,
-  Alert,
-  ActivityIndicator,
-  Platform,
-  useWindowDimensions,
-  Image,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import * as ImagePicker from 'expo-image-picker';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import { AdminScreen } from '@/components/admin/admin-screen';
+import { ModalFormHeader } from '@/components/admin/modal-form-header';
+import { PartyFormFields, usePartyForm } from '@/components/admin/party-form';
+import { PrimaryButton } from '@/components/ui/primary-button';
 import { partyService } from '@/services/partyService';
 import { adminService } from '@/services/adminService';
 import type { CreatePartyRequest } from '@/types/parties';
 import type { HostProfile } from '@/types/auth';
-import { s, vs, ms } from '@/constants/responsive';
-
-function combineDateTime(date: Date, time: Date): string {
-  const combined = new Date(date);
-  combined.setHours(time.getHours(), time.getMinutes(), 0, 0);
-  return combined.toISOString();
-}
-
-function getEndsAt(date: Date, startTime: Date, endTime: Date): string {
-  const end = new Date(date);
-  end.setHours(endTime.getHours(), endTime.getMinutes(), 0, 0);
-  const start = new Date(date);
-  start.setHours(startTime.getHours(), startTime.getMinutes(), 0, 0);
-  if (end <= start) end.setDate(end.getDate() + 1);
-  return end.toISOString();
-}
+import { colors, spacing, typography } from '@/theme';
 
 export default function CreatePartyScreen() {
-  const insets = useSafeAreaInsets();
-  const { height: H } = useWindowDimensions();
-  const imageBoxHeight = H * 0.145;  // 122/844
-
-  // ─── Venue profile (location fetched silently on mount)
+  // Venue profile (coordinates fetched silently on mount; no role gate here —
+  // the modal is only reachable from the already-gated tab area).
   const [hostProfile, setHostProfile] = useState<HostProfile | null>(null);
 
   useEffect(() => {
-    adminService.getHostProfile().then(profile => {
-      if (profile) setHostProfile(profile);
+    let cancelled = false;
+    adminService.getHostProfile().then((profile) => {
+      if (!cancelled && profile) setHostProfile(profile);
     });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // ─── Basic info
-  const [partyName, setPartyName] = useState('');
-  const [performerName, setPerformerName] = useState('');
-  const [description, setDescription] = useState('');
-  const [genre, setGenre] = useState('');
-  const [performerType, setPerformerType] = useState('');
-  const [price, setPrice] = useState('');
-  const [capacity, setCapacity] = useState('');
+  const form = usePartyForm();
 
-  // ─── Date & Time
-  const [partyDate, setPartyDate] = useState(new Date());
-  const [startTime, setStartTime] = useState(() => {
-    const d = new Date(); d.setHours(22, 0, 0, 0); return d;
-  });
-  const [endTime, setEndTime] = useState(() => {
-    const d = new Date(); d.setHours(3, 0, 0, 0); return d;
-  });
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
-
-  // ─── Images
-  const [images, setImages] = useState<(string | null)[]>([null]);
-
-  // ─── Featured
-  const [featured, setFeatured] = useState(false);
-
-  // ─── Submission
+  // Submission + inline messaging owned by the screen.
   const [loading, setLoading] = useState(false);
-
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-  const formatTime = (d: Date) =>
-    d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-
-  const pickImage = async (index: number) => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Photo library access is required to upload images.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 0.85,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      if (asset.fileSize && asset.fileSize > 10 * 1024 * 1024) {
-        Alert.alert('Image too large', 'Please choose an image under 10 MB.');
-        return;
-      }
-      setImages(prev => {
-        const next = [...prev];
-        next[index] = asset.uri;
-        return next;
-      });
-    }
-  };
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleSubmit = async (publish: boolean) => {
-    if (!partyName.trim()) {
-      Alert.alert('Missing info', 'Party name is required.');
-      return;
-    }
-    const parsedPrice = parseFloat(price);
-    if (!price.trim() || isNaN(parsedPrice) || parsedPrice < 0) {
-      Alert.alert('Missing info', 'Please enter a valid price (0 or more).');
-      return;
-    }
-    const parsedCapacity = parseInt(capacity);
-    if (!capacity.trim() || isNaN(parsedCapacity) || parsedCapacity < 1 || parsedCapacity > 50000) {
-      Alert.alert('Missing info', 'Capacity must be between 1 and 50,000.');
-      return;
-    }
-    if (description.trim().length > 2000) {
-      Alert.alert('Too long', 'Description must be under 2,000 characters.');
-      return;
-    }
+    setSubmitError(null);
+    Haptics.selectionAsync();
+
+    if (!form.validate()) return;
 
     if (!hostProfile) {
-      Alert.alert('Not ready', 'Venue profile is still loading. Please try again.');
+      setSubmitError('Venue profile still loading — try again in a moment.');
       return;
     }
 
+    const payload = form.buildPayload();
+
     setLoading(true);
-    // TEMP DEBUG: tracks which network step throws so the catch can report it.
-    let step = 'createParty';
     try {
-      const title = performerName.trim()
-        ? `${partyName.trim()} – ${performerName.trim()}`
-        : partyName.trim();
-
-      const desc = [
-        description.trim(),
-        genre.trim() ? `Genre: ${genre.trim()}` : '',
-        performerType.trim() ? `Performer: ${performerType.trim()}` : '',
-      ].filter(Boolean).join('\n');
-
       const request: CreatePartyRequest = {
-        title,
-        description: desc,
-        price: parsedPrice,
-        capacity: parsedCapacity,
-        startsAt: combineDateTime(partyDate, startTime),
-        endsAt: getEndsAt(partyDate, startTime, endTime),
+        ...payload,
         latitude: hostProfile.latitude,
         longitude: hostProfile.longitude,
       };
 
       const partyId = await partyService.createParty(request);
       if (!partyId) {
-        Alert.alert('Error', 'Failed to create party. Please try again.');
+        setSubmitError("Couldn't create your party. Check your connection and try again.");
+        setLoading(false);
         return;
       }
 
-      // Upload the first selected image (backend supports one image per party)
-      step = 'uploadPartyImage';
-      const firstImage = images.find(Boolean);
-      if (firstImage) {
-        // TEMP DEBUG: log the URI scheme — ph:// (Photos) often fails FormData on iOS.
-        console.log('[create-party] uploading image uri:', firstImage);
-        const imageUrl = await partyService.uploadPartyImage(partyId, firstImage);
-        console.log('[create-party] upload result:', imageUrl);
+      // Upload the cover image if one was chosen. A failure here is non-blocking:
+      // the party exists, so we surface an inline notice and still proceed.
+      if (form.values.imageUri) {
+        const imageUrl = await partyService.uploadPartyImage(partyId, form.values.imageUri);
         if (!imageUrl) {
-          // Upload returned null (non-ok response) instead of throwing — surface
-          // it rather than silently continuing to publish without an image.
-          Alert.alert(
-            'Image upload failed',
-            'The party was created but the image did not upload (server rejected it). Check the image format/size.',
+          form.setImageNotice(
+            "Party created, but the cover image didn't upload. You can add it later from Manage.",
           );
         }
       }
 
-      step = 'publishParty';
       if (publish) {
         const published = await partyService.publishParty(partyId);
         if (!published) {
-          Alert.alert('Saved as Draft', 'Party was created but could not be published. You can publish it from Manage Parties.');
-          router.back();
+          // Created but not published — land on Manage so the host can publish there.
+          form.setImageNotice("Saved as draft — couldn't publish. Publish it from Manage.");
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          // TODO(animation-specialist): the `newPartyId` param drives the new-party
+          // pulse on Manage (#6).
+          router.replace({ pathname: '/admin/manage', params: { newPartyId: partyId } });
           return;
         }
-        Alert.alert('Posted!', 'Your party is now live on the map.', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
-      } else {
-        Alert.alert('Saved', 'Party saved to drafts.', [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
       }
-    } catch (e) {
-      // TEMP DEBUG: surface the real error + which step threw. On TestFlight
-      // there's no Metro console, so the alert is the only channel. REVERT this
-      // to the generic "Something went wrong" message once the bug is found.
-      const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-      console.error(`[create-party] threw during ${step}:`, e);
-      Alert.alert('Debug error', `Step: ${step}\n${detail}`);
-    } finally {
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // TODO(animation-specialist): the `newPartyId` param drives the new-party
+      // pulse on Manage (#6).
+      router.replace({ pathname: '/admin/manage', params: { newPartyId: partyId } });
+    } catch {
+      setSubmitError("Couldn't create your party. Check your connection and try again.");
       setLoading(false);
     }
   };
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-      <LinearGradient
-        colors={['#000000', '#0A001A', '#7D08FA']}
-        locations={[0, 0.62, 1]}
-        style={StyleSheet.absoluteFill}
+      <ModalFormHeader
+        title="New Party"
+        onCancel={() => router.back()}
+        onPost={() => handleSubmit(true)}
+        submitting={loading}
       />
 
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={ms(28)} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Create party</Text>
-      </View>
+      <AdminScreen>
+        <PartyFormFields {...form.fieldProps} />
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* ─── Section 1: Basic Information ─── */}
-        <Text style={styles.sectionTitle}>Basic information</Text>
-
-        <BlurView intensity={10} tint="dark" style={styles.inputBox}>
-          <TextInput
-            style={styles.inputText}
-            placeholder="Party Name"
-            placeholderTextColor="rgba(255,255,255,0.5)"
-            value={partyName}
-            onChangeText={setPartyName}
-          />
-        </BlurView>
-
-        <BlurView intensity={10} tint="dark" style={styles.inputBox}>
-          <TextInput
-            style={styles.inputText}
-            placeholder="Performer Name"
-            placeholderTextColor="rgba(255,255,255,0.5)"
-            value={performerName}
-            onChangeText={setPerformerName}
-          />
-        </BlurView>
-
-        <BlurView intensity={10} tint="dark" style={[styles.inputBox, styles.textareaBox]}>
-          <TextInput
-            style={[styles.inputText, styles.textareaText]}
-            placeholder="Description"
-            placeholderTextColor="rgba(255,255,255,0.5)"
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            numberOfLines={3}
-            textAlignVertical="top"
-          />
-        </BlurView>
-
-        <View style={styles.row}>
-          <BlurView intensity={10} tint="dark" style={[styles.inputBox, styles.halfBox]}>
-            <TextInput
-              style={styles.inputText}
-              placeholder="Price (€)"
-              placeholderTextColor="rgba(255,255,255,0.5)"
-              value={price}
-              onChangeText={setPrice}
-              keyboardType="decimal-pad"
-            />
-          </BlurView>
-          <BlurView intensity={10} tint="dark" style={[styles.inputBox, styles.halfBox]}>
-            <TextInput
-              style={styles.inputText}
-              placeholder="Capacity"
-              placeholderTextColor="rgba(255,255,255,0.5)"
-              value={capacity}
-              onChangeText={setCapacity}
-              keyboardType="number-pad"
-            />
-          </BlurView>
-        </View>
-
-        <View style={styles.row}>
-          <BlurView intensity={10} tint="dark" style={[styles.inputBox, styles.halfBox]}>
-            <TextInput
-              style={styles.inputText}
-              placeholder="Music Genre"
-              placeholderTextColor="rgba(255,255,255,0.5)"
-              value={genre}
-              onChangeText={setGenre}
-            />
-          </BlurView>
-          <BlurView intensity={10} tint="dark" style={[styles.inputBox, styles.halfBox]}>
-            <TextInput
-              style={styles.inputText}
-              placeholder="Performer Type"
-              placeholderTextColor="rgba(255,255,255,0.5)"
-              value={performerType}
-              onChangeText={setPerformerType}
-            />
-          </BlurView>
-        </View>
-
-        {/* ─── Section 2: Date & Time ─── */}
-        <Text style={[styles.sectionTitle, { marginTop: vs(24) }]}>Date &amp; Time</Text>
-
-        <Text style={styles.fieldLabel}>Party Date</Text>
-        <TouchableOpacity onPress={() => setShowDatePicker(true)} activeOpacity={0.85}>
-          <BlurView intensity={10} tint="dark" style={styles.inputBox}>
-            <View style={styles.rowSpaced}>
-              <Text style={styles.inputText}>{formatDate(partyDate)}</Text>
-              <Ionicons name="calendar-outline" size={ms(26)} color="rgba(255,255,255,0.7)" />
-            </View>
-          </BlurView>
-        </TouchableOpacity>
-        {showDatePicker && (
-          <DateTimePicker
-            value={partyDate}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'inline' : 'default'}
-            minimumDate={new Date()}
-            onChange={(_, date) => {
-              setShowDatePicker(false);
-              if (date) setPartyDate(date);
-            }}
-            themeVariant="dark"
-            accentColor="#7D08FA"
-          />
-        )}
-
-        <View style={styles.row}>
-          <View style={styles.halfCol}>
-            <Text style={styles.fieldLabel}>Start Time</Text>
-            <TouchableOpacity onPress={() => setShowStartPicker(true)} activeOpacity={0.85}>
-              <BlurView intensity={10} tint="dark" style={styles.inputBox}>
-                <View style={styles.rowSpaced}>
-                  <Text style={styles.inputText}>{formatTime(startTime)}</Text>
-                  <Ionicons name="time-outline" size={ms(26)} color="rgba(255,255,255,0.7)" />
-                </View>
-              </BlurView>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.halfCol}>
-            <Text style={styles.fieldLabel}>End Time</Text>
-            <TouchableOpacity onPress={() => setShowEndPicker(true)} activeOpacity={0.85}>
-              <BlurView intensity={10} tint="dark" style={styles.inputBox}>
-                <View style={styles.rowSpaced}>
-                  <Text style={styles.inputText}>{formatTime(endTime)}</Text>
-                  <Ionicons name="time-outline" size={ms(26)} color="rgba(255,255,255,0.7)" />
-                </View>
-              </BlurView>
-            </TouchableOpacity>
-          </View>
-        </View>
-        {showStartPicker && (
-          <DateTimePicker
-            value={startTime}
-            mode="time"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(_, t) => {
-              setShowStartPicker(false);
-              if (t) setStartTime(t);
-            }}
-            themeVariant="dark"
-            accentColor="#7D08FA"
-          />
-        )}
-        {showEndPicker && (
-          <DateTimePicker
-            value={endTime}
-            mode="time"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(_, t) => {
-              setShowEndPicker(false);
-              if (t) setEndTime(t);
-            }}
-            themeVariant="dark"
-            accentColor="#7D08FA"
-          />
-        )}
-
-        {/* ─── Section 3: Party Images ─── */}
-        <Text style={[styles.sectionTitle, { marginTop: vs(24) }]}>Party Images</Text>
-        <TouchableOpacity onPress={() => pickImage(0)} activeOpacity={0.8}>
-          <BlurView intensity={10} tint="dark" style={[styles.imageBox, { height: imageBoxHeight }]}>
-            {images[0] ? (
-              <>
-                <Image
-                  source={{ uri: images[0]! }}
-                  style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
-                />
-                <View style={styles.imageCheckBadge}>
-                  <Ionicons name="checkmark-circle" size={ms(24)} color="#FFF" />
-                </View>
-              </>
-            ) : (
-              <Ionicons name="image-outline" size={ms(40)} color="rgba(255,255,255,0.5)" />
-            )}
-          </BlurView>
-        </TouchableOpacity>
-
-        {/* ─── Section 4: Featured Party ─── */}
-        <View style={[styles.featuredRow, { marginTop: vs(24) }]}>
-          <View style={styles.featuredLeft}>
-            <View style={styles.featuredTitleRow}>
-              <Text style={styles.sectionTitle}>Featured Party</Text>
-              <Ionicons name="information-circle-outline" size={ms(22)} color="rgba(255,255,255,0.7)" style={{ marginLeft: s(8) }} />
-            </View>
-            <Text style={styles.featuredDesc}>
-              Featured parties appear at the top of search results
-            </Text>
-          </View>
-          <Switch
-            value={featured}
-            onValueChange={setFeatured}
-            trackColor={{ false: '#3e3e3e', true: '#7E0AFA' }}
-            thumbColor="#FFF"
-            ios_backgroundColor="#3e3e3e"
-          />
-        </View>
-
-        {/* ─── Buttons ─── */}
-        <View style={styles.buttonsArea}>
-          {/* Save to Drafts */}
-          <TouchableOpacity
-            activeOpacity={0.82}
+        {/* ─── Footer ─── */}
+        {submitError ? (
+          <Animated.Text
+            entering={FadeIn.duration(200)}
+            style={styles.submitError}
+            accessibilityLiveRegion="polite"
+          >
+            {submitError}
+          </Animated.Text>
+        ) : null}
+        <View style={styles.footer}>
+          <PrimaryButton
+            label="Save to Drafts"
+            variant="secondary"
             onPress={() => handleSubmit(false)}
+            loading={loading}
             disabled={loading}
-            style={styles.actionBtnWrapper}
-          >
-            <BlurView intensity={14} tint="light" style={styles.btnBlur}>
-              <LinearGradient
-                colors={['#7E0AFA', '#390075']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.actionBtnGradient}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.actionBtnText}>Save To Drafts</Text>
-                )}
-              </LinearGradient>
-            </BlurView>
-          </TouchableOpacity>
-
-          {/* Post */}
-          <TouchableOpacity
-            activeOpacity={0.82}
-            onPress={() => handleSubmit(true)}
-            disabled={loading}
-            style={styles.actionBtnWrapper}
-          >
-            <BlurView intensity={14} tint="light" style={styles.btnBlur}>
-              <LinearGradient
-                colors={['#7E0AFA', '#FF6E00']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.actionBtnGradient}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.actionBtnText}>Post</Text>
-                )}
-              </LinearGradient>
-            </BlurView>
-          </TouchableOpacity>
+            accessibilityHint="Saves this party as a draft without publishing"
+          />
         </View>
-      </ScrollView>
+      </AdminScreen>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: s(8),
-    paddingBottom: vs(12),
-    gap: s(8),
-  },
-  backBtn: { padding: s(8) },
-  headerTitle: {
-    color: '#FFF',
-    fontSize: ms(30),
-    fontWeight: '600',
+  root: {
     flex: 1,
-    textAlign: 'center',
-    marginRight: s(44), // balance back button
+    backgroundColor: colors.bg,
   },
-  scroll: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: s(16),
-    gap: vs(8),
+  submitError: {
+    ...typography.footnote,
+    color: colors.danger,
+    paddingHorizontal: spacing.xs,
+    marginBottom: spacing.md,
   },
-  sectionTitle: {
-    color: '#FFF',
-    fontSize: ms(20),
-    fontWeight: '600',
-    marginBottom: vs(4),
-    marginTop: vs(8),
-  },
-  fieldLabel: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: ms(13),
-    fontWeight: '400',
-    marginBottom: vs(4),
-    marginLeft: s(4),
-  },
-  inputBox: {
-    borderRadius: s(15),
-    overflow: 'hidden',
-    backgroundColor: 'rgba(43,43,43,0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    height: vs(55),
-    justifyContent: 'center',
-    paddingHorizontal: s(14),
-  },
-  inputText: {
-    color: '#FFF',
-    fontSize: ms(18),
-    fontWeight: '400',
-  },
-  textareaBox: {
-    height: vs(92),
-    justifyContent: 'flex-start',
-    paddingVertical: vs(12),
-  },
-  textareaText: {
-    height: vs(68),
-  },
-  row: {
-    flexDirection: 'row',
-    gap: s(8),
-  },
-  halfBox: {
-    flex: 1,
-  },
-  halfCol: {
-    flex: 1,
-    gap: vs(4),
-  },
-  rowSpaced: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  imageBox: {
-    // height applied inline via useWindowDimensions
-    borderRadius: s(15),
-    overflow: 'hidden',
-    backgroundColor: 'rgba(43,43,43,0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(177,177,177,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  imageCheckBadge: {
-    position: 'absolute',
-    bottom: vs(6),
-    right: s(6),
-    backgroundColor: '#7D08FA',
-    borderRadius: ms(12),
-    padding: ms(2),
-  },
-  featuredRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: s(12),
-  },
-  featuredLeft: {
-    flex: 1,
-    gap: vs(4),
-  },
-  featuredTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  featuredDesc: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: ms(14),
-    fontWeight: '400',
-    lineHeight: vs(20),
-  },
-  buttonsArea: {
-    gap: vs(12),
-    marginTop: vs(24),
-    alignItems: 'center',
-  },
-  actionBtnWrapper: {
-    width: '100%',
-    height: vs(50),
-    borderRadius: s(48),
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-  },
-  btnBlur: { flex: 1 },
-  actionBtnGradient: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionBtnText: {
-    color: '#FFF',
-    fontSize: ms(22),
-    fontWeight: '700',
+  footer: {
+    marginTop: spacing.sm,
   },
 });

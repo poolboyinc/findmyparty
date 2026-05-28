@@ -2,10 +2,10 @@ import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { authService, fetchWithTimeout } from './authService';
 import { ApiConstants } from '../constants/api';
-import type { BookingItem } from '../types/bookings';
+import type { BookingItem, UserBooking } from '../types/bookings';
 
 export const bookingService = {
-  async getMyBookings(): Promise<BookingItem[]> {
+  async getMyBookings(): Promise<UserBooking[]> {
     try {
       const token = await authService.getToken();
       if (!token) return [];
@@ -51,8 +51,8 @@ export const bookingService = {
       });
       return response.ok;
     } catch {
-      // Caller (my-bookings screen) already shows its own "Failed" alert on
-      // false return. Service layer stays silent.
+      // Caller (my-bookings screen) surfaces the failure inline inside the
+      // cancel confirmation sheet — no Alert.alert. Service layer stays silent.
       return false;
     }
   },

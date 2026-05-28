@@ -120,7 +120,38 @@ namespace FindMyParty.Identity.API.Controllers
                 profile.VenueName,
                 profile.Address,
                 profile.Latitude,
-                profile.Longitude));
+                profile.Longitude,
+                profile.WorkingHoursOpen,
+                profile.WorkingHoursClose,
+                profile.WorkingDays));
+        }
+
+        /// <summary>
+        /// Self-update for the currently authenticated host. Updates only the
+        /// host-editable subset: venue name + working hours + working days.
+        /// Address / latitude / longitude stay admin-managed (see UpdateProfile).
+        /// </summary>
+        [HttpPatch("profile")]
+        [Authorize(Roles = "Host,Admin")]
+        public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateMyVenueProfileRequest request)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (userId is null)
+                return Unauthorized();
+
+            var profile = await db.VenueProfiles
+                .FirstOrDefaultAsync(v => v.UserId == userId);
+
+            if (profile is null)
+                return NotFound("Venue profile not found. Contact FindMyParty support.");
+
+            profile.VenueName = request.VenueName;
+            profile.WorkingHoursOpen = request.WorkingHoursOpen;
+            profile.WorkingHoursClose = request.WorkingHoursClose;
+            profile.WorkingDays = request.WorkingDays;
+
+            await db.SaveChangesAsync();
+            return NoContent();
         }
     }
 }

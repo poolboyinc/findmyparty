@@ -10,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { colors, layout, radii, spacing, typography } from '@/theme';
 
-type Variant = 'primary' | 'secondary' | 'gradient';
+type Variant = 'primary' | 'secondary' | 'gradient' | 'destructive';
 
 type Props = {
   label: string;
@@ -55,6 +55,7 @@ export function PrimaryButton({
         variant === 'primary' && styles.primary,
         variant === 'secondary' && styles.secondary,
         variant === 'gradient' && styles.gradientBase,
+        variant === 'destructive' && styles.destructive,
         inactive && styles.disabled,
         pressed && !inactive && styles.pressed,
       ]}
@@ -107,6 +108,11 @@ const styles = StyleSheet.create({
     // Background painted by the absolutely-positioned LinearGradient child.
     // Falls back to the disabled fill when `inactive` overrides this style.
     backgroundColor: 'transparent',
+  },
+  destructive: {
+    // iOS-system red action — used for the consumer "Cancel Booking" CTA inside
+    // the confirm sheet. White label preserved via the shared `styles.label`.
+    backgroundColor: colors.danger,
   },
   disabled: {
     backgroundColor: colors.fillTertiary,

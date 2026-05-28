@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react';
 import { bookingService } from '../services/bookingService';
-import type { BookingItem } from '../types/bookings';
+import type { UserBooking } from '../types/bookings';
 
 export function useMyBookings() {
-  const [bookings, setBookings] = useState<BookingItem[]>([]);
+  const [bookings, setBookings] = useState<UserBooking[]>([]);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {

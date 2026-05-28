@@ -39,6 +39,22 @@ export interface HostProfile {
   address: string;
   latitude: number;
   longitude: number;
+  /** Venue opening time as "HH:mm:ss" from .NET `TimeOnly`. Null when unset. */
+  workingHoursOpen?: string | null;
+  /** Venue closing time as "HH:mm:ss" from .NET `TimeOnly`. Null when unset. */
+  workingHoursClose?: string | null;
+  /** Comma-joined working days (e.g. "MON,TUE,WED") or null when unset. */
+  workingDays?: string | null;
+}
+
+export interface UpdateMyVenueProfileRequest {
+  venueName: string;
+  /** "HH:mm:ss" for .NET `TimeOnly`; null clears the value. */
+  workingHoursOpen?: string | null;
+  /** "HH:mm:ss" for .NET `TimeOnly`; null clears the value. */
+  workingHoursClose?: string | null;
+  /** Comma-joined day codes (e.g. "MON,TUE,WED"); null clears the value. */
+  workingDays?: string | null;
 }
 
 export interface AssignRoleRequest {
