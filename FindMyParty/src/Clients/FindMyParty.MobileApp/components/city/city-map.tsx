@@ -7,7 +7,7 @@ import { DEFAULT_CAMERA, type CityCamera } from '@/hooks/city/useCityCamera';
 import { layout, spacing } from '@/theme';
 import type { VenueSummary } from '@/types/api';
 import { CityStyle } from './city-style';
-import { MAP_STYLE_URL, type LngLat } from './constants';
+import { MAP_STYLE_URL, NIGHT_STYLE_JSON, USE_STANDARD_STYLE, type LngLat } from './constants';
 import { RouteLayer } from './route-layer';
 import { UserDot } from './user-dot';
 import { VenueLayers } from './venue-layers';
@@ -66,7 +66,7 @@ export const CityMap = memo(function CityMap({
   return (
     <MapView
       style={styles.map}
-      styleURL={MAP_STYLE_URL}
+      {...(USE_STANDARD_STYLE ? { styleJSON: NIGHT_STYLE_JSON } : { styleURL: MAP_STYLE_URL })}
       logoEnabled
       logoPosition={ornaments.logo}
       attributionEnabled

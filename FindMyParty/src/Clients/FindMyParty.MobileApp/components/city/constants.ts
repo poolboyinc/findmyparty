@@ -16,6 +16,31 @@ export const FALLBACK_STYLE_URL = 'mapbox://styles/mapbox/dark-v11';
 export const USE_STANDARD_STYLE: boolean = true;
 export const MAP_STYLE_URL = USE_STANDARD_STYLE ? STANDARD_STYLE_URL : FALLBACK_STYLE_URL;
 
+/**
+ * The night city as a whole style document: Mapbox Standard imported as "basemap" with its options
+ * set from the first frame. Setting the light afterwards (StyleImport) did not take on a device:
+ * the first test showed a daytime map. Options are Standard's own (docs.mapbox.com/map-styles/standard/api).
+ */
+export const NIGHT_STYLE_JSON = JSON.stringify({
+  version: 8,
+  imports: [
+    {
+      id: 'basemap',
+      url: STANDARD_STYLE_URL,
+      config: {
+        lightPreset: 'night',
+        showPointOfInterestLabels: false,
+        showTransitLabels: false,
+        showPlaceLabels: true,
+        showRoadLabels: true,
+        show3dObjects: true,
+      },
+    },
+  ],
+  sources: {},
+  layers: [],
+});
+
 /** Standard is loaded as an import called "basemap"; its options are set on that id. */
 export const BASEMAP_IMPORT_ID = 'basemap';
 /** The light. Set alone so that nothing else can stop the night from applying. */
@@ -35,13 +60,15 @@ export const BASEMAP_LABELS = {
 
 export const CITY = {
   name: 'Podgorica',
-  center: [19.2594, 42.4411] as LngLat,
+  /** Between the demo venues; Stara Varoš and the centre. */
+  center: [19.2585, 42.4395] as LngLat,
 } as const;
 
 export const CAMERA = {
-  zoom: 14.3,
+  /** Close enough for Mapbox to draw the buildings in 3D. */
+  zoom: 14.9,
   /** Tilted is how the city is meant to be seen. */
-  pitch: 58,
+  pitch: 62,
   heading: -17,
   /** How close locate-me goes. */
   locateZoom: 15.6,
@@ -59,17 +86,17 @@ export const CAMERA = {
 
 export const BEAM = {
   /** Radius of the beam itself and of the faint wider one around it, in metres. */
-  coreRadiusM: 7,
-  haloRadiusM: 16,
+  coreRadiusM: 11,
+  haloRadiusM: 28,
   /** Corners of the polygon that stands in for a circle. */
   points: 24,
   /** Height in metres by strength (0 nothing known, 0.2 quiet, 1 the busiest). */
-  heightAtNothing: 20,
-  heightAtQuiet: 40,
-  heightAtBusiest: 260,
-  opacityLive: 0.85,
-  opacityExpected: 0.5,
-  opacityHalo: 0.16,
+  heightAtNothing: 30,
+  heightAtQuiet: 70,
+  heightAtBusiest: 420,
+  opacityLive: 0.9,
+  opacityExpected: 0.55,
+  opacityHalo: 0.22,
 } as const;
 
 // ── Labels ──────────────────────────────────────────────────────────────────
