@@ -9,7 +9,7 @@ _Last updated: 2026-05 session. Working dir: `FindMyParty/src/Clients/FindMyPart
 ## 1. Project snapshot
 - **App:** FindMyParty — premium iOS-first party-discovery app. Expo SDK 54 / RN 0.81 / expo-router 6, TypeScript strict, Mapbox (`@rnmapbox/maps`), SecureStore, Reanimated 4, `@gorhom/bottom-sheet`, `react-native-gesture-handler`.
 - **Backend:** .NET 8/10 microservices behind a YARP gateway — **Identity / Parties / Bookings / Payments** — PostgreSQL (EF Core), Redis, RabbitMQ, S3. Deployed on **Railway**. Payments is an empty scaffold (intentional dummy for now).
-- **Design system:** `app/theme/index.ts` is the single source of truth. Dark / near-black, purple `#9D6BFF` accent, gradient reserved for logo/hero only. Theme tokens always — the old `s/vs/ms` responsive helper (`constants/responsive`) is being retired.
+- **Design system:** `theme/index.ts` is the single source of truth. Dark / near-black, purple `#9D6BFF` accent, gradient reserved for logo/hero only. Theme tokens always — the old `s/vs/ms` responsive helper (`constants/responsive`) is being retired.
 
 ### Branches (important)
 - **`ios-design-test`** — the working branch. **Essentially all of this session's work lives here, much of it uncommitted.**
@@ -39,7 +39,7 @@ Slash commands in `.claude/commands/`: `/redesign-screen`, `/critique`, `/add-an
 
 ### Pipeline fixes
 - Moved 3 misfiled slash-command files out of `.claude/agents/` into `.claude/commands/`.
-- Fixed stale `src/theme` → `app/theme` path in `screen-builder.md`.
+- Fixed stale `src/theme` → `theme` path in `screen-builder.md`.
 - Added the `dotnet-reviewer` agent.
 
 ### Consumer screens (all on `ios-design-test`)

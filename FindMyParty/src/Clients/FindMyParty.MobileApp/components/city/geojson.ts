@@ -4,7 +4,7 @@ import type { Feature, FeatureCollection, LineString, Point, Polygon, Position }
 import { crowdColor, crowdStrength } from '@/services/crowd';
 import { colors } from '@/theme';
 import type { VenueSummary } from '@/types/api';
-import { BEAM, LABEL, PALETTE, SWITCH, type LngLat } from './constants';
+import { BEAM, LABEL, PALETTE, SWITCH, type LngLat, VENUE_BLOCK } from './constants';
 
 /**
  * What the map shows. `live`: every venue by its crowd. `mine` (My City): the venues the user has
@@ -42,7 +42,7 @@ export type VenueProps = {
 };
 
 /** Which part of a beam a polygon is. */
-export type BeamKind = 'core' | 'piece' | 'halo' | 'ring' | 'ghost';
+export type BeamKind = 'block' | 'edge' | 'core' | 'piece' | 'halo' | 'ring' | 'ghost';
 
 /** Beam polygons say which part they are, how high they start and end, and their own colour. */
 export type BeamProps = VenueProps & {
@@ -85,6 +85,26 @@ export function circleRing(center: LngLat, radiusM: number, points: number = BEA
   }
   ring.push(ring[0]);
   return ring;
+}
+
+/** A closed square of side 2 × `halfM` metres, counter-clockwise. */
+export function squareRing(center: LngLat, halfM: number): Position[] {
+  const [lng, lat] = center;
+  const cosLat = Math.max(Math.cos(lat * TO_RADIANS), 1e-6);
+  const dLat = halfM / METRES_PER_DEGREE;
+  const dLng = halfM / (METRES_PER_DEGREE * cosLat);
+  return [
+    [lng - dLng, lat - dLat],
+    [lng + dLng, lat - dLat],
+    [lng + dLng, lat + dLat],
+    [lng - dLng, lat + dLat],
+    [lng - dLng, lat - dLat],
+  ];
+}
+
+/** A square frame: outer square counter-clockwise, inner square clockwise. */
+export function squareFrame(center: LngLat, halfM: number, widthM: number): Position[][] {
+  return [squareRing(center, halfM), squareRing(center, halfM - widthM).reverse()];
 }
 
 /** An annulus: the outer circle counter-clockwise and the hole clockwise, as GeoJSON wants. */
@@ -260,15 +280,32 @@ export function venueBeams(
     }
 
     const height = drawing.mode === 'mine' ? BEAM.heightEarned : beamHeight(props.strength);
+    // The venue's block, with a bright edge on its roof; its height is not scaled with zoom.
+    // Beams are scaled with zoom (BEAM.scaleByZoom), so they start a little above the roof to clear it.
+    const ROOF = VENUE_BLOCK.heightM * 1.2;
+    features.push(
+      beamPart(props, [squareRing(center, VENUE_BLOCK.halfM)], {
+        kind: 'block',
+        base: 0,
+        top: VENUE_BLOCK.heightM,
+        fill: VENUE_BLOCK.fill,
+      }),
+      beamPart(props, squareFrame(center, VENUE_BLOCK.halfM, VENUE_BLOCK.edgeM), {
+        kind: 'edge',
+        base: VENUE_BLOCK.heightM,
+        top: VENUE_BLOCK.heightM + VENUE_BLOCK.edgeDepthM,
+        fill: mixHex(props.color, WHITE, 0.35),
+      }),
+    );
     features.push(
       beamPart(props, [circleRing(center, BEAM.coreRadiusM)], {
         kind: 'core',
-        base: 0,
+        base: ROOF,
         top: height * BEAM.coreShare,
         fill: mixHex(props.color, WHITE, 0.82),
       }),
     );
-    let from = 0;
+    let from = ROOF / height;
     BEAM.pieces.forEach((piece, index) => {
       features.push(
         beamPart(props, beam, {
@@ -290,7 +327,7 @@ export function venueBeams(
       }),
       beamPart(props, [circleRing(center, BEAM.haloRadiusM)], {
         kind: 'halo',
-        base: 0,
+        base: ROOF,
         top: height * BEAM.haloShare,
         fill: props.color,
       }),

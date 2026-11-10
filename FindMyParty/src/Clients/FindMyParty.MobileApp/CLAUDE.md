@@ -11,7 +11,7 @@ Build a premium iOS-native party discovery app that feels like it could be made 
 - TypeScript strict mode
 
 ## Design System
-- Theme file: `app/theme/index.ts` is the single source of truth
+- Theme file: `theme/index.ts` is the single source of truth
 - All colors, spacing, typography, radii MUST come from theme tokens — no hardcoded values
 - Reference: Apple HIG (the hig-* skills installed in ~/.claude/skills/)
 - Brand: dark-mode-first, near-black backgrounds, purple #9D6BFF as accent, gradient (purple→pink→orange) reserved ONLY for the FindMyParty logo and rare hero moments

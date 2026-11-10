@@ -66,15 +66,16 @@ function beamMetres(property: string): Expr {
 // ── Filters ─────────────────────────────────────────────────────────────────
 
 /** Names: always in My City; in Live, further out only the busy ones. Never the selected one. */
-const NAMED: Expr = [
-  'all',
-  ['!=', ['get', 'selected'], true],
-  [
-    'any',
-    ['==', ['get', 'mode'], 'mine'],
-    ['step', ['zoom'], ['>=', STRENGTH, LABEL.minStrength], LABEL.allFromZoom, true],
-  ],
-];
+// Mapbox only accepts ["zoom"] as the input of a top-level step or interpolate, so the zoom rule
+// is the outermost expression and each branch carries the other conditions.
+const NOT_SELECTED: Expr = ['!=', ['get', 'selected'], true];
+function named(extra: Expr | null = null): Expr {
+  const more: Expr[] = extra ? [extra] : [];
+  const far: Expr = ['all', NOT_SELECTED, ['any', ['==', ['get', 'mode'], 'mine'], ['>=', STRENGTH, LABEL.minStrength]], ...more];
+  const near: Expr = ['all', NOT_SELECTED, ...more];
+  return ['step', ['zoom'], far, LABEL.allFromZoom, near];
+}
+const NAMED: Expr = named();
 
 /** Mapbox Streets road classes that get a glowing line. A plain array: the package types want it mutable. */
 const STREET_CLASSES: string[] = [
@@ -101,7 +102,9 @@ export const FILTER = {
   halo: KIND('halo'),
   selected: IS_SELECTED,
   names: NAMED,
-  counts: ['all', NAMED, ['!=', ['get', 'label'], '']],
+  counts: named(['!=', ['get', 'label'], '']),
+  block: KIND('block'),
+  edge: KIND('edge'),
   /** Mapbox Streets buildings that are meant to be drawn in 3D. */
   buildings: ['==', ['get', 'extrude'], 'true'],
   /** Every road a car or a person walks along, not paths, tracks or rails. */
@@ -177,12 +180,27 @@ export const STREET_CORE_STYLE: LineLayerStyleProps = {
 
 const HEIGHT: Expr = ['get', 'height'];
 const MIN_HEIGHT: Expr = ['get', 'min_height'];
-const [vz0, vs0, vz1, vs1, vz2, vs2] = BUILDINGS.verticalScale;
-const VERTICAL_SCALE: Expr = ['interpolate', ['linear'], ['zoom'], vz0, vs0, vz1, vs1, vz2, vs2];
+const [, vs0, vz1, vs1, vz2, vs2] = BUILDINGS.verticalScale;
 
-/** Rises out of the ground over the first third of a zoom level, so tiles do not pop in flat. */
+/**
+ * A height in metres, stretched upwards (BUILDINGS.verticalScale) and rising out of the ground over the
+ * first third of a zoom level so tiles do not pop in flat. One top-level interpolate, as Mapbox requires.
+ */
 function growing(value: Expr): Expr {
-  return ['interpolate', ['linear'], ['zoom'], BUILDINGS.minZoom, 0, BUILDINGS.minZoom + 0.3, value];
+  const z0 = BUILDINGS.minZoom;
+  return [
+    'interpolate',
+    ['linear'],
+    ['zoom'],
+    z0,
+    0,
+    z0 + 0.3,
+    ['*', vs0, value],
+    vz1,
+    ['*', vs1, value],
+    vz2,
+    ['*', vs2, value],
+  ];
 }
 
 /**
@@ -200,7 +218,6 @@ export function buildingStyle(withFacade: boolean): FillExtrusionLayerStyleProps
     fillExtrusionVerticalGradient: true,
     fillExtrusionAmbientOcclusionIntensity: BUILDINGS.ambientOcclusion,
     fillExtrusionAmbientOcclusionRadius: 3,
-    fillExtrusionVerticalScale: VERTICAL_SCALE,
   };
 }
 
@@ -211,7 +228,6 @@ export const ROOF_STYLE: FillExtrusionLayerStyleProps = {
   fillExtrusionHeight: growing(['+', HEIGHT, BUILDINGS.roofCapM]),
   fillExtrusionOpacity: 1,
   fillExtrusionVerticalGradient: false,
-  fillExtrusionVerticalScale: VERTICAL_SCALE,
 };
 
 // ── Air and light ───────────────────────────────────────────────────────────
@@ -253,6 +269,18 @@ export function beamStyle(opacity: number, flat: boolean): FillExtrusionLayerSty
   };
 }
 
+/** The venue's block and the bright edge on its roof: plain metres, the same at every zoom. */
+export function blockStyle(edge: boolean, flat: boolean): FillExtrusionLayerStyleProps {
+  return {
+    visibility: flat ? 'none' : 'visible',
+    fillExtrusionColor: ['get', 'fill'],
+    fillExtrusionBase: ['get', 'base'],
+    fillExtrusionHeight: ['get', 'top'],
+    fillExtrusionOpacity: 1,
+    fillExtrusionVerticalGradient: !edge,
+  };
+}
+
 // ── Discs at the beams' feet ────────────────────────────────────────────────
 
 /** The soft pool of light on the ground. In flat mode it grows with the crowd. */
@@ -280,7 +308,7 @@ export function discStyle(flat: boolean): CircleLayerStyleProps {
     circleColor: COLOR,
     circleRadius: flat
       ? byZoom(withStrength(3, 3), withStrength(6, 9), withStrength(10, 14))
-      : ['case', IS_GHOST, byZoom(3, 6, 12), byZoom(2, 3.5, 7)],
+      : byZoom(['case', IS_GHOST, 3, 2], ['case', IS_GHOST, 6, 3.5], ['case', IS_GHOST, 12, 7]),
     circleRadiusTransition: QUICK,
     circleOpacity: ['case', IS_GHOST, 0, flat ? 0.3 : 0.95],
     circleStrokeColor: ['case', IS_GHOST, colors.label, COLOR],

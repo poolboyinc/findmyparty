@@ -22,7 +22,9 @@ export const SWITCH = {
   /** The violet haze towards the horizon. */
   atmosphere: true as boolean,
   /** A cool violet light on the buildings. `false` leaves the style's own light. */
-  light: true as boolean,
+  // Off: the package hands <Light> its colour as a number, which Mapbox rejects and paints red
+  // ("Unexpeted value for color ... retuning red" on the first device test).
+  light: false as boolean,
   /**
    * `true`: the glowing ring sits on top of each beam. `false`: at its foot.
    * (In the mock the ring sits on the venue's roof, where the beam starts.)
@@ -120,12 +122,15 @@ export const CITY = {
    * with room for their names. It lies south of their middle because a tilted camera shows more
    * of what is far away.
    */
-  center: [19.2594, 42.4345] as LngLat,
+  center: [19.2603, 42.4372] as LngLat,
 } as const;
 
 export const CAMERA = {
-  /** Far enough out that all seven demo venues fit, as in the mock. */
-  zoom: 13.35,
+  /**
+   * Close, as in the mock: a few streets around Stara Varoš with their buildings standing up.
+   * Not every venue fits; the rest are a pan away. (13.35 showed the whole town as a flat map.)
+   */
+  zoom: 15.1,
   /** Tilted is how the city is meant to be seen. */
   pitch: 60,
   heading: -17,
@@ -148,11 +153,23 @@ export const CAMERA = {
  * points so the beams stand in the middle of the screen under the logo.
  */
 export const BACKDROP_CAMERA = {
-  center: [19.257, 42.4401] as LngLat,
-  zoom: 13.2,
-  pitch: 64,
+  center: [19.2612, 42.4385] as LngLat,
+  zoom: 15.0,
+  pitch: 62,
   heading: -17,
   paddingTop: 200,
+} as const;
+
+/**
+ * The venue itself, as in the mock: a block a little taller than its neighbours with a bright edge
+ * on its roof, and the beam rising from that roof.
+ */
+export const VENUE_BLOCK = {
+  halfM: 15,
+  heightM: 30,
+  edgeM: 2.5,
+  edgeDepthM: 1.2,
+  fill: '#2b2253',
 } as const;
 
 /** Remembers the day of the last camera drop. */
@@ -162,19 +179,19 @@ export const DROP_DAY_KEY = '@findmyparty/city-drop-day';
 
 export const BEAM = {
   /** Radii in metres: the white core, the coloured beam, the faint wider one, the ring. */
-  coreRadiusM: 5,
-  beamRadiusM: 14,
-  haloRadiusM: 34,
-  ringOuterM: 30,
-  ringInnerM: 20,
+  coreRadiusM: 3,
+  beamRadiusM: 8,
+  haloRadiusM: 20,
+  ringOuterM: 17,
+  ringInnerM: 12,
   /** How tall the ring is, in metres. */
   ringDepthM: 4,
   /** Corners of the polygon that stands in for a circle. */
   points: 24,
   /** Height in metres by strength (0 nothing known, 0.2 quiet, 1 the busiest). */
-  heightAtNothing: 70,
-  heightAtQuiet: 170,
-  heightAtBusiest: 900,
+  heightAtNothing: 60,
+  heightAtQuiet: 140,
+  heightAtBusiest: 620,
   /** In My City every lit venue gets the same beam: it is a collection, not a crowd. */
   heightEarned: 380,
   heightGhost: 40,
@@ -195,7 +212,7 @@ export const BEAM = {
   opacityHalo: 0.16,
   opacityGhost: 0.22,
   /** Close in, beams shrink so they do not leave the screen: factor at each zoom. */
-  scaleByZoom: [13, 1, 15, 0.6, 17, 0.35] as const,
+  scaleByZoom: [13, 1.4, 15, 1, 17, 0.55] as const,
   /** How much white goes into the ring, and into the foot of the beam. */
   ringWhite: 0.72,
   footWhite: 0.3,
@@ -235,6 +252,8 @@ export const SOURCE = {
 } as const;
 
 export const LAYER = {
+  venueBlock: 'city-venue-block',
+  venueEdge: 'city-venue-edge',
   waterEdge: 'city-water-edge',
   streetGlow: 'city-street-glow',
   streetCore: 'city-street-core',

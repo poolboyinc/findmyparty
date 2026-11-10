@@ -6,6 +6,7 @@ import { tappedVenueId, venueBeams, venuePoints, type CityMode } from './geojson
 import {
   FILTER,
   beamStyle,
+  blockStyle,
   countStyle,
   discDotStyle,
   discGlowStyle,
@@ -68,6 +69,8 @@ export const VenueLayers = memo(function VenueLayers({
       disc: discStyle(flat),
       discDot: discDotStyle(flat),
       discRing: discRingStyle(flat),
+      block: blockStyle(false, flat),
+      edge: blockStyle(true, flat),
       core: beamStyle(BEAM.coreOpacity, flat),
       // The beam's three pieces (BEAM.pieces), brightest at the foot.
       pieces: [0, 1, 2].map((index) => beamStyle(BEAM.pieces[index].opacity, flat)),
@@ -100,6 +103,8 @@ export const VenueLayers = memo(function VenueLayers({
       </ShapeSource>
 
       <ShapeSource id={SOURCE.beams} shape={beams} {...press}>
+        <FillExtrusionLayer id={LAYER.venueBlock} filter={FILTER.block} style={styles.block} {...ANY_ZOOM} />
+        <FillExtrusionLayer id={LAYER.venueEdge} filter={FILTER.edge} style={styles.edge} {...ANY_ZOOM} />
         <FillExtrusionLayer id={LAYER.beamCore} filter={FILTER.core} style={styles.core} {...ANY_ZOOM} />
         <FillExtrusionLayer id={`${LAYER.beamPiece}0`} filter={FILTER.piece(0)} style={styles.pieces[0]} {...ANY_ZOOM} />
         <FillExtrusionLayer id={`${LAYER.beamPiece}1`} filter={FILTER.piece(1)} style={styles.pieces[1]} {...ANY_ZOOM} />
