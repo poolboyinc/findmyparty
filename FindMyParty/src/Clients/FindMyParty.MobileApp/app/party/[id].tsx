@@ -36,7 +36,10 @@ import {
 } from '@gorhom/bottom-sheet';
 import { partyService } from '@/services/partyService';
 import { ApiConstants, resolveMediaUrl } from '@/constants/api';
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 import { bookingService } from '@/services/bookingService';
+import { guestLimit, nextAttempt, type BookingAttempt } from '@/services/bookingAttempt';
 import { useFavorites } from '@/hooks/useFavorites';
 import { Icon } from '@/components/ui/icon';
 import { PrimaryButton } from '@/components/ui/primary-button';
@@ -161,6 +164,8 @@ export default function PartyDetailScreen() {
   const { isFavorite, toggle: toggleFavorite } = useFavorites();
 
   const ticketSheetRef = useRef<BottomSheetModal>(null);
+  // Kept across retries so a booking that timed out but reached the server is not made twice.
+  const attemptRef = useRef<BookingAttempt | null>(null);
 
   // iOS bounce + scroll position captured for the (scaffolded) hero parallax.
   const scrollY = useSharedValue(0);
@@ -261,7 +266,7 @@ export default function PartyDetailScreen() {
     : null;
 
   const remainingCapacity = party.capacity - (party.ticketsSold ?? 0);
-  const maxTickets = Math.min(remainingCapacity, 10);
+  const maxTickets = guestLimit(remainingCapacity);
   const ctaLabel = party.isSoldOut
     ? 'Sold Out'
     : party.price > 0
@@ -297,8 +302,11 @@ export default function PartyDetailScreen() {
     ticketSheetRef.current?.dismiss();
     setBooking(true);
     try {
-      const bookingId = await bookingService.createBooking(party.id, ticketCount);
+      const attempt = nextAttempt(attemptRef.current, party.id, ticketCount, uuidv4);
+      attemptRef.current = attempt;
+      const bookingId = await bookingService.createBooking(party.id, ticketCount, attempt.key);
       if (bookingId) {
+        attemptRef.current = null;
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           'You\'re in!',

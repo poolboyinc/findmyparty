@@ -1,5 +1,3 @@
-import 'react-native-get-random-values';
-import { v4 as uuidv4 } from 'uuid';
 import { authService, fetchWithTimeout } from './authService';
 import { ApiConstants } from '../constants/api';
 import type { BookingItem, UserBooking } from '../types/bookings';
@@ -22,7 +20,11 @@ export const bookingService = {
     }
   },
 
-  async createBooking(partyId: string, ticketCount: number): Promise<string | null> {
+  /**
+   * `idempotencyKey` identifies this attempt. Send the same key when retrying the same booking
+   * (see `nextAttempt`), and the server returns the first booking instead of making another.
+   */
+  async createBooking(partyId: string, ticketCount: number, idempotencyKey: string): Promise<string | null> {
     const token = await authService.getToken();
     if (!token) return null;
 
@@ -31,7 +33,7 @@ export const bookingService = {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
-        'Idempotency-Key': uuidv4(),
+        'Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify({ partyId, ticketCount }),
     });
