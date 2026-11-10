@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Testcontainers.PostgreSql;
@@ -49,6 +50,14 @@ public class TestApp : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddSingleton<IExternalAuthService>(ExternalAuth);
         });
     }
+
+    /// <summary>The same service started again with extra settings, e.g. on its own empty database.</summary>
+    public WebApplicationFactory<Program> With(Dictionary<string, string?> settings) =>
+        WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(settings)));
+
+    /// <summary>A connection string for another database on the same throwaway server.</summary>
+    public string ConnectionStringFor(string database) =>
+        new Npgsql.NpgsqlConnectionStringBuilder(_postgres.GetConnectionString()) { Database = database }.ConnectionString;
 
     public async Task<T> WithDb<T>(Func<AppDbContext, Task<T>> work)
     {

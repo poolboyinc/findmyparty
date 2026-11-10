@@ -74,6 +74,9 @@ public class Party
         Status = PartyStatus.Published;
     }
 
+    /// <summary>Publishes without the "must start in the future" rule. For demo data, which needs parties that are already on.</summary>
+    internal void PublishNow() => Status = PartyStatus.Published;
+
     public void Cancel() => Status = PartyStatus.Cancelled;
     public void Delete() => IsDeleted = true;
     public void SetImageUrl(string? imageUrl) => ImageUrl = imageUrl;

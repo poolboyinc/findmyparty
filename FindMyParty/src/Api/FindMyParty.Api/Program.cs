@@ -3,6 +3,7 @@ using System.Threading.RateLimiting;
 using FindMyParty.Api.Bookings;
 using FindMyParty.Api.Common;
 using FindMyParty.Api.Data;
+using FindMyParty.Api.Demo;
 using FindMyParty.Api.Identity;
 using FindMyParty.Api.Parties;
 using FindMyParty.Api.Storage;
@@ -57,6 +58,8 @@ builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<PassService>();
 builder.Services.AddScoped<PartyReader>();
+builder.Services.AddScoped<DemoSeeder>();
+if (config.GetValue<bool>("Seed:Demo")) builder.Services.AddHostedService<DemoRefresher>();
 builder.Services.AddSingleton<IExternalAuthService, ExternalAuthService>();
 builder.Services.AddSingleton<IImageStorage, S3ImageStorage>();
 
@@ -104,6 +107,10 @@ using (var scope = app.Services.CreateScope())
     foreach (var role in Roles.All)
         if (!await roles.RoleExistsAsync(role))
             await roles.CreateAsync(new IdentityRole(role));
+
+    // Demo data, only when asked for: Seed__Demo=true (and optionally Seed__OwnerEmail).
+    if (config.GetValue<bool>("Seed:Demo"))
+        await scope.ServiceProvider.GetRequiredService<DemoSeeder>().EnsureAsync(config["Seed:OwnerEmail"]);
 
     // First admin: register in the app, then set Bootstrap__AdminEmail to that address and restart.
     if (config["Bootstrap:AdminEmail"] is { Length: > 0 } adminEmail)
