@@ -182,7 +182,10 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
             IsSoldOut = p.TicketsSold >= p.Capacity,
             ImageUrl = p.ImageUrl,
             VenueId = p.VenueId,
-            VenueName = p.VenueId == null ? null : await db.VenueProfiles.Where(v => v.Id == p.VenueId).Select(v => v.VenueName).FirstOrDefaultAsync()
+            VenueName = p.VenueId == null ? null : await db.VenueProfiles.Where(v => v.Id == p.VenueId).Select(v => v.VenueName).FirstOrDefaultAsync(),
+            Genre = p.Genre,
+            PerformerName = p.PerformerName,
+            PerformerType = p.PerformerType
         });
     }
 

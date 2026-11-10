@@ -37,6 +37,9 @@ export interface PartyDetail {
   imageUrl: string | null;
   venueId: string | null;
   venueName: string | null;
+  genre: string | null;
+  performerName: string | null;
+  performerType: string | null;
 }
 
 /** A venue on the map: one beam, with its next open party. */
@@ -111,6 +114,18 @@ export interface Pass {
   startsAt: string;
   endsAt: string;
   totalPrice: number;
+}
+
+/** What the door sees after scanning, before letting anyone in. Nothing has changed yet. */
+export interface CheckInPreview {
+  bookingId: string;
+  guestName: string;
+  ticketCount: number;
+  checkedInCount: number;
+  /** Guests from this pass still to come in. */
+  outside: number;
+  pricePerGuest: number;
+  partyTitle: string;
 }
 
 /** Answer to a successful door scan. */

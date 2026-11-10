@@ -65,6 +65,9 @@ public class PartyDetailResponse
     public string? ImageUrl { get; set; }
     public Guid? VenueId { get; set; }
     public string? VenueName { get; set; }
+    public string? Genre { get; set; }
+    public string? PerformerName { get; set; }
+    public string? PerformerType { get; set; }
 }
 
 public class HostPartyResponse

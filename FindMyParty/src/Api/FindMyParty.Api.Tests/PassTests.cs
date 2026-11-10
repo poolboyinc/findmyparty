@@ -15,6 +15,7 @@ public class PassTests(TestApp app)
     private record PassBody(Guid BookingId, string Secret, int StepSeconds, int TicketCount, int CheckedInCount, string Status, string PartyTitle, string? VenueName);
     private record CheckInBody(Guid BookingId, string GuestName, int Admitted, int TicketCount, int CheckedInCount, decimal AmountDue, string PartyTitle);
     private record Problem(string Title, string Code, DateTime? FirstCheckedInAt);
+    private record PreviewBody(Guid BookingId, string GuestName, int TicketCount, int CheckedInCount, int Outside, decimal PricePerGuest, string PartyTitle);
     private record LiveBody(int Capacity, int PassesOut, int CheckedIn, int NotHereYet, decimal TakenAtDoor, List<ArrivalBody> Arrivals);
     private record ArrivalBody(DateTime From, int Count);
 
@@ -173,6 +174,42 @@ public class PassTests(TestApp app)
         var response = await Scan(host, PassCode.Format(booking, "00000000"));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_door_can_look_at_a_pass_before_letting_anyone_in()
+    {
+        var (host, _, _, booking, pass) = await BookedAsync(tickets: 3, price: 4);
+
+        var response = await host.Http.PostAsJsonAsync("/api/checkins/preview", new { code = CodeFor(pass) });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var preview = (await response.Content.ReadFromJsonAsync<PreviewBody>())!;
+        Assert.Equal((3, 0, 3, 4m), (preview.TicketCount, preview.CheckedInCount, preview.Outside, preview.PricePerGuest));
+        Assert.False(string.IsNullOrWhiteSpace(preview.GuestName));
+        Assert.Equal(0, await app.WithDb(db => db.Bookings.Where(b => b.Id == booking).Select(b => b.CheckedInCount).SingleAsync()));
+    }
+
+    [Fact]
+    public async Task Looking_at_a_used_or_expired_pass_gives_the_same_refusals_as_scanning_it()
+    {
+        var (host, _, _, _, pass) = await BookedAsync();
+        var expired = await host.Http.PostAsJsonAsync("/api/checkins/preview", new { code = CodeFor(pass, stepsAgo: 6) });
+        (await Scan(host, CodeFor(pass))).EnsureSuccessStatusCode();
+        var used = await host.Http.PostAsJsonAsync("/api/checkins/preview", new { code = CodeFor(pass) });
+
+        Assert.Equal("code_expired", (await expired.Content.ReadFromJsonAsync<Problem>())!.Code);
+        Assert.Equal("already_used", (await used.Content.ReadFromJsonAsync<Problem>())!.Code);
+    }
+
+    [Fact]
+    public async Task A_partys_details_include_its_genre_and_performer()
+    {
+        var party = await app.PublishedPartyAsync(await app.HostAsync());
+
+        var detail = await app.CreateClient().GetFromJsonAsync<PartyDetailResponse>($"/api/parties/{party}");
+
+        Assert.Equal("Techno", detail!.Genre);
     }
 
     // ── what the host sees ──

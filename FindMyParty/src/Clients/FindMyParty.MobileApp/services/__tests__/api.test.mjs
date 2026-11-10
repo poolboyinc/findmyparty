@@ -131,3 +131,10 @@ for (const [status, kind] of [[403, 'forbidden'], [404, 'not_found'], [429, 'rat
     await assert.rejects(api.request('/api/anything'), failsWith(kind));
   });
 }
+
+test('extra facts from the server come with the error', async () => {
+  const { api } = setup({ respond: () => res(409, { title: 'This pass has already been used.', code: 'already_used', firstCheckedInAt: '2026-11-13T22:12:00Z' }) });
+
+  await assert.rejects(api.request('/api/checkins', { method: 'POST', body: {} }), (e) =>
+    e instanceof ApiError && e.code === 'already_used' && e.data?.firstCheckedInAt === '2026-11-13T22:12:00Z');
+});

@@ -24,13 +24,16 @@ export class ApiError extends Error {
   status?: number;
   /** The server's machine-readable reason, e.g. `sold_out`. */
   code?: string;
+  /** The rest of the server's problem body, e.g. `firstCheckedInAt` on `already_used`. */
+  data?: Record<string, unknown>;
 
-  constructor(kind: ApiErrorKind, message?: string, status?: number, code?: string) {
+  constructor(kind: ApiErrorKind, message?: string, status?: number, code?: string, data?: Record<string, unknown>) {
     super(message ?? kind);
     this.name = 'ApiError';
     this.kind = kind;
     this.status = status;
     this.code = code;
+    this.data = data;
   }
 }
 
@@ -73,11 +76,13 @@ function errorFrom(status: number, text: string): ApiError {
   const kind = KIND_BY_STATUS[status] ?? 'server';
   let message: string | undefined;
   let code: string | undefined;
+  let data: Record<string, unknown> | undefined;
   try {
     const body = JSON.parse(text) as { title?: unknown; code?: unknown; errors?: Record<string, unknown> } | string | null;
     if (typeof body === 'string') {
       message = body;
     } else if (body) {
+      data = body as Record<string, unknown>;
       if (typeof body.code === 'string') code = body.code;
       const firstFieldError = body.errors && Object.values(body.errors).flat().find((v): v is string => typeof v === 'string');
       message = firstFieldError ?? (typeof body.title === 'string' ? body.title : undefined);
@@ -85,7 +90,7 @@ function errorFrom(status: number, text: string): ApiError {
   } catch {
     if (text && text.length < 300) message = text; // plain-text reasons from older endpoints
   }
-  return new ApiError(kind, message, status, code);
+  return new ApiError(kind, message, status, code, data);
 }
 
 export function createApi(deps: ApiDeps) {

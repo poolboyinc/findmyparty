@@ -24,11 +24,10 @@ public class PassService(AppDbContext db)
             row.b.Status.ToString(), row.b.PartyId, row.Title, row.VenueName, row.StartsAt, row.EndsAt, row.b.TotalPrice);
     }
 
-    /// <summary>
-    /// The door scans a pass. Lets in `admit` guests (default: everyone still outside) exactly once,
-    /// however many doors scan the same pass at the same moment.
-    /// </summary>
-    public async Task<CheckInResponse> CheckInAsync(Guid hostId, string? scanned, int? admit, CancellationToken ct = default)
+    private record Scanned(Booking Booking, Guid HostId, string Title, int Outside);
+
+    /// <summary>Reads a scanned pass and checks everything that can refuse it. Changes nothing.</summary>
+    private async Task<Scanned> ReadAsync(Guid hostId, string? scanned, DateTime now, CancellationToken ct)
     {
         if (!PassCode.TryParse(scanned, out var bookingId, out var code))
             throw ApiException.Invalid("This is not a FindMyParty pass.", "invalid_code");
@@ -41,7 +40,6 @@ public class PassService(AppDbContext db)
             ?? throw ApiException.NotFound("Pass");
         if (row.HostId != hostId) throw ApiException.Forbidden("This pass is for another host's party.");
 
-        var now = DateTime.UtcNow;
         if (!PassCode.IsCurrent(row.b.PassSecret, code, now))
             throw ApiException.Conflict("This code has expired. Ask the guest to open their pass again.", "code_expired");
         if (row.b.Status == BookingStatus.Cancelled)
@@ -53,29 +51,55 @@ public class PassService(AppDbContext db)
 
         var outside = row.b.TicketCount - row.b.CheckedInCount;
         if (outside <= 0) throw AlreadyUsed(row.b.FirstCheckedInAt);
-        var letIn = admit ?? outside;
-        if (letIn < 1 || letIn > outside)
-            throw ApiException.Invalid($"This pass has {outside} guest(s) still to come in.", "admit");
+        return new Scanned(row.b, row.HostId, row.Title, outside);
+    }
+
+    private async Task<string> GuestNameAsync(Guid userId, CancellationToken ct)
+    {
+        var id = userId.ToString();
+        return await db.Users.Where(u => u.Id == id).Select(u => u.UserName).FirstOrDefaultAsync(ct) ?? "Guest";
+    }
+
+    private static decimal PricePerGuest(Booking b) => b.TicketCount == 0 ? 0 : b.TotalPrice / b.TicketCount;
+
+    /// <summary>What the door sees after scanning, before choosing how many to let in. Same refusals as a scan.</summary>
+    public async Task<CheckInPreview> PreviewAsync(Guid hostId, string? scanned, CancellationToken ct = default)
+    {
+        var s = await ReadAsync(hostId, scanned, DateTime.UtcNow, ct);
+        return new CheckInPreview(s.Booking.Id, await GuestNameAsync(s.Booking.UserId, ct), s.Booking.TicketCount, s.Booking.CheckedInCount,
+            s.Outside, PricePerGuest(s.Booking), s.Title);
+    }
+
+    /// <summary>
+    /// The door lets guests in. Admits `admit` guests (default: everyone still outside) exactly once,
+    /// however many doors scan the same pass at the same moment.
+    /// </summary>
+    public async Task<CheckInResponse> CheckInAsync(Guid hostId, string? scanned, int? admit, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var s = await ReadAsync(hostId, scanned, now, ct);
+        var bookingId = s.Booking.Id;
+        var letIn = admit ?? s.Outside;
+        if (letIn < 1 || letIn > s.Outside)
+            throw ApiException.Invalid($"This pass has {s.Outside} guest(s) still to come in.", "admit");
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         // The condition is re-checked by the database, so only one of several simultaneous scans succeeds.
         var updated = await db.Bookings
             .Where(b => b.Id == bookingId && b.Status != BookingStatus.Cancelled && b.CheckedInCount + letIn <= b.TicketCount)
-            .ExecuteUpdateAsync(s => s
+            .ExecuteUpdateAsync(u => u
                 .SetProperty(b => b.CheckedInCount, b => b.CheckedInCount + letIn)
                 .SetProperty(b => b.FirstCheckedInAt, b => b.FirstCheckedInAt ?? now)
                 .SetProperty(b => b.Status, BookingStatus.Confirmed), ct);
         if (updated == 0)
             throw AlreadyUsed(await db.Bookings.Where(b => b.Id == bookingId).Select(b => b.FirstCheckedInAt).FirstAsync(ct));
 
-        db.CheckIns.Add(new CheckIn { Id = Guid.NewGuid(), BookingId = bookingId, PartyId = row.b.PartyId, Admitted = letIn, At = now, ByUserId = hostId });
+        db.CheckIns.Add(new CheckIn { Id = Guid.NewGuid(), BookingId = bookingId, PartyId = s.Booking.PartyId, Admitted = letIn, At = now, ByUserId = hostId });
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        var guestId = row.b.UserId.ToString();
-        var guestName = await db.Users.Where(u => u.Id == guestId).Select(u => u.UserName).FirstOrDefaultAsync(ct) ?? "Guest";
-        var pricePerGuest = row.b.TicketCount == 0 ? 0 : row.b.TotalPrice / row.b.TicketCount;
-        return new CheckInResponse(bookingId, guestName, letIn, row.b.TicketCount, row.b.CheckedInCount + letIn, pricePerGuest * letIn, row.Title);
+        return new CheckInResponse(bookingId, await GuestNameAsync(s.Booking.UserId, ct), letIn, s.Booking.TicketCount,
+            s.Booking.CheckedInCount + letIn, PricePerGuest(s.Booking) * letIn, s.Title);
     }
 
     private static ApiException AlreadyUsed(DateTime? firstCheckedInAt) =>

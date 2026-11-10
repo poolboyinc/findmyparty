@@ -79,6 +79,16 @@ public record CheckInResponse(
     decimal AmountDue,
     string PartyTitle);
 
+/// <summary>What the door sees before letting anyone in. Nothing has changed yet.</summary>
+public record CheckInPreview(
+    Guid BookingId,
+    string GuestName,
+    int TicketCount,
+    int CheckedInCount,
+    int Outside,
+    decimal PricePerGuest,
+    string PartyTitle);
+
 public record ArrivalBucket(DateTime From, int Count);
 
 public record LiveResponse(

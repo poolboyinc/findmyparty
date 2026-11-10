@@ -5,6 +5,7 @@ import { api } from '@/services/apiClient';
 import { authService } from '@/services/authService';
 import type {
   Booking,
+  CheckInPreview,
   CheckInResult,
   HostParty,
   HostVenue,
@@ -143,7 +144,17 @@ export function usePartyLive(partyId: string | undefined) {
 }
 
 /**
- * Scans a pass at the door. `code` is the text read from the QR. `admit` lets in part of a group.
+ * Looks at a scanned pass without letting anyone in: who it is and how many are still outside.
+ * Fails with the same ApiError codes as `useCheckIn`. Show the result, then call `useCheckIn` with `admit`.
+ */
+export function useCheckInPreview() {
+  return useMutation({
+    mutationFn: (code: string) => api.request<CheckInPreview>('/api/checkins/preview', { method: 'POST', body: { code } }),
+  });
+}
+
+/**
+ * Lets guests in at the door. `code` is the text read from the QR. `admit` lets in part of a group.
  * Fails with ApiError codes `invalid_code`, `code_expired`, `already_used`, `booking_cancelled`,
  * `party_cancelled`, `party_over`, or kind `forbidden` for another host's party.
  */
