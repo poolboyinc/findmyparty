@@ -63,7 +63,16 @@ jobs:
             for (const url of b.logFiles || []) console.log(url);
           ' "$RUNNER_TEMP/build.json" > "$RUNNER_TEMP/urls.txt"
           while read -r url; do
-            curl -sL "$url" > "$RUNNER_TEMP/log.raw"
+            curl -sL --compressed -D "$RUNNER_TEMP/headers.txt" "$url" > "$RUNNER_TEMP/log.raw"
+            grep -iE "^(content-type|content-encoding):" "$RUNNER_TEMP/headers.txt" || true
+            # Fallback for an encoding curl did not undo: try brotli, gzip and raw deflate in Node.
+            node -e '
+              const fs = require("fs"), zlib = require("zlib"), f = process.argv[1];
+              const raw = fs.readFileSync(f);
+              for (const [name, fn] of [["brotli", zlib.brotliDecompressSync], ["gzip", zlib.gunzipSync], ["deflate", zlib.inflateSync], ["raw deflate", zlib.inflateRawSync]]) {
+                try { const out = fn(raw); if (out.length) { fs.writeFileSync(f, out); console.log("decoded with", name); break; } } catch {}
+              }
+            ' "$RUNNER_TEMP/log.raw"
             # The log may come as a tar archive and/or gzip-compressed; unpack whatever it is.
             echo "log file type: $(file -b "$RUNNER_TEMP/log.raw")"
             rm -rf "$RUNNER_TEMP/logx" && mkdir -p "$RUNNER_TEMP/logx"
