@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.3.11520.95 d18.3
+VisualStudioVersion = 18.3.11520.95
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "FindMyParty", "FindMyParty", "{710886DA-E07A-9B76-B1BC-3DDAD6715663}"
 EndProject
@@ -47,6 +47,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	ProjectSection(SolutionItems) = preProject
 		FindMyParty\src\docker-compose.yml = FindMyParty\src\docker-compose.yml
 	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Api", "Api", "{C41E05AD-0B8B-6125-8854-CCE4746F710D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FindMyParty.Api", "FindMyParty\src\Api\FindMyParty.Api\FindMyParty.Api.csproj", "{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FindMyParty.Api.Tests", "FindMyParty\src\Api\FindMyParty.Api.Tests\FindMyParty.Api.Tests.csproj", "{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -178,6 +184,30 @@ Global
 		{781F5C85-03BF-44ED-BB03-736DB4242321}.Release|x64.Build.0 = Release|Any CPU
 		{781F5C85-03BF-44ED-BB03-736DB4242321}.Release|x86.ActiveCfg = Release|Any CPU
 		{781F5C85-03BF-44ED-BB03-736DB4242321}.Release|x86.Build.0 = Release|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Debug|x64.Build.0 = Debug|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Debug|x86.Build.0 = Debug|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Release|x64.ActiveCfg = Release|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Release|x64.Build.0 = Release|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Release|x86.ActiveCfg = Release|Any CPU
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF}.Release|x86.Build.0 = Release|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Debug|x64.Build.0 = Debug|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Debug|x86.Build.0 = Debug|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Release|x64.ActiveCfg = Release|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Release|x64.Build.0 = Release|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Release|x86.ActiveCfg = Release|Any CPU
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -202,6 +232,9 @@ Global
 		{BBD870A0-DD91-4DE5-91B4-3A47A0C70D24} = {552B5BD9-C1B0-2A9A-2B66-B2FE7B3DF112}
 		{F5DA0C20-55B5-356B-3D72-8C47D1D33875} = {94CAC827-4EFF-368B-5B93-D40ABE226E16}
 		{781F5C85-03BF-44ED-BB03-736DB4242321} = {F5DA0C20-55B5-356B-3D72-8C47D1D33875}
+		{C41E05AD-0B8B-6125-8854-CCE4746F710D} = {94CAC827-4EFF-368B-5B93-D40ABE226E16}
+		{134BD6BE-5313-44C3-AC3E-86373FBEB5BF} = {C41E05AD-0B8B-6125-8854-CCE4746F710D}
+		{FB9A98B0-F8BE-44D1-A687-D45FE6CDED3B} = {C41E05AD-0B8B-6125-8854-CCE4746F710D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {39839425-5946-4A44-A24A-CFA869781B84}

@@ -1,0 +1,27 @@
+# Local development: the API and its database. Nothing else is needed.
+#   docker compose up --build
+#   API on http://localhost:8080 , Postgres on localhost:5432
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: findmyparty
+      POSTGRES_PASSWORD: postgres
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["fmp_db:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d findmyparty"]
+      interval: 3s
+      retries: 20
+
+  api:
+    build: ./FindMyParty.Api
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=findmyparty;Username=postgres;Password=postgres
+    ports: ["127.0.0.1:8080:8080"]
+
+volumes:
+  fmp_db:
