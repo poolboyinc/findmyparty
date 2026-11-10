@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, type TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, type TextInput } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { PasswordToggle } from '@/components/account/password-toggle';
 import { AuthField } from '@/components/ui/auth-field';
-import { AuthHeader } from '@/components/ui/auth-header';
-import { PrimaryButton } from '@/components/ui/primary-button';
+import { AuthStage } from '@/components/account/auth-stage';
+import { FlatButton } from '@/components/account/provider-button';
 import { enterApp, useRegister } from '@/hooks/useAuth';
 import { colors, layout, spacing, typography } from '@/theme';
 
@@ -93,12 +93,26 @@ export default function RegisterPage() {
   };
 
   return (
-    <View style={styles.root}>
-      <AuthHeader title="Create your account" disabled={loading} />
-
-      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={styles.form}>
+    <AuthStage
+      kicker="New here"
+      title="Join the night."
+      subtitle="Make an account, then tell us what you go out for."
+      busy={loading}
+      footer={
+        <>
+            <Text style={styles.footerText}>Have an account?</Text>
+            <Pressable
+              onPress={() => router.replace('/login')}
+              disabled={loading}
+              hitSlop={layout.hitSlop}
+              accessibilityRole="link"
+              accessibilityLabel="Log in"
+            >
+              <Text style={styles.link}>Log in</Text>
+            </Pressable>
+        </>
+      }
+    >
             <AuthField
               placeholder="Username"
               value={userName}
@@ -178,46 +192,12 @@ export default function RegisterPage() {
               </Text>
             ) : null}
 
-            <PrimaryButton
-              label="Create account"
-              onPress={handleSignUp}
-              loading={loading}
-              accessibilityHint="Creates your FindMyParty account"
-            />
-          </View>
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Have an account?</Text>
-            <Pressable
-              onPress={() => router.replace('/login')}
-              disabled={loading}
-              hitSlop={layout.hitSlop}
-              accessibilityRole="link"
-              accessibilityLabel="Log in"
-            >
-              <Text style={styles.link}>Log in</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+            <FlatButton tone="action" label="Create account" onPress={handleSignUp} loading={loading} accessibilityHint="Creates your FindMyParty account" />
+    </AuthStage>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  fill: {
-    flex: 1,
-  },
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: layout.screenMargin,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xxl,
-  },
   form: {
     gap: spacing.base,
   },

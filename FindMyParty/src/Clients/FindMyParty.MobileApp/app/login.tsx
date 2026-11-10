@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, type TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, type TextInput } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { PasswordToggle } from '@/components/account/password-toggle';
 import { AuthField } from '@/components/ui/auth-field';
-import { AuthHeader } from '@/components/ui/auth-header';
-import { PrimaryButton } from '@/components/ui/primary-button';
+import { AuthStage } from '@/components/account/auth-stage';
+import { FlatButton } from '@/components/account/provider-button';
 import { enterApp, useLogin } from '@/hooks/useAuth';
 import { colors, layout, spacing, typography } from '@/theme';
 
@@ -36,12 +36,26 @@ export default function LoginPage() {
   };
 
   return (
-    <View style={styles.root}>
-      <AuthHeader title="Log in" disabled={loading} />
-
-      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={styles.form}>
+    <AuthStage
+      kicker="Log in"
+      title="Welcome back."
+      subtitle="Log in to see your passes and what is glowing tonight."
+      busy={loading}
+      footer={
+        <>
+            <Text style={styles.footerText}>No account yet?</Text>
+            <Pressable
+              onPress={() => router.replace('/register')}
+              disabled={loading}
+              hitSlop={layout.hitSlop}
+              accessibilityRole="link"
+              accessibilityLabel="Sign up"
+            >
+              <Text style={styles.link}>Sign up</Text>
+            </Pressable>
+        </>
+      }
+    >
             <AuthField
               placeholder="Email or username"
               value={email}
@@ -94,41 +108,12 @@ export default function LoginPage() {
               </Text>
             ) : null}
 
-            <PrimaryButton label="Log in" onPress={handleLogIn} loading={loading} accessibilityHint="Signs you in to your account" />
-          </View>
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>No account yet?</Text>
-            <Pressable
-              onPress={() => router.replace('/register')}
-              disabled={loading}
-              hitSlop={layout.hitSlop}
-              accessibilityRole="link"
-              accessibilityLabel="Sign up"
-            >
-              <Text style={styles.link}>Sign up</Text>
-            </Pressable>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+            <FlatButton tone="action" label="Log in" onPress={handleLogIn} loading={loading} accessibilityHint="Signs you in to your account" />
+    </AuthStage>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  fill: {
-    flex: 1,
-  },
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: layout.screenMargin,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xxl,
-  },
   form: {
     gap: spacing.base,
   },
