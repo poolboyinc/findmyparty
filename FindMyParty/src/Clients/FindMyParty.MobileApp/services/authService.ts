@@ -62,7 +62,7 @@ const secureTokenStore: TokenStore = {
 
 // Refresh, expiry and "am I signed in" live in session.ts, which is unit-tested
 // (services/__tests__/session.test.mjs). This file only wires it to the device.
-const session = createSession({
+export const session = createSession({
   baseUrl: ApiConstants.GatewayBaseUrl,
   fetch: fetchWithTimeout,
   store: secureTokenStore,
@@ -106,8 +106,9 @@ export const authService = {
     return (await session.refresh()) === 'ok';
   },
 
-  async logout(): Promise<void> {
-    await clearTokens();
+  /** Ends this device's session on the server too, so the refresh token stops working. */
+  logout(): Promise<void> {
+    return session.signOut();
   },
 
   async deleteAccount(): Promise<boolean> {

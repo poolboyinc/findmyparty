@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [afterglow, home-pc-setup]
+  pull_request:
+
+jobs:
+  mobile:
+    name: Mobile app (types, tests, lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: FindMyParty/src/Clients/FindMyParty.MobileApp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24 # the unit tests run TypeScript directly, which needs Node 24
+          cache: npm
+          cache-dependency-path: FindMyParty/src/Clients/FindMyParty.MobileApp/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm test
+      - run: npx expo lint
+
+  api:
+    name: API (tests against Postgres)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      # The tests start their own throwaway Postgres in Docker, which the runner provides.
+      - run: dotnet test FindMyParty/src/Api/FindMyParty.Api.Tests

@@ -126,9 +126,28 @@ export function createSession(deps: SessionDeps) {
     return result === 'unreachable' && !expiresWithin(token, now(), 0) ? token : null;
   }
 
+  /** Ends this device's session on the server (best effort) and forgets the tokens. */
+  async function signOut(): Promise<void> {
+    const refreshToken = await deps.store.get('refresh');
+    try {
+      if (refreshToken) {
+        await deps.fetch(`${deps.baseUrl}/api/auth/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+      }
+    } catch {
+      // Offline: the token simply expires on the server later.
+    } finally {
+      await deps.store.clear();
+    }
+  }
+
   return {
     getAccessToken,
     refresh,
+    signOut,
     /** False only when there is no session or the server has ended it. Being offline is not signed out. */
     async isAuthenticated(): Promise<boolean> {
       const token = await deps.store.get('access');

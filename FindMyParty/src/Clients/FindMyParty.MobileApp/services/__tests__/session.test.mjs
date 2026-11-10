@@ -138,3 +138,23 @@ test('if the early refresh cannot reach the server, the token that is still vali
 
   assert.equal(await make({ store, fetch }).getAccessToken(), stillValid);
 });
+
+test('signing out tells the server to end this device\'s session, then forgets the tokens', async () => {
+  const store = memoryStore({ access: fresh(), refresh: 'refresh-1' });
+  const fetch = fakeFetch(() => json(204, {}));
+
+  await make({ store, fetch }).signOut();
+
+  assert.equal(fetch.calls[0].url, 'https://api.test/api/auth/logout');
+  assert.deepEqual(fetch.calls[0].body, { refreshToken: 'refresh-1' });
+  assert.deepEqual(store.snapshot(), { access: null, refresh: null });
+});
+
+test('signing out with no connection still signs out on this device', async () => {
+  const store = memoryStore({ access: fresh(), refresh: 'refresh-1' });
+  const fetch = fakeFetch(() => { throw new Error('Network request failed'); });
+
+  await make({ store, fetch }).signOut();
+
+  assert.deepEqual(store.snapshot(), { access: null, refresh: null });
+});
