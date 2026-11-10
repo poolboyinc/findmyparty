@@ -2,6 +2,11 @@ name: EAS Build
 
 on:
   workflow_dispatch:
+    inputs:
+      log_of_build:
+        description: Leave empty to build. An EAS build id prints that build's log instead.
+        required: false
+        default: ''
   push:
     branches:
       - home-pc-setup
@@ -38,29 +43,39 @@ jobs:
           token: ${{ secrets.FMP_SECRET }}
 
       - name: Build (iOS development)
+        if: ${{ !inputs.log_of_build }}
         run: eas build --platform ios --profile development --non-interactive
 
-      # When the cloud build fails, copy the failing phase of Expo's build log into this job's log,
-      # so the reason is readable here without signing in to expo.dev.
-      - name: Show why the EAS build failed
-        if: failure()
+      # When the cloud build fails (or a build id is given), copy the failed phases of that build's log
+      # into this job's log, so the reason is readable here without signing in to expo.dev.
+      - name: Show the EAS build log
+        if: ${{ failure() || inputs.log_of_build }}
+        env:
+          BUILD_ID: ${{ inputs.log_of_build }}
         run: |
-          eas build:list --platform ios --limit 1 --json --non-interactive > last-build.json
+          if [ -z "$BUILD_ID" ]; then
+            BUILD_ID=$(eas build:list --platform ios --limit 1 --json --non-interactive | node -e 'console.log(JSON.parse(require("fs").readFileSync(0,"utf8"))[0].id)')
+          fi
+          eas build:view "$BUILD_ID" --json > "$RUNNER_TEMP/build.json"
           node -e '
-            const [b] = require("./last-build.json");
-            console.log("Build", b.id, b.status, "error:", JSON.stringify(b.error || null));
+            const b = require(process.argv[1]);
+            console.error("build:", b.id, "| status:", b.status, "| error:", JSON.stringify(b.error || null), "| log files:", (b.logFiles || []).length);
             for (const url of b.logFiles || []) console.log(url);
-          ' > build-info.txt
-          head -1 build-info.txt
-          tail -n +2 build-info.txt | while read -r url; do
-            curl -sL "$url" | node -e '
-              const lines = require("fs").readFileSync(0, "utf8").split("\n");
-              const failed = new Set();
+          ' "$RUNNER_TEMP/build.json" > "$RUNNER_TEMP/urls.txt"
+          while read -r url; do
+            curl -sL "$url" > "$RUNNER_TEMP/log.txt"
+            echo "log bytes: $(wc -c < "$RUNNER_TEMP/log.txt")"
+            node -e '
+              const text = require("fs").readFileSync(process.argv[1], "utf8");
               const rows = [];
-              for (const l of lines) {
-                try { const j = JSON.parse(l); rows.push(j); if (j.result === "fail" && j.phase) failed.add(j.phase); } catch {}
+              for (const line of text.split("\n")) {
+                if (!line.trim()) continue;
+                try { rows.push(JSON.parse(line)); } catch { rows.push({ msg: line }); }
               }
-              const phases = failed.size ? failed : new Set(["INSTALL_PODS"]);
-              for (const j of rows) if (phases.has(j.phase) && j.msg) console.log("[" + j.phase + "]", j.msg);
-            ' | tail -150
-          done
+              const failed = new Set(rows.filter(r => r.result === "fail" && r.phase).map(r => r.phase));
+              console.log("phases:", [...new Set(rows.map(r => r.phase).filter(Boolean))].join(", "));
+              console.log("failed phases:", [...failed].join(", ") || "(none marked)");
+              const out = rows.filter(r => failed.size === 0 || failed.has(r.phase)).map(r => (r.phase ? "[" + r.phase + "] " : "") + (r.msg ?? JSON.stringify(r)));
+              console.log(out.slice(-250).join("\n"));
+            ' "$RUNNER_TEMP/log.txt"
+          done < "$RUNNER_TEMP/urls.txt"
