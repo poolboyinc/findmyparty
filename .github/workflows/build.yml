@@ -39,3 +39,28 @@ jobs:
 
       - name: Build (iOS development)
         run: eas build --platform ios --profile development --non-interactive
+
+      # When the cloud build fails, copy the failing phase of Expo's build log into this job's log,
+      # so the reason is readable here without signing in to expo.dev.
+      - name: Show why the EAS build failed
+        if: failure()
+        run: |
+          eas build:list --platform ios --limit 1 --json --non-interactive > last-build.json
+          node -e '
+            const [b] = require("./last-build.json");
+            console.log("Build", b.id, b.status, "error:", JSON.stringify(b.error || null));
+            for (const url of b.logFiles || []) console.log(url);
+          ' > build-info.txt
+          head -1 build-info.txt
+          tail -n +2 build-info.txt | while read -r url; do
+            curl -sL "$url" | node -e '
+              const lines = require("fs").readFileSync(0, "utf8").split("\n");
+              const failed = new Set();
+              const rows = [];
+              for (const l of lines) {
+                try { const j = JSON.parse(l); rows.push(j); if (j.result === "fail" && j.phase) failed.add(j.phase); } catch {}
+              }
+              const phases = failed.size ? failed : new Set(["INSTALL_PODS"]);
+              for (const j of rows) if (phases.has(j.phase) && j.msg) console.log("[" + j.phase + "]", j.msg);
+            ' | tail -150
+          done
