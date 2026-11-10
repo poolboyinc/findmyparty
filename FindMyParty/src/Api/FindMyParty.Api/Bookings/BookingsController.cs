@@ -8,7 +8,7 @@ namespace FindMyParty.Api.Bookings;
 [Authorize]
 [ApiController]
 [Route("api/bookings")]
-public class BookingsController(BookingService bookings) : ControllerBase
+public class BookingsController(BookingService bookings, PassService passes) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> Create(
@@ -23,6 +23,10 @@ public class BookingsController(BookingService bookings) : ControllerBase
 
     [HttpGet("my")]
     public async Task<IActionResult> GetMine(CancellationToken ct) => Ok(await bookings.ForUserAsync(User.UserId(), ct));
+
+    /// <summary>What the guest's phone needs to draw the pass and keep its door code changing, even offline.</summary>
+    [HttpGet("{bookingId:guid}/pass")]
+    public async Task<IActionResult> GetPass(Guid bookingId, CancellationToken ct) => Ok(await passes.GetPassAsync(User.UserId(), bookingId, ct));
 
     [HttpDelete("{bookingId:guid}")]
     public async Task<IActionResult> Cancel(Guid bookingId, CancellationToken ct)

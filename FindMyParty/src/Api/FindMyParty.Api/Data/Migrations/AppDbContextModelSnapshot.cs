@@ -28,7 +28,13 @@ namespace FindMyParty.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<int>("CheckedInCount")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FirstCheckedInAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("IdempotencyKey")
@@ -41,6 +47,11 @@ namespace FindMyParty.Api.Data.Migrations
 
                     b.Property<Guid>("PartyId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("PassSecret")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -62,7 +73,40 @@ namespace FindMyParty.Api.Data.Migrations
                     b.HasIndex("UserId", "IdempotencyKey")
                         .IsUnique();
 
-                    b.ToTable("Bookings");
+                    b.ToTable("Bookings", t =>
+                        {
+                            t.HasCheckConstraint("CK_Bookings_CheckedIn", "\"CheckedInCount\" >= 0 AND \"CheckedInCount\" <= \"TicketCount\"");
+                        });
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Bookings.CheckIn", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Admitted")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PartyId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("PartyId", "At");
+
+                    b.ToTable("CheckIns");
                 });
 
             modelBuilder.Entity("FindMyParty.Api.Identity.ApplicationUser", b =>
@@ -275,9 +319,14 @@ namespace FindMyParty.Api.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("VenueId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("HostId");
+
+                    b.HasIndex("VenueId");
 
                     b.HasIndex("Status", "EndsAt");
 

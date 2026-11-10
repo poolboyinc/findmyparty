@@ -4,6 +4,7 @@ using FindMyParty.Api.Bookings;
 using FindMyParty.Api.Common;
 using FindMyParty.Api.Data;
 using FindMyParty.Api.Identity;
+using FindMyParty.Api.Parties;
 using FindMyParty.Api.Storage;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -54,6 +55,8 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<BookingService>();
+builder.Services.AddScoped<PassService>();
+builder.Services.AddScoped<PartyReader>();
 builder.Services.AddSingleton<IExternalAuthService, ExternalAuthService>();
 builder.Services.AddSingleton<IImageStorage, S3ImageStorage>();
 

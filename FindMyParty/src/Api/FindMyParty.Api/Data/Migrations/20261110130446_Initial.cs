@@ -64,11 +64,31 @@ namespace FindMyParty.Api.Data.Migrations
                     TotalPrice = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     Status = table.Column<int>(type: "integer", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    PartyEndsAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    PartyEndsAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    CheckedInCount = table.Column<int>(type: "integer", nullable: false),
+                    FirstCheckedInAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    PassSecret = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Bookings", x => x.Id);
+                    table.CheckConstraint("CK_Bookings_CheckedIn", "\"CheckedInCount\" >= 0 AND \"CheckedInCount\" <= \"TicketCount\"");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "CheckIns",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    BookingId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PartyId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Admitted = table.Column<int>(type: "integer", nullable: false),
+                    At = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ByUserId = table.Column<Guid>(type: "uuid", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CheckIns", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -77,6 +97,7 @@ namespace FindMyParty.Api.Data.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     HostId = table.Column<Guid>(type: "uuid", nullable: false),
+                    VenueId = table.Column<Guid>(type: "uuid", nullable: true),
                     Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     Description = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
                     Price = table.Column<decimal>(type: "numeric(10,2)", precision: 10, scale: 2, nullable: false),
@@ -302,6 +323,16 @@ namespace FindMyParty.Api.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_CheckIns_BookingId",
+                table: "CheckIns",
+                column: "BookingId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CheckIns_PartyId_At",
+                table: "CheckIns",
+                columns: new[] { "PartyId", "At" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Parties_HostId",
                 table: "Parties",
                 column: "HostId");
@@ -310,6 +341,11 @@ namespace FindMyParty.Api.Data.Migrations
                 name: "IX_Parties_Status_EndsAt",
                 table: "Parties",
                 columns: new[] { "Status", "EndsAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Parties_VenueId",
+                table: "Parties",
+                column: "VenueId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_RefreshTokens_TokenHash",
@@ -349,6 +385,9 @@ namespace FindMyParty.Api.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "Bookings");
+
+            migrationBuilder.DropTable(
+                name: "CheckIns");
 
             migrationBuilder.DropTable(
                 name: "Parties");

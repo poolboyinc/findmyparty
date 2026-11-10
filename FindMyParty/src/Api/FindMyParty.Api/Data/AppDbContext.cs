@@ -13,6 +13,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Party> Parties => Set<Party>();
     public DbSet<Booking> Bookings => Set<Booking>();
+    public DbSet<CheckIn> CheckIns => Set<CheckIn>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -47,6 +48,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             p.Property(x => x.PerformerType).HasMaxLength(100);
             p.HasIndex(x => new { x.Status, x.EndsAt });
             p.HasIndex(x => x.HostId);
+            p.HasIndex(x => x.VenueId);
             // Last line of defence: the database itself refuses to oversell.
             p.ToTable(t => t.HasCheckConstraint("CK_Parties_TicketsSold", "\"TicketsSold\" >= 0 AND \"TicketsSold\" <= \"Capacity\""));
         });
@@ -59,6 +61,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbCo
             b.Property(x => x.IdempotencyKey).HasMaxLength(100).IsRequired();
             b.HasIndex(x => new { x.UserId, x.IdempotencyKey }).IsUnique();
             b.HasIndex(x => x.PartyId);
+            b.Property(x => x.PassSecret).HasMaxLength(64).IsRequired();
+            b.ToTable(t => t.HasCheckConstraint("CK_Bookings_CheckedIn", "\"CheckedInCount\" >= 0 AND \"CheckedInCount\" <= \"TicketCount\""));
+        });
+
+        builder.Entity<CheckIn>(c =>
+        {
+            c.HasKey(x => x.Id);
+            c.HasIndex(x => new { x.PartyId, x.At });
+            c.HasIndex(x => x.BookingId);
         });
     }
 }

@@ -13,6 +13,8 @@ public class Party
 {
     public Guid Id { get; private set; }
     public Guid HostId { get; private set; }
+    /// <summary>The host's venue at the time the party was created.</summary>
+    public Guid? VenueId { get; private set; }
     public string Title { get; private set; } = null!;
     public string Description { get; private set; } = null!;
     public decimal Price { get; private set; }
@@ -34,10 +36,11 @@ public class Party
 
     protected Party() { }
 
-    public Party(Guid hostId, PartyRequest r)
+    public Party(Guid hostId, Guid? venueId, PartyRequest r)
     {
         Id = Guid.NewGuid();
         HostId = hostId;
+        VenueId = venueId;
         Status = PartyStatus.Draft;
         Apply(r);
     }

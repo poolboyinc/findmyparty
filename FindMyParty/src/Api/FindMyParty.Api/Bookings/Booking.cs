@@ -20,6 +20,11 @@ public class Booking
     public BookingStatus Status { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime PartyEndsAt { get; private set; }
+    /// <summary>Guests from this booking already let in at the door.</summary>
+    public int CheckedInCount { get; private set; }
+    public DateTime? FirstCheckedInAt { get; private set; }
+    /// <summary>Key for this booking's rotating door code. Only the guest's phone and the server know it.</summary>
+    public string PassSecret { get; private set; } = string.Empty;
 
     protected Booking() { }
 
@@ -34,8 +39,55 @@ public class Booking
         CreatedAt = DateTime.UtcNow;
         IdempotencyKey = idempotencyKey;
         PartyEndsAt = partyEndsAt;
+        PassSecret = PassCode.NewSecret();
     }
 }
+
+/// <summary>One scan at the door: who was let in, how many, when, by whom.</summary>
+public class CheckIn
+{
+    public Guid Id { get; set; }
+    public Guid BookingId { get; set; }
+    public Guid PartyId { get; set; }
+    public int Admitted { get; set; }
+    public DateTime At { get; set; }
+    public Guid ByUserId { get; set; }
+}
+
+public record PassResponse(
+    Guid BookingId,
+    string Secret,
+    int StepSeconds,
+    int TicketCount,
+    int CheckedInCount,
+    string Status,
+    Guid PartyId,
+    string PartyTitle,
+    string? VenueName,
+    DateTime StartsAt,
+    DateTime EndsAt,
+    decimal TotalPrice);
+
+public record CheckInRequest(string? Code, int? Admit);
+
+public record CheckInResponse(
+    Guid BookingId,
+    string GuestName,
+    int Admitted,
+    int TicketCount,
+    int CheckedInCount,
+    decimal AmountDue,
+    string PartyTitle);
+
+public record ArrivalBucket(DateTime From, int Count);
+
+public record LiveResponse(
+    int Capacity,
+    int PassesOut,
+    int CheckedIn,
+    int NotHereYet,
+    decimal TakenAtDoor,
+    List<ArrivalBucket> Arrivals);
 
 public record CreateBookingRequest(Guid PartyId, int TicketCount);
 

@@ -8,6 +8,14 @@ public class ApiException(int status, string title, string code) : Exception(tit
 {
     public int Status { get; } = status;
     public string Code { get; } = code;
+    /// <summary>Extra fields for the problem body, e.g. when a pass was first used.</summary>
+    public Dictionary<string, object?> Extra { get; } = [];
+
+    public ApiException With(string key, object? value)
+    {
+        Extra[key] = value;
+        return this;
+    }
 
     public static ApiException NotFound(string what) => new(StatusCodes.Status404NotFound, $"{what} not found.", "not_found");
     public static ApiException Forbidden(string title = "You are not allowed to do that.") => new(StatusCodes.Status403Forbidden, title, "forbidden");
@@ -25,6 +33,7 @@ public class ApiExceptionHandler(IProblemDetailsService problemDetails) : IExcep
         context.Response.StatusCode = api.Status;
         var problem = new ProblemDetails { Status = api.Status, Title = api.Message };
         problem.Extensions["code"] = api.Code;
+        foreach (var (key, value) in api.Extra) problem.Extensions[key] = value;
         return await problemDetails.TryWriteAsync(new ProblemDetailsContext { HttpContext = context, ProblemDetails = problem });
     }
 }

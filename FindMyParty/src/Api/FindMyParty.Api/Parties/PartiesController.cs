@@ -11,13 +11,15 @@ namespace FindMyParty.Api.Parties;
 
 [ApiController]
 [Route("api/parties")]
-public class PartiesController(AppDbContext db, IImageStorage images) : ControllerBase
+public class PartiesController(AppDbContext db, IImageStorage images, PartyReader reader, PassService passes) : ControllerBase
 {
     [Authorize(Roles = Roles.Host)]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] PartyRequest request)
     {
-        var party = new Party(User.UserId(), request);
+        var hostId = User.UserIdString();
+        var venueId = await db.VenueProfiles.Where(v => v.UserId == hostId).Select(v => (Guid?)v.Id).FirstOrDefaultAsync();
+        var party = new Party(User.UserId(), venueId, request);
         db.Parties.Add(party);
         await db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = party.Id }, new { id = party.Id });
@@ -129,7 +131,7 @@ public class PartiesController(AppDbContext db, IImageStorage images) : Controll
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var query = db.Parties.Where(p => p.Status == PartyStatus.Published && !p.IsDeleted && p.EndsAt >= DateTime.UtcNow);
+        var query = reader.Open();
         if (date.HasValue)
         {
             var dayStart = date.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
@@ -138,11 +140,10 @@ public class PartiesController(AppDbContext db, IImageStorage images) : Controll
         }
         if (lat is { } lat0 && lng is { } lng0 && radiusKm is > 0)
         {
-            // A cheap box first (uses plain comparisons), then the exact great-circle distance.
-            const double kmPerDegree = 111.32, toRad = Math.PI / 180;
-            var dLat = radiusKm.Value / kmPerDegree;
-            var dLng = radiusKm.Value / (kmPerDegree * Math.Max(Math.Cos(lat0 * toRad), 0.01));
+            // A cheap box first (plain comparisons), then the exact great-circle distance.
+            var (dLat, dLng) = Geo.Box(lat0, radiusKm.Value);
             var r = radiusKm.Value;
+            const double toRad = Geo.ToRad;
             query = query
                 .Where(p => p.Latitude >= lat0 - dLat && p.Latitude <= lat0 + dLat && p.Longitude >= lng0 - dLng && p.Longitude <= lng0 + dLng)
                 .Where(p => 6371 * 2 * Math.Asin(Math.Sqrt(
@@ -150,27 +151,13 @@ public class PartiesController(AppDbContext db, IImageStorage images) : Controll
                     Math.Cos(lat0 * toRad) * Math.Cos(p.Latitude * toRad) * Math.Pow(Math.Sin((p.Longitude - lng0) * toRad / 2), 2))) <= r);
         }
 
-        var parties = await query
-            .OrderBy(p => p.StartsAt)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(p => new PartyResponse
-            {
-                Id = p.Id,
-                Title = p.Title,
-                Price = p.Price,
-                StartsAt = p.StartsAt,
-                EndsAt = p.EndsAt,
-                Latitude = p.Latitude,
-                Longitude = p.Longitude,
-                IsSoldOut = p.TicketsSold >= p.Capacity,
-                ImageUrl = p.ImageUrl,
-                Genre = p.Genre,
-                AttendeeCount = p.TicketsSold
-            })
-            .ToListAsync();
-        return Ok(parties);
+        return Ok(await reader.ToResponsesAsync(query.OrderBy(p => p.StartsAt).Skip((page - 1) * pageSize).Take(pageSize)));
     }
+
+    /// <summary>The night in numbers, for the party's host.</summary>
+    [Authorize(Roles = Roles.Host)]
+    [HttpGet("{id:guid}/live")]
+    public async Task<IActionResult> Live(Guid id, CancellationToken ct) => Ok(await passes.LiveAsync(User.UserId(), id, ct));
 
     /// <summary>A party's details. Drafts are visible to their host only.</summary>
     [HttpGet("{id:guid}")]
@@ -193,7 +180,9 @@ public class PartiesController(AppDbContext db, IImageStorage images) : Controll
             Latitude = p.Latitude,
             Longitude = p.Longitude,
             IsSoldOut = p.TicketsSold >= p.Capacity,
-            ImageUrl = p.ImageUrl
+            ImageUrl = p.ImageUrl,
+            VenueId = p.VenueId,
+            VenueName = p.VenueId == null ? null : await db.VenueProfiles.Where(v => v.Id == p.VenueId).Select(v => v.VenueName).FirstOrDefaultAsync()
         });
     }
 

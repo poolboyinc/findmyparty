@@ -40,6 +40,12 @@ public class PartyResponse
     public string? ImageUrl { get; set; }
     public string? Genre { get; set; }
     public int AttendeeCount { get; set; }
+    public Guid? VenueId { get; set; }
+    public string? VenueName { get; set; }
+    /// <summary>How busy, as a range: "quiet", "20+", "50+", "100+", "200+". Never the exact number.</summary>
+    public string? CrowdLevel { get; set; }
+    /// <summary>"live" once guests have been scanned in at the door; "expected" while it is still based on passes taken.</summary>
+    public string? CrowdSource { get; set; }
 }
 
 public class PartyDetailResponse
@@ -57,6 +63,8 @@ public class PartyDetailResponse
     public double Longitude { get; set; }
     public bool IsSoldOut { get; set; }
     public string? ImageUrl { get; set; }
+    public Guid? VenueId { get; set; }
+    public string? VenueName { get; set; }
 }
 
 public class HostPartyResponse
