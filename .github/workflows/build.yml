@@ -63,7 +63,9 @@ jobs:
             for (const url of b.logFiles || []) console.log(url);
           ' "$RUNNER_TEMP/build.json" > "$RUNNER_TEMP/urls.txt"
           while read -r url; do
-            curl -sL "$url" > "$RUNNER_TEMP/log.txt"
+            curl -sL "$url" > "$RUNNER_TEMP/log.raw"
+            # EAS serves the log gzip-compressed.
+            if gzip -t "$RUNNER_TEMP/log.raw" 2>/dev/null; then gunzip -c "$RUNNER_TEMP/log.raw" > "$RUNNER_TEMP/log.txt"; else cp "$RUNNER_TEMP/log.raw" "$RUNNER_TEMP/log.txt"; fi
             echo "log bytes: $(wc -c < "$RUNNER_TEMP/log.txt")"
             node -e '
               const text = require("fs").readFileSync(process.argv[1], "utf8");
