@@ -14,10 +14,6 @@ export interface RegisterRequest {
   password: string;
 }
 
-export interface RefreshTokenRequest {
-  refreshToken: string;
-}
-
 export interface UserInfo {
   userId: string;
   email: string;

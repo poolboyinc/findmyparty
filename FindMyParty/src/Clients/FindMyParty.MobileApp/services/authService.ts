@@ -1,10 +1,10 @@
 import * as SecureStore from 'expo-secure-store';
 import { ApiConstants } from '../constants/api';
+import { createSession, decodeJwtPayload, type TokenStore } from './session';
 import type {
   ExternalAuthRequest,
   LoginRequest,
   LoginResponse,
-  RefreshTokenRequest,
   RegisterRequest,
   UserInfo,
 } from '../types/auth';
@@ -27,49 +27,6 @@ const ROLE_CLAIM_KEY =
 const NAMEID_CLAIM_KEY =
   'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier';
 
-function isTokenExpired(token: string): boolean {
-  const payload = decodeJwtPayload(token);
-  if (!payload) return true;
-  const exp = payload['exp'];
-  if (typeof exp !== 'number') return false;
-  return Date.now() / 1000 > exp;
-}
-
-// Portable base64 decode that doesn't rely on atob (not guaranteed in all RN engines).
-function base64Decode(input: string): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-  let output = '';
-  let buffer = 0;
-  let bits = 0;
-  for (let i = 0; i < input.length; i++) {
-    const idx = chars.indexOf(input[i]);
-    if (idx === -1 || idx === 64) continue; // skip padding / unknown
-    buffer = (buffer << 6) | idx;
-    bits += 6;
-    if (bits >= 8) {
-      bits -= 8;
-      output += String.fromCharCode((buffer >> bits) & 0xff);
-    }
-  }
-  return output;
-}
-
-function decodeJwtPayload(token: string): Record<string, unknown> | null {
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-
-  let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-  const padding = payload.length % 4;
-  if (padding === 2) payload += '==';
-  else if (padding === 3) payload += '=';
-
-  try {
-    return JSON.parse(base64Decode(payload));
-  } catch {
-    return null;
-  }
-}
-
 function getStringClaim(payload: Record<string, unknown>, key: string): string {
   const value = payload[key];
   if (Array.isArray(value)) return String(value[0] ?? '');
@@ -89,6 +46,27 @@ async function storeTokens(response: LoginResponse): Promise<void> {
     SecureStore.setItemAsync(REFRESH_TOKEN_KEY, response.refreshToken),
   ]);
 }
+
+async function clearTokens(): Promise<void> {
+  await Promise.all([
+    SecureStore.deleteItemAsync(TOKEN_KEY),
+    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+  ]);
+}
+
+const secureTokenStore: TokenStore = {
+  get: (key) => SecureStore.getItemAsync(key === 'access' ? TOKEN_KEY : REFRESH_TOKEN_KEY),
+  set: storeTokens,
+  clear: clearTokens,
+};
+
+// Refresh, expiry and "am I signed in" live in session.ts, which is unit-tested
+// (services/__tests__/session.test.mjs). This file only wires it to the device.
+const session = createSession({
+  baseUrl: ApiConstants.GatewayBaseUrl,
+  fetch: fetchWithTimeout,
+  store: secureTokenStore,
+});
 
 export const authService = {
   async login(email: string, password: string): Promise<boolean> {
@@ -123,30 +101,13 @@ export const authService = {
     return true;
   },
 
+  /** True when new tokens were stored. Shares one request between concurrent callers. */
   async refresh(): Promise<boolean> {
-    const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
-    if (!refreshToken) return false;
-
-    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken } satisfies RefreshTokenRequest),
-    });
-
-    if (!response.ok) return false;
-
-    const result: LoginResponse = await response.json();
-    if (!result.accessToken) return false;
-
-    await storeTokens(result);
-    return true;
+    return (await session.refresh()) === 'ok';
   },
 
   async logout(): Promise<void> {
-    await Promise.all([
-      SecureStore.deleteItemAsync(TOKEN_KEY),
-      SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
-    ]);
+    await clearTokens();
   },
 
   async deleteAccount(): Promise<boolean> {
@@ -163,24 +124,9 @@ export const authService = {
     }
   },
 
-  // Deduplicates concurrent refresh calls
-  _refreshPromise: null as Promise<boolean> | null,
-
-  async getToken(): Promise<string | null> {
-    const token = await SecureStore.getItemAsync(TOKEN_KEY);
-    if (!token) return null;
-    if (isTokenExpired(token)) {
-      // If a refresh is already in-flight, wait for it instead of starting another
-      if (!authService._refreshPromise) {
-        authService._refreshPromise = authService.refresh().finally(() => {
-          authService._refreshPromise = null;
-        });
-      }
-      const refreshed = await authService._refreshPromise;
-      if (!refreshed) return null;
-      return SecureStore.getItemAsync(TOKEN_KEY);
-    }
-    return token;
+  /** A token that is safe to send now (refreshed if needed), or null. */
+  getToken(): Promise<string | null> {
+    return session.getAccessToken();
   },
 
   async getUserInfo(): Promise<UserInfo | null> {
@@ -235,10 +181,8 @@ export const authService = {
     return true;
   },
 
-  async isAuthenticated(): Promise<boolean> {
-    const token = await SecureStore.getItemAsync(TOKEN_KEY);
-    if (!token) return false;
-    if (!isTokenExpired(token)) return true;
-    return authService.refresh();
+  /** False only with no session or one the server has ended. Being offline is not signed out. */
+  isAuthenticated(): Promise<boolean> {
+    return session.isAuthenticated();
   },
 };
