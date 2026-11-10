@@ -64,8 +64,15 @@ jobs:
           ' "$RUNNER_TEMP/build.json" > "$RUNNER_TEMP/urls.txt"
           while read -r url; do
             curl -sL "$url" > "$RUNNER_TEMP/log.raw"
-            # EAS serves the log gzip-compressed.
-            if gzip -t "$RUNNER_TEMP/log.raw" 2>/dev/null; then gunzip -c "$RUNNER_TEMP/log.raw" > "$RUNNER_TEMP/log.txt"; else cp "$RUNNER_TEMP/log.raw" "$RUNNER_TEMP/log.txt"; fi
+            # The log may come as a tar archive and/or gzip-compressed; unpack whatever it is.
+            echo "log file type: $(file -b "$RUNNER_TEMP/log.raw")"
+            rm -rf "$RUNNER_TEMP/logx" && mkdir -p "$RUNNER_TEMP/logx"
+            if tar -tf "$RUNNER_TEMP/log.raw" >/dev/null 2>&1; then tar -xf "$RUNNER_TEMP/log.raw" -C "$RUNNER_TEMP/logx"; else cp "$RUNNER_TEMP/log.raw" "$RUNNER_TEMP/logx/log"; fi
+            : > "$RUNNER_TEMP/log.txt"
+            find "$RUNNER_TEMP/logx" -type f | sort | while read -r f; do
+              echo "contains: ${f#$RUNNER_TEMP/logx/} ($(file -b "$f"))"
+              if gzip -t "$f" 2>/dev/null; then gunzip -c "$f"; elif tar -tf "$f" >/dev/null 2>&1; then tar -xOf "$f"; else cat "$f"; fi >> "$RUNNER_TEMP/log.txt"
+            done
             echo "log bytes: $(wc -c < "$RUNNER_TEMP/log.txt")"
             node -e '
               const text = require("fs").readFileSync(process.argv[1], "utf8");
