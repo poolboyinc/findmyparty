@@ -53,7 +53,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "FindMyParty uses your location to show parties near you."
+          "locationWhenInUsePermission": "FindMyParty uses your location to show what is near you and to walk you there."
         }
       ],
       [
