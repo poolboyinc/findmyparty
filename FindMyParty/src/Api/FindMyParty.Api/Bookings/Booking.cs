@@ -121,4 +121,5 @@ public record UserBookingResponse(
     DateTime CreatedAt,
     DateTime PartyEndsAt,
     BookingPartyDto? Party,
-    int CheckedInCount = 0);
+    int CheckedInCount = 0,
+    DateTime? FirstCheckedInAt = null);

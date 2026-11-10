@@ -133,7 +133,8 @@ public class BookingService(AppDbContext db)
             r.b.Id, r.b.PartyId, r.b.TicketCount, r.b.TotalPrice, r.b.Status.ToString(), r.b.CreatedAt, r.b.PartyEndsAt,
             r.p is null ? null : new BookingPartyDto(r.p.Id, r.p.Title, r.p.ImageUrl, r.p.StartsAt, r.p.EndsAt, r.p.Latitude, r.p.Longitude,
                 r.p.Genre, r.p.PerformerName, r.p.PerformerType, r.p.Status.ToString(), r.p.VenueId, r.VenueName),
-            r.b.CheckedInCount)).ToList();
+            r.b.CheckedInCount,
+            r.b.FirstCheckedInAt)).ToList();
     }
 
     public async Task<List<BookingResponse>> ForPartyAsync(Guid hostId, Guid partyId, CancellationToken ct = default)

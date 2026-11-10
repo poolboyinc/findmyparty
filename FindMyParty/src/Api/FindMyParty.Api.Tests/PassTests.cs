@@ -212,6 +212,21 @@ public class PassTests(TestApp app)
         Assert.Equal("Techno", detail!.Genre);
     }
 
+    [Fact]
+    public async Task My_bookings_say_when_the_guest_was_first_scanned_in()
+    {
+        var (host, _, guest, booking, pass) = await BookedAsync();
+        var before = (await guest.Http.GetFromJsonAsync<List<MyRow>>("/api/bookings/my"))!.Single(b => b.Id == booking);
+        (await Scan(host, CodeFor(pass))).EnsureSuccessStatusCode();
+        var after = (await guest.Http.GetFromJsonAsync<List<MyRow>>("/api/bookings/my"))!.Single(b => b.Id == booking);
+
+        Assert.Null(before.FirstCheckedInAt);
+        Assert.NotNull(after.FirstCheckedInAt);
+        Assert.True(Math.Abs((after.FirstCheckedInAt!.Value - DateTime.UtcNow).TotalMinutes) < 2);
+    }
+
+    private record MyRow(Guid Id, int CheckedInCount, DateTime? FirstCheckedInAt);
+
     // ── what the host sees ──
 
     [Fact]
