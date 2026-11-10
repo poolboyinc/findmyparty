@@ -206,7 +206,9 @@ public class BookingTests(TestApp app)
 
         var row = Assert.Single(mine!);
         Assert.Equal(2, row.TicketCount);
+        Assert.Equal(0, row.CheckedInCount);
         Assert.Equal("Neon Friday", row.Party!.Title);
+        Assert.Equal("Test venue", row.Party.VenueName);
     }
 
     private record Problem(string Title, string Code);

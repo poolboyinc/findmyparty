@@ -61,6 +61,19 @@
         {
           "photosPermission": "FindMyParty needs access to your photos to set a party image."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "FindMyParty uses the camera to scan passes at the door.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "FindMyParty uses motion to make the foil on your pass shift as you tilt the phone."
+        }
       ]
     ],
     "experiments": {

@@ -6,7 +6,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { colors, layout, radii, spacing, typography } from '@/theme';
 
@@ -32,7 +31,6 @@ export function PrimaryButton({
   accessibilityHint,
 }: Props) {
   const inactive = disabled || loading;
-  const isGradient = variant === 'gradient' && !inactive;
 
   // Press-start haptic acknowledges the input. The screen-level submit handler
   // fires a `notification` haptic on the result (success/error) — two distinct
@@ -60,16 +58,6 @@ export function PrimaryButton({
         pressed && !inactive && styles.pressed,
       ]}
     >
-      {isGradient ? (
-        <LinearGradient
-          colors={colors.brand.authGradient.colors}
-          locations={colors.brand.authGradient.locations}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
-      ) : null}
       {loading ? (
         <ActivityIndicator color={colors.label} />
       ) : (
@@ -99,15 +87,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   primary: {
-    backgroundColor: colors.tint,
+    backgroundColor: colors.action,
   },
   secondary: {
     backgroundColor: colors.surfaceElevated,
   },
   gradientBase: {
-    // Background painted by the absolutely-positioned LinearGradient child.
-    // Falls back to the disabled fill when `inactive` overrides this style.
-    backgroundColor: 'transparent',
+    // Afterglow has no gradient buttons. The `gradient` variant is kept so old call
+    // sites compile; it renders the same flat fill as `primary`.
+    backgroundColor: colors.action,
   },
   destructive: {
     // iOS-system red action — used for the consumer "Cancel Booking" CTA inside

@@ -1,4 +1,5 @@
-const RAILWAY_GATEWAY = 'https://findmyparty-gateway-production.up.railway.app';
+// The single FindMyParty API on Railway (FindMyParty/src/Api).
+const RAILWAY_GATEWAY = 'https://findmyparty-api-production.up.railway.app';
 
 export const ApiConstants = {
   MapboxPublicToken: process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? '',

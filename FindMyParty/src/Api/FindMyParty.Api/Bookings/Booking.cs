@@ -110,4 +110,5 @@ public record UserBookingResponse(
     string Status,
     DateTime CreatedAt,
     DateTime PartyEndsAt,
-    BookingPartyDto? Party);
+    BookingPartyDto? Party,
+    int CheckedInCount = 0);

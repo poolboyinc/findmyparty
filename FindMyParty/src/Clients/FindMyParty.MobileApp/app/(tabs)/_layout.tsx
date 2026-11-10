@@ -1,27 +1,36 @@
 import { Tabs } from 'expo-router';
-import { GlassTabBar, type TabIconMap } from '@/components/ui/glass-tab-bar';
+import { AfterglowTabBar } from '@/components/afterglow/tab-bar';
+import type { TabIconMap } from '@/components/ui/glass-tab-bar';
 
 /**
- * Tab definitions — single source of truth for icons + labels.
- * Keys must match the file-based route names under `app/(tabs)/`.
+ * Guest tabs: City (the map), Tonight (the feed), Pass (your ticket), Me.
+ * Keys must match the file names under `app/(tabs)/`.
+ * A "Glow" tab joins these when rewards are built; nothing is shown for it until then.
  */
 const TAB_ICONS: TabIconMap = {
   index: {
-    label: 'Explore',
-    sfSymbolActive: 'map.fill',
-    sfSymbolInactive: 'map',
-    ioniconActive: 'map',
-    ioniconInactive: 'map-outline',
+    label: 'City',
+    sfSymbolActive: 'building.2.fill',
+    sfSymbolInactive: 'building.2',
+    ioniconActive: 'business',
+    ioniconInactive: 'business-outline',
   },
   parties: {
-    label: 'Parties',
+    label: 'Tonight',
     sfSymbolActive: 'flame.fill',
     sfSymbolInactive: 'flame',
     ioniconActive: 'flame',
     ioniconInactive: 'flame-outline',
   },
+  pass: {
+    label: 'Pass',
+    sfSymbolActive: 'ticket.fill',
+    sfSymbolInactive: 'ticket.fill',
+    ioniconActive: 'ticket',
+    ioniconInactive: 'ticket',
+  },
   profile: {
-    label: 'Profile',
+    label: 'Me',
     sfSymbolActive: 'person.fill',
     sfSymbolInactive: 'person',
     ioniconActive: 'person',
@@ -32,29 +41,20 @@ const TAB_ICONS: TabIconMap = {
 export default function TabLayout() {
   return (
     <Tabs
-      tabBar={(props) => <GlassTabBar {...props} iconMap={TAB_ICONS} />}
+      tabBar={(props) => <AfterglowTabBar {...props} iconMap={TAB_ICONS} primaryRoute="pass" />}
       screenOptions={{
         headerShown: false,
-        // `animation: 'shift'` instead of `'fade'`: shift uses translateX so
-        // tab transitions don't depend on opacity. `'fade'` accumulated
-        // opacity-state corruption over many cycles in @react-navigation/
-        // bottom-tabs v7 — confirmed via device repro (10+ tab back-and-forths
-        // between two tabs eventually left the destination screen stuck at
-        // opacity 0). Shift sidesteps the opacity path entirely.
+        // `shift`, not `fade`: fade accumulated opacity-state corruption over many tab
+        // switches in @react-navigation/bottom-tabs v7 (confirmed on device earlier).
         animation: 'shift',
-        // `freezeOnBlur: false` disables react-native-screens' default freeze
-        // behavior. v4 (~4.16) intermittently drops a frozen screen's native
-        // render buffer during back-and-forth tab navigation; on thaw the
-        // screen appears black until something triggers a re-paint, which
-        // doesn't happen without a state change. Disabling the freeze keeps
-        // each tab actively rendering — negligible cost for 3 tabs, no thaw
-        // paint bug. `lazy` is at its v7 default (`true`); re-enabling
-        // `lazy: false` is held for a separate step once this is verified.
+        // react-native-screens v4 intermittently drops a frozen tab's render buffer;
+        // keeping tabs unfrozen avoids a black screen on return.
         freezeOnBlur: false,
       }}
     >
       <Tabs.Screen name="index" />
       <Tabs.Screen name="parties" />
+      <Tabs.Screen name="pass" />
       <Tabs.Screen name="profile" />
     </Tabs>
   );

@@ -124,13 +124,16 @@ public class BookingService(AppDbContext db)
             where b.UserId == userId
             join p in db.Parties.Where(p => !p.IsDeleted) on b.PartyId equals p.Id into parties
             from p in parties.DefaultIfEmpty()
+            join v in db.VenueProfiles on p.VenueId equals (Guid?)v.Id into venues
+            from v in venues.DefaultIfEmpty()
             orderby b.CreatedAt descending
-            select new { b, p }).AsNoTracking().ToListAsync(ct);
+            select new { b, p, VenueName = (string?)v.VenueName }).AsNoTracking().ToListAsync(ct);
 
         return rows.Select(r => new UserBookingResponse(
             r.b.Id, r.b.PartyId, r.b.TicketCount, r.b.TotalPrice, r.b.Status.ToString(), r.b.CreatedAt, r.b.PartyEndsAt,
             r.p is null ? null : new BookingPartyDto(r.p.Id, r.p.Title, r.p.ImageUrl, r.p.StartsAt, r.p.EndsAt, r.p.Latitude, r.p.Longitude,
-                r.p.Genre, r.p.PerformerName, r.p.PerformerType, r.p.Status.ToString()))).ToList();
+                r.p.Genre, r.p.PerformerName, r.p.PerformerType, r.p.Status.ToString(), r.p.VenueId, r.VenueName),
+            r.b.CheckedInCount)).ToList();
     }
 
     public async Task<List<BookingResponse>> ForPartyAsync(Guid hostId, Guid partyId, CancellationToken ct = default)

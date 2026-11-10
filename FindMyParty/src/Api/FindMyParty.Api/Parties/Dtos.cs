@@ -100,4 +100,6 @@ public record BookingPartyDto(
     string? Genre,
     string? PerformerName,
     string? PerformerType,
-    string Status);
+    string Status,
+    Guid? VenueId = null,
+    string? VenueName = null);

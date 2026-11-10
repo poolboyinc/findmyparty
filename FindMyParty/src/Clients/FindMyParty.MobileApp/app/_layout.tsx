@@ -2,6 +2,8 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
+import { QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
@@ -10,6 +12,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { authService } from '@/services/authService';
+import { queryClient } from '@/services/queryClient';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -54,6 +57,12 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   useProtectedRoute();
 
+  // Server data refreshes when the app comes back to the front.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => focusManager.setFocused(state === 'active'));
+    return () => sub.remove();
+  }, []);
+
   const [fontsLoaded] = useFonts({
     Coolvetica: require('@/assets/fonts/coolvetica.ttf'),
   });
@@ -65,6 +74,7 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
+    <QueryClientProvider client={queryClient}>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -77,6 +87,7 @@ export default function RootLayout() {
             <Stack.Screen name="edit-profile" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false, animation: 'none' }} />
             <Stack.Screen name="party/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
+            <Stack.Screen name="venue/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="my-bookings" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="favorites" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="admin" options={{ headerShown: false }} />
@@ -85,5 +96,6 @@ export default function RootLayout() {
         </ThemeProvider>
       </BottomSheetModalProvider>
     </GestureHandlerRootView>
+    </QueryClientProvider>
   );
 }

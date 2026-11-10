@@ -12,7 +12,7 @@ import { Platform, StyleSheet, TextStyle } from 'react-native';
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Internal palette anchors — exposed only through `colors.brand.*`.
-const BRAND_PURPLE_PRIMARY = '#8B5CF6';
+const BRAND_PURPLE_PRIMARY = '#9D6BFF';
 const BRAND_PURPLE_LIGHT = '#B58CFF';
 const BRAND_PURPLE_DEEP = '#7D08FA';
 const BRAND_ORANGE_HEX = '#FF8C48';
@@ -23,10 +23,29 @@ const BRAND_ORANGE_HEX = '#FF8C48';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const colors = {
-  bg: '#0A0A0C',
-  surface: '#16161A',
-  surfaceElevated: '#1F1F24',
-  surfaceHigh: '#2A2A30',
+  // Afterglow surfaces: solid, no blur, no outlines.
+  bg: '#07060D',
+  surface: '#15121F',
+  surfaceElevated: '#1D1A2A',
+  surfaceHigh: '#27233A',
+
+  // ── Afterglow: one colour, one meaning ──────────────────────────────────
+  /** Fill of primary buttons. One flat colour, never a gradient. */
+  action: '#7C3AED',
+  /** The crowd: live counts, heat bars, busy beams. */
+  crowd: '#EC5B93',
+  /** A quiet venue's beam; also selection. Same hue as `tint`. */
+  quiet: '#9D6BFF',
+  /** You and your people: your location, your route, friends. */
+  you: '#22E6FF',
+  /** Earned things: a valid scan, perks, venues you have lit. */
+  earned: '#C6FF3D',
+  /** Paid things: anything sponsored, and nothing else. */
+  paid: '#FFB020',
+  /** The Pass only: a pale ticket in a dark app. */
+  paper: '#EFECE4',
+  /** Text on `paper` and on solid colour blocks. */
+  ink: '#0B0A10',
 
   label: '#FFFFFF',
   labelSecondary: 'rgba(235,235,245,0.60)',
@@ -124,6 +143,20 @@ const fontFamily = Platform.select({
 }) as string;
 
 type Type = TextStyle;
+
+/** Coolvetica is loaded in app/_layout.tsx. Use it for names and big moments only. */
+export const fonts = {
+  display: 'Coolvetica',
+} as const;
+
+/** Display sizes in Coolvetica: venue and party names, "You're in.", screen titles. */
+export const display = {
+  xl: { fontFamily: fonts.display, fontSize: 52, lineHeight: 54 } satisfies TextStyle,
+  lg: { fontFamily: fonts.display, fontSize: 36, lineHeight: 38 } satisfies TextStyle,
+  md: { fontFamily: fonts.display, fontSize: 28, lineHeight: 30 } satisfies TextStyle,
+  sm: { fontFamily: fonts.display, fontSize: 22, lineHeight: 24 } satisfies TextStyle,
+  xs: { fontFamily: fonts.display, fontSize: 17, lineHeight: 19 } satisfies TextStyle,
+} as const;
 
 export const typography = {
   largeTitle: {
@@ -256,12 +289,17 @@ export const radii = {
   lg: 14,
   xl: 20,
   xxl: 28,
-  card: 16,
-  modal: 14,
-  button: 14,
+  // Afterglow corners: not one radius for everything.
+  badge: 2,
+  chip: 7,
+  card: 11,
+  ticket: 14,
+  sheet: 18,
+  modal: 18,
+  button: 11,
   /** Same value as `radii.card` today, kept separate for semantic clarity.
    * Flag for consolidation review if they stay identical long-term. */
-  field: 16,
+  field: 11,
   pill: 9999,
 } as const;
 
@@ -302,6 +340,8 @@ export const hairlineWidth = StyleSheet.hairlineWidth;
 
 export const theme = {
   colors,
+  fonts,
+  display,
   typography,
   weights,
   spacing,
