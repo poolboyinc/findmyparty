@@ -3,10 +3,12 @@ import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { AdminScreen } from '@/components/admin/admin-screen';
 import { ModalFormHeader } from '@/components/admin/modal-form-header';
 import { PartyFormFields, usePartyForm } from '@/components/admin/party-form';
 import { PrimaryButton } from '@/components/ui/primary-button';
+import { keys } from '@/hooks/queries';
 import { partyService } from '@/services/partyService';
 import { adminService } from '@/services/adminService';
 import type { CreatePartyRequest } from '@/types/parties';
@@ -29,6 +31,7 @@ export default function CreatePartyScreen() {
   }, []);
 
   const form = usePartyForm();
+  const client = useQueryClient();
 
   // Submission + inline messaging owned by the screen.
   const [loading, setLoading] = useState(false);
@@ -41,7 +44,7 @@ export default function CreatePartyScreen() {
     if (!form.validate()) return;
 
     if (!hostProfile) {
-      setSubmitError('Venue profile still loading — try again in a moment.');
+      setSubmitError('The venue profile is still loading. Try again in a moment.');
       return;
     }
 
@@ -51,6 +54,9 @@ export default function CreatePartyScreen() {
     try {
       const request: CreatePartyRequest = {
         ...payload,
+        // Hosts cannot feature their own parties; the server ignores this field.
+        // It is only here because the shared request type still lists it.
+        featured: false,
         latitude: hostProfile.latitude,
         longitude: hostProfile.longitude,
       };
@@ -61,6 +67,8 @@ export default function CreatePartyScreen() {
         setLoading(false);
         return;
       }
+      // The Live tab and the scanner read the same list of parties.
+      client.invalidateQueries({ queryKey: keys.hostParties });
 
       // Upload the cover image if one was chosen. A failure here is non-blocking:
       // the party exists, so we surface an inline notice and still proceed.
@@ -68,7 +76,7 @@ export default function CreatePartyScreen() {
         const imageUrl = await partyService.uploadPartyImage(partyId, form.values.imageUri);
         if (!imageUrl) {
           form.setImageNotice(
-            "Party created, but the cover image didn't upload. You can add it later from Manage.",
+            "Party created, but the cover image didn't upload. You can add it later from Parties.",
           );
         }
       }
@@ -76,19 +84,18 @@ export default function CreatePartyScreen() {
       if (publish) {
         const published = await partyService.publishParty(partyId);
         if (!published) {
-          // Created but not published — land on Manage so the host can publish there.
-          form.setImageNotice("Saved as draft — couldn't publish. Publish it from Manage.");
+          // Created but not published — land on Parties so the host can publish there.
+          form.setImageNotice("Saved as a draft, but it couldn't be published. Publish it from Parties.");
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          // TODO(animation-specialist): the `newPartyId` param drives the new-party
-          // pulse on Manage (#6).
+          // The `newPartyId` param highlights the new card in Parties.
           router.replace({ pathname: '/admin/manage', params: { newPartyId: partyId } });
           return;
         }
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // TODO(animation-specialist): the `newPartyId` param drives the new-party
-      // pulse on Manage (#6).
+      // The `newPartyId` param highlights the new card in Parties.
+      client.invalidateQueries({ queryKey: keys.hostParties });
       router.replace({ pathname: '/admin/manage', params: { newPartyId: partyId } });
     } catch {
       setSubmitError("Couldn't create your party. Check your connection and try again.");
@@ -99,7 +106,7 @@ export default function CreatePartyScreen() {
   return (
     <View style={styles.root}>
       <ModalFormHeader
-        title="New Party"
+        title="New party"
         onCancel={() => router.back()}
         onPost={() => handleSubmit(true)}
         submitting={loading}
@@ -120,7 +127,7 @@ export default function CreatePartyScreen() {
         ) : null}
         <View style={styles.footer}>
           <PrimaryButton
-            label="Save to Drafts"
+            label="Save as draft"
             variant="secondary"
             onPress={() => handleSubmit(false)}
             loading={loading}

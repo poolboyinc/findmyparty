@@ -1,63 +1,46 @@
 import { useRef, useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, type TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useRegister } from '@/hooks/useAuth';
+import { PasswordToggle } from '@/components/account/password-toggle';
 import { AuthField } from '@/components/ui/auth-field';
 import { AuthHeader } from '@/components/ui/auth-header';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { colors, layout, spacing, typography, weights } from '@/theme';
+import { enterApp, useRegister } from '@/hooks/useAuth';
+import { colors, layout, spacing, typography } from '@/theme';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// Backend constraint: 3–20 chars, alphanumeric + underscore, no spaces.
+// 3 to 20 letters, numbers or underscores, no spaces.
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
+// The server's rule (Identity options in the API's Program.cs).
+const PASSWORD_RULE = 'At least 8 characters, with a number and a lowercase letter.';
 
-function PwHint({ met, label }: { met: boolean; label: string }) {
-  return (
-    <View style={hintStyles.row}>
-      <Ionicons
-        name={met ? 'checkmark-circle' : 'ellipse-outline'}
-        size={14}
-        color={met ? colors.success : colors.labelTertiary}
-      />
-      <Text style={[hintStyles.text, met && hintStyles.textMet]}>{label}</Text>
-    </View>
-  );
+function passwordOk(password: string): boolean {
+  return password.length >= 8 && /[0-9]/.test(password) && /[a-z]/.test(password);
 }
 
-const hintStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 },
-  text: { ...typography.footnote, color: colors.labelTertiary },
-  textMet: { color: colors.success },
-});
+/** An empty field only complains after a submit; a filled-in wrong one as soon as it has been left. */
+function fieldError(
+  valid: boolean,
+  empty: boolean,
+  touched: boolean,
+  submitted: boolean,
+  emptyText: string,
+  wrongText: string,
+): string | null {
+  if (valid) return null;
+  if (empty) return submitted ? emptyText : null;
+  return touched || submitted ? wrongText : null;
+}
 
 export default function RegisterPage() {
-  const {
-    userName,
-    setUserName,
-    email,
-    setEmail,
-    password,
-    setPassword,
-    error,
-    loading,
-    register,
-  } = useRegister();
+  const { userName, setUserName, email, setEmail, password, setPassword, error, loading, register } = useRegister();
 
   const [confirm, setConfirm] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [usernameTouched, setUsernameTouched] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
   const [confirmTouched, setConfirmTouched] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
 
@@ -65,50 +48,45 @@ export default function RegisterPage() {
   const passwordRef = useRef<TextInput>(null);
   const confirmRef = useRef<TextInput>(null);
 
-  const usernameError =
-    (usernameTouched || submitAttempted) && userName.length > 0 && !USERNAME_REGEX.test(userName.trim())
-      ? '3–20 letters, numbers, or underscores. No spaces.'
-      : submitAttempted && userName.trim().length === 0
-        ? 'Name is required.'
-        : null;
+  const usernameValid = USERNAME_REGEX.test(userName.trim());
+  const emailValid = EMAIL_REGEX.test(email.trim());
+  const passwordValid = passwordOk(password);
+  const confirmValid = confirm === password;
 
-  const emailError =
-    (emailTouched || submitAttempted) && email.length > 0 && !EMAIL_REGEX.test(email.trim())
-      ? 'Please enter a valid email address.'
-      : submitAttempted && email.trim().length === 0
-        ? 'Email is required.'
-        : null;
-
-  const pwChecks = {
-    length: password.length >= 8,
-    digit: /[0-9]/.test(password),
-    lower: /[a-z]/.test(password),
-  };
-  const pwAllMet = pwChecks.length && pwChecks.digit && pwChecks.lower;
-
-  const passwordError =
-    submitAttempted && password.length === 0 ? 'Password is required.' : null;
-
-  const confirmError =
-    (confirmTouched || submitAttempted) && confirm.length > 0 && confirm !== password
-      ? "Passwords don't match"
-      : submitAttempted && confirm.length === 0
-        ? 'Please confirm your password.'
-        : null;
-
-  const formValid =
-    USERNAME_REGEX.test(userName.trim()) &&
-    EMAIL_REGEX.test(email.trim()) &&
-    pwAllMet &&
-    confirm === password;
+  const usernameError = fieldError(
+    usernameValid,
+    userName.trim().length === 0,
+    usernameTouched,
+    submitAttempted,
+    'Choose a username.',
+    '3 to 20 letters, numbers or underscores, no spaces.',
+  );
+  const emailError = fieldError(
+    emailValid,
+    email.trim().length === 0,
+    emailTouched,
+    submitAttempted,
+    'Enter your email.',
+    'That does not look like an email address.',
+  );
+  // The rule always stands under the field; it turns into the error once the password falls short of it.
+  const passwordError = fieldError(passwordValid, password.length === 0, passwordTouched, submitAttempted, PASSWORD_RULE, PASSWORD_RULE);
+  const confirmError = fieldError(
+    confirmValid,
+    confirm.length === 0,
+    confirmTouched,
+    submitAttempted,
+    'Type the password again.',
+    'The passwords do not match.',
+  );
 
   const handleSignUp = async () => {
     setSubmitAttempted(true);
-    if (!formValid) return;
-    const success = await register();
-    if (success) {
+    if (!usernameValid || !emailValid || !passwordValid || !confirmValid || loading) return;
+    const created = await register();
+    if (created) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
+      enterApp();
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
@@ -116,20 +94,13 @@ export default function RegisterPage() {
 
   return (
     <View style={styles.root}>
-      <AuthHeader title="Sign Up" disabled={loading} />
+      <AuthHeader title="Create your account" disabled={loading} />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.form}>
             <AuthField
-              placeholder="Name"
+              placeholder="Username"
               value={userName}
               onChangeText={setUserName}
               onBlur={() => setUsernameTouched(true)}
@@ -139,7 +110,7 @@ export default function RegisterPage() {
               autoComplete="username-new"
               returnKeyType="next"
               onSubmitEditing={() => emailRef.current?.focus()}
-              accessibilityLabel="Name"
+              accessibilityLabel="Username"
               error={usernameError}
               editable={!loading}
               maxLength={20}
@@ -166,6 +137,7 @@ export default function RegisterPage() {
               placeholder="Password"
               value={password}
               onChangeText={setPassword}
+              onBlur={() => setPasswordTouched(true)}
               secureTextEntry={!passwordVisible}
               autoCapitalize="none"
               autoCorrect={false}
@@ -174,38 +146,17 @@ export default function RegisterPage() {
               returnKeyType="next"
               onSubmitEditing={() => confirmRef.current?.focus()}
               accessibilityLabel="Password"
+              accessibilityHint={PASSWORD_RULE}
+              helper={PASSWORD_RULE}
               error={passwordError}
               editable={!loading}
               trailingSlot={
-                <Pressable
-                  onPress={() => setPasswordVisible((v) => !v)}
-                  disabled={loading}
-                  hitSlop={layout.hitSlop}
-                  accessibilityRole="button"
-                  accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
-                >
-                  <Ionicons
-                    name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
-                    size={20}
-                    color={colors.labelSecondary}
-                  />
-                </Pressable>
+                <PasswordToggle visible={passwordVisible} onToggle={() => setPasswordVisible((v) => !v)} disabled={loading} />
               }
             />
-
-            {/* Live password rules — indicators are state-driven via `pwChecks`
-                derived from the password value. Each rule fills in as the user
-                types matching characters. Sits directly under Password so the
-                user sees them before typing Confirm Password. */}
-            <View style={styles.hints}>
-              <PwHint met={pwChecks.length} label="8 characters" />
-              <PwHint met={pwChecks.digit} label="1 number" />
-              <PwHint met={pwChecks.lower} label="1 lowercase letter" />
-            </View>
-
             <AuthField
               ref={confirmRef}
-              placeholder="Confirm Password"
+              placeholder="Confirm password"
               value={confirm}
               onChangeText={setConfirm}
               onBlur={() => setConfirmTouched(true)}
@@ -216,38 +167,36 @@ export default function RegisterPage() {
               autoComplete="password-new"
               returnKeyType="done"
               onSubmitEditing={handleSignUp}
-              accessibilityLabel="Confirm Password"
+              accessibilityLabel="Confirm password"
               error={confirmError}
               editable={!loading}
             />
 
             {error ? (
-              <Text style={styles.formError} accessibilityLiveRegion="polite">
+              <Text style={styles.formError} accessibilityRole="alert" accessibilityLiveRegion="polite">
                 {error}
               </Text>
             ) : null}
 
             <PrimaryButton
-              label="Sign Up"
-              variant="gradient"
+              label="Create account"
               onPress={handleSignUp}
-              disabled={loading}
               loading={loading}
               accessibilityHint="Creates your FindMyParty account"
             />
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              Already have an account?{' '}
-              <Text
-                style={[styles.footerLink, loading && styles.footerLinkDisabled]}
-                onPress={loading ? undefined : () => router.push('/login')}
-                accessibilityRole="link"
-              >
-                Sign in
-              </Text>
-            </Text>
+            <Text style={styles.footerText}>Have an account?</Text>
+            <Pressable
+              onPress={() => router.replace('/login')}
+              disabled={loading}
+              hitSlop={layout.hitSlop}
+              accessibilityRole="link"
+              accessibilityLabel="Log in"
+            >
+              <Text style={styles.link}>Log in</Text>
+            </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -260,39 +209,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
+  fill: {
+    flex: 1,
+  },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: layout.screenMargin,
-    paddingTop: spacing.giant,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xxl,
   },
   form: {
     gap: spacing.base,
   },
-  hints: {
-    gap: spacing.xs,
-    paddingHorizontal: spacing.xs,
-    marginTop: -spacing.xs,
+  link: {
+    ...typography.subheadline,
+    fontWeight: '600',
+    color: colors.tint,
   },
   formError: {
-    ...typography.footnote,
+    ...typography.subheadline,
     color: colors.danger,
-    textAlign: 'center',
   },
   footer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing.sm,
     marginTop: 'auto',
     paddingTop: spacing.xl,
   },
   footerText: {
     ...typography.subheadline,
     color: colors.labelSecondary,
-  },
-  footerLink: {
-    color: colors.brand.magenta,
-    fontWeight: weights.semibold,
-  },
-  footerLinkDisabled: {
-    color: colors.labelTertiary,
   },
 });

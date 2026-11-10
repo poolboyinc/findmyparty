@@ -1,50 +1,38 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActionSheetIOS,
-  ActivityIndicator,
-  Alert,
-  Platform,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActionSheetIOS, Alert, Platform, RefreshControl, StyleSheet, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
-import Animated, {
-  Easing,
-  FadeInDown,
-} from 'react-native-reanimated';
+import Animated, { LinearTransition } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { AdminScreen } from '@/components/admin/admin-screen';
 import { DashboardSectionHeader } from '@/components/admin/dashboard-section-header';
 import { HostPartyCard } from '@/components/admin/host-party-card';
-import { EmptyState } from '@/components/ui/empty-state';
+import { PressableScale } from '@/components/afterglow/motion';
+import { Empty, Failed, Loading } from '@/components/afterglow/state';
+import { Display } from '@/components/afterglow/text';
+import { dayWord, euros, timeRange } from '@/components/host/format';
+import { Icon } from '@/components/ui/icon';
 import { SwipeDeleteAction, SWIPE_DEFAULTS } from '@/components/ui/swipe-delete-action';
-import { useHostDashboard, toCardStatus, formatTimeRange } from '@/hooks/useHostDashboard';
+import { useHostDashboard, toCardStatus } from '@/hooks/useHostDashboard';
 import { setEditDraft } from '@/hooks/useEditPartyDraft';
 import { partyService } from '@/services/partyService';
 import { resolveMediaUrl } from '@/constants/api';
-import type { HostPartyResponse } from '@/types/parties';
-import { colors, radii, spacing, typography, weights } from '@/theme';
-
-// Card entrance stagger — same FadeInDown + Easing.out(quad) shape the dashboard
-// uses, for cross-screen consistency.
-const ENTER_STAGGER_STEP_MS = 60;
-const ENTER_DURATION_MS = 250;
+import type { HostParty } from '@/types/api';
+import { colors, layout, radii, spacing } from '@/theme';
 
 type StatusGroup = {
-  key: 'draft' | 'published' | 'soldout';
+  key: 'draft' | 'published' | 'soldout' | 'cancelled';
   title: string;
-  items: HostPartyResponse[];
+  items: HostParty[];
 };
 
-/** Partitions parties into the Drafts → Published → Sold out sections. */
-function groupByStatus(parties: HostPartyResponse[]): StatusGroup[] {
+/** Partitions parties into the Drafts, Published, Sold out and Cancelled sections. */
+function groupByStatus(parties: HostParty[]): StatusGroup[] {
   const groups: StatusGroup[] = [
     { key: 'draft', title: 'Drafts', items: [] },
     { key: 'published', title: 'Published', items: [] },
     { key: 'soldout', title: 'Sold out', items: [] },
+    { key: 'cancelled', title: 'Cancelled', items: [] },
   ];
   for (const party of parties) {
     const status = toCardStatus(party.status);
@@ -54,19 +42,19 @@ function groupByStatus(parties: HostPartyResponse[]): StatusGroup[] {
 }
 
 export default function ManagePartiesScreen() {
-  const { loading, refreshing, refresh, parties, removeParty } = useHostDashboard();
+  const { loading, error, refreshing, refresh, parties, removeParty } = useHostDashboard();
   const { newPartyId, updatedPartyId } = useLocalSearchParams<{
     newPartyId?: string;
     updatedPartyId?: string;
   }>();
 
-  // The card to pulse this paint, captured once so a later refresh re-render
+  // The card to highlight this paint, captured once so a later refresh re-render
   // can't re-trigger it. Cleared from the route after first paint below.
   const highlightId = newPartyId ?? updatedPartyId ?? null;
-  const [pulseId, setPulseId] = useState<string | null>(highlightId);
+  const [pulseId] = useState<string | null>(highlightId);
   useEffect(() => {
     if (highlightId) {
-      // Drop the param so a tab revisit doesn't replay the pulse.
+      // Drop the param so a tab revisit doesn't replay the highlight.
       router.setParams({ newPartyId: undefined, updatedPartyId: undefined });
     }
     // Run once for the incoming param; subsequent renders keep `pulseId` until
@@ -74,22 +62,9 @@ export default function ManagePartiesScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Play the staggered entrance once on first content paint (not on refresh).
-  const hasEntered = useRef(false);
-  const playEntrance = !hasEntered.current;
-  const buildEnter = (index: number) =>
-    playEntrance
-      ? FadeInDown.delay(index * ENTER_STAGGER_STEP_MS)
-          .duration(ENTER_DURATION_MS)
-          .easing(Easing.out(Easing.quad))
-      : undefined;
-  useEffect(() => {
-    if (!loading) hasEntered.current = true;
-  }, [loading]);
-
   const goCreate = () => router.push('/admin/create');
 
-  const openBookings = useCallback((party: HostPartyResponse) => {
+  const openBookings = useCallback((party: HostParty) => {
     router.push({
       pathname: '/admin/party-bookings',
       params: { partyId: party.id, partyTitle: party.title },
@@ -97,28 +72,28 @@ export default function ManagePartiesScreen() {
   }, []);
 
   // ─── Per-status actions ───
-  const handleEdit = useCallback((party: HostPartyResponse) => {
+  const handleEdit = useCallback((party: HostParty) => {
     setEditDraft(party);
     router.push({ pathname: '/admin/edit', params: { partyId: party.id } });
   }, []);
 
   const handlePublish = useCallback(
-    async (party: HostPartyResponse) => {
+    async (party: HostParty) => {
       const success = await partyService.publishParty(party.id);
       if (success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await refresh();
       } else {
-        Alert.alert('Failed', 'Could not publish the party. Please try again.');
+        Alert.alert('Not published', 'The party could not be published. Try again.');
       }
     },
     [refresh],
   );
 
   const handleDeleteDraft = useCallback(
-    (party: HostPartyResponse) => {
+    (party: HostParty) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert('Delete draft', 'This will permanently delete the draft. Continue?', [
+      Alert.alert('Delete draft', 'This deletes the draft for good. Continue?', [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
@@ -128,7 +103,7 @@ export default function ManagePartiesScreen() {
             if (success) {
               removeParty(party.id);
             } else {
-              Alert.alert('Failed', 'Could not delete the draft. Please try again.');
+              Alert.alert('Not deleted', 'The draft could not be deleted. Try again.');
             }
           },
         },
@@ -138,36 +113,31 @@ export default function ManagePartiesScreen() {
   );
 
   const handleCancelParty = useCallback(
-    (party: HostPartyResponse) => {
+    (party: HostParty) => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      Alert.alert(
-        'Cancel party',
-        'This will cancel the party and notify all attendees. Continue?',
-        [
-          { text: 'Go back', style: 'cancel' },
-          {
-            text: 'Cancel party',
-            style: 'destructive',
-            onPress: async () => {
-              const success = await partyService.cancelParty(party.id);
-              if (success) {
-                removeParty(party.id);
-              } else {
-                Alert.alert('Failed', 'Could not cancel the party. Please try again.');
-              }
-            },
+      Alert.alert('Cancel party', 'This cancels the party for everyone holding a pass. Continue?', [
+        { text: 'Go back', style: 'cancel' },
+        {
+          text: 'Cancel party',
+          style: 'destructive',
+          onPress: async () => {
+            const success = await partyService.cancelParty(party.id);
+            if (success) {
+              removeParty(party.id);
+            } else {
+              Alert.alert('Not cancelled', 'The party could not be cancelled. Try again.');
+            }
           },
-        ],
-      );
+        },
+      ]);
     },
     [removeParty],
   );
 
-  // Ellipsis menu — iOS action sheet; Android falls back to an Alert. Mirrors
-  // create's `openOptionPicker` shape.
+  // "More" menu — iOS action sheet; Android falls back to an Alert. Mirrors
+  // the party form's `openOptionPicker` shape.
   const openActions = useCallback(
-    (party: HostPartyResponse) => {
-      Haptics.selectionAsync();
+    (party: HostParty) => {
       const isDraft = toCardStatus(party.status) === 'draft';
 
       if (Platform.OS === 'ios') {
@@ -223,103 +193,125 @@ export default function ManagePartiesScreen() {
 
   const groups = useMemo(() => groupByStatus(parties), [parties]);
 
-  // Hold the first paint on the hook's loading flag (no per-screen role gate —
-  // the tab area is already gated).
+  let body: React.ReactNode;
   if (loading) {
-    return (
-      <AdminScreen showBack={false}>
-        <View style={styles.loader}>
-          <ActivityIndicator color={colors.tint} />
-        </View>
-      </AdminScreen>
-    );
+    body = <Loading />;
+  } else if (error) {
+    body = <Failed error={error} onRetry={refresh} />;
+  } else if (parties.length === 0) {
+    body = <Empty title="No parties yet" body="Create your first party with the plus above." />;
+  } else {
+    body = groups.map((group) => (
+      // Rows glide into place when a party is removed or changes section.
+      <Animated.View key={group.key} layout={LinearTransition.springify()} style={styles.group}>
+        <DashboardSectionHeader title={group.title} />
+        {group.items.map((party) => (
+          <Animated.View key={party.id} layout={LinearTransition.springify()}>
+            <PartyRow
+              party={party}
+              highlighted={party.id === pulseId}
+              onOpen={openBookings}
+              onMore={openActions}
+              onDelete={handleDeleteDraft}
+              onCancel={handleCancelParty}
+            />
+          </Animated.View>
+        ))}
+      </Animated.View>
+    ));
   }
 
   return (
     <AdminScreen
       showBack={false}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.labelSecondary} />
-      }
+      keyboardAvoiding={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.labelSecondary} />}
     >
-      <Animated.View entering={buildEnter(0)} style={styles.titleBlock}>
-        <Text style={styles.largeTitle} accessibilityRole="header">
-          My Parties
-        </Text>
-      </Animated.View>
-
-      {parties.length === 0 ? (
-        <EmptyState
-          sfSymbol="calendar.badge.plus"
-          ionicon="calendar-outline"
-          title="No parties yet"
-          body="Create your first party to start selling tickets."
-          action={{ label: 'Create party', onPress: goCreate }}
-        />
-      ) : (
-        groups.map((group, gi) => (
-          <Animated.View key={group.key} entering={buildEnter(gi + 1)} style={styles.group}>
-            <DashboardSectionHeader title={group.title} />
-            {group.items.map((party) => {
-              const isDraft = group.key === 'draft';
-              const revenue =
-                party.revenue > 0 ? `€${Math.round(party.revenue).toLocaleString()}` : undefined;
-              const destructiveLabel = isDraft ? 'Delete' : 'Cancel';
-              const onDestructive = () =>
-                isDraft ? handleDeleteDraft(party) : handleCancelParty(party);
-
-              return (
-                <ReanimatedSwipeable
-                  key={party.id}
-                  friction={SWIPE_DEFAULTS.friction}
-                  rightThreshold={SWIPE_DEFAULTS.rightThreshold}
-                  overshootRight={false}
-                  overshootFriction={SWIPE_DEFAULTS.overshootFriction}
-                  activeOffsetX={SWIPE_DEFAULTS.activeOffsetX}
-                  containerStyle={styles.swipeContainer}
-                  renderRightActions={(progress) => (
-                    <SwipeDeleteAction
-                      progress={progress}
-                      label={destructiveLabel}
-                      onPress={onDestructive}
-                    />
-                  )}
-                >
-                  <HostPartyCard
-                    imageUrl={resolveMediaUrl(party.imageUrl)}
-                    title={party.title}
-                    status={toCardStatus(party.status)}
-                    timeRange={formatTimeRange(party.startsAt, party.endsAt)}
-                    rsvps={party.ticketsSold}
-                    capacity={party.capacity}
-                    revenue={revenue}
-                    isNew={party.id === pulseId}
-                    onPress={() => openBookings(party)}
-                    onMorePress={() => openActions(party)}
-                  />
-                </ReanimatedSwipeable>
-              );
-            })}
-          </Animated.View>
-        ))
-      )}
+      <View style={styles.header}>
+        <Display size="lg" accessibilityRole="header">
+          Parties
+        </Display>
+        <PressableScale
+          onPress={goCreate}
+          hitSlop={layout.hitSlop}
+          style={styles.create}
+          accessibilityRole="button"
+          accessibilityLabel="Create a party"
+        >
+          <Icon sfSymbol="plus" ionicon="add" size={20} color={colors.label} />
+        </PressableScale>
+      </View>
+      {body}
     </AdminScreen>
   );
 }
 
+type PartyRowProps = {
+  party: HostParty;
+  highlighted: boolean;
+  onOpen: (party: HostParty) => void;
+  onMore: (party: HostParty) => void;
+  onDelete: (party: HostParty) => void;
+  onCancel: (party: HostParty) => void;
+};
+
+/** One party: its card, with a swipe to delete (a draft) or cancel (a published party). A cancelled party only opens. */
+function PartyRow({ party, highlighted, onOpen, onMore, onDelete, onCancel }: PartyRowProps) {
+  const status = toCardStatus(party.status);
+  const card = (
+    <HostPartyCard
+      imageUrl={resolveMediaUrl(party.imageUrl)}
+      title={party.title}
+      status={status}
+      when={`${dayWord(party.startsAt)}, ${timeRange(party.startsAt, party.endsAt)}`}
+      passesOut={party.ticketsSold}
+      capacity={party.capacity}
+      worth={party.revenue > 0 ? euros(Math.round(party.revenue)) : undefined}
+      isNew={highlighted}
+      onPress={() => onOpen(party)}
+      onMorePress={status === 'cancelled' ? undefined : () => onMore(party)}
+    />
+  );
+
+  if (status === 'cancelled') return card;
+
+  const isDraft = status === 'draft';
+  return (
+    <ReanimatedSwipeable
+      friction={SWIPE_DEFAULTS.friction}
+      rightThreshold={SWIPE_DEFAULTS.rightThreshold}
+      overshootRight={false}
+      overshootFriction={SWIPE_DEFAULTS.overshootFriction}
+      activeOffsetX={SWIPE_DEFAULTS.activeOffsetX}
+      containerStyle={styles.swipeContainer}
+      renderRightActions={(progress) => (
+        <SwipeDeleteAction
+          progress={progress}
+          label={isDraft ? 'Delete' : 'Cancel'}
+          onPress={() => (isDraft ? onDelete(party) : onCancel(party))}
+        />
+      )}
+    >
+      {card}
+    </ReanimatedSwipeable>
+  );
+}
+
 const styles = StyleSheet.create({
-  loader: {
-    flex: 1,
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titleBlock: {
+    justifyContent: 'space-between',
+    gap: spacing.md,
     marginBottom: spacing.lg,
   },
-  largeTitle: {
-    ...typography.largeTitle,
-    fontWeight: weights.bold,
-    color: colors.label,
+  create: {
+    width: layout.minTouchTarget,
+    height: layout.minTouchTarget,
+    borderRadius: radii.card,
+    backgroundColor: colors.action,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   group: {
     marginBottom: spacing.xl,

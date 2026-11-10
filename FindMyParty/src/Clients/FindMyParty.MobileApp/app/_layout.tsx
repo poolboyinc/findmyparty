@@ -44,6 +44,8 @@ function useProtectedRoute() {
     // For all other routes, verify authentication
     authService.isAuthenticated().then((authenticated) => {
       if (!authenticated) {
+        // The session is over: forget the last user's cached data before anyone else signs in.
+        queryClient.clear();
         router.replace('/onboarding');
       }
       setChecked(true);
@@ -84,7 +86,6 @@ export default function RootLayout() {
             <Stack.Screen name="login" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="register" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="forgot-password" options={{ headerShown: false, animation: 'slide_from_right' }} />
-            <Stack.Screen name="edit-profile" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false, gestureEnabled: false, animation: 'none' }} />
             <Stack.Screen name="party/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="venue/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />

@@ -3,7 +3,7 @@ import { colors, layout, spacing, typography, weights } from '@/theme';
 
 type Props = {
   title: string;
-  /** Optional trailing action — renders a tappable "{label} →" link on the right. */
+  /** Optional trailing action: a text link on the right. */
   action?: {
     label: string;
     onPress: () => void;
@@ -11,9 +11,8 @@ type Props = {
 };
 
 /**
- * Host dashboard section header: a bold title with an optional trailing text
- * action (e.g. "See all →"). Distinct from the consumer `SectionHeader`, which
- * exposes a decorative trailing glyph rather than a tappable affordance.
+ * Section header for host screens: a bold title with an optional trailing text
+ * link (e.g. "See all").
  *
  * Usage:
  *   <DashboardSectionHeader
@@ -35,7 +34,7 @@ export function DashboardSectionHeader({ title, action }: Props) {
           accessibilityLabel={action.label}
           style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
         >
-          <Text style={styles.actionLabel}>{action.label} →</Text>
+          <Text style={styles.actionLabel}>{action.label}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -50,8 +49,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   title: {
-    ...typography.title2,
-    fontWeight: weights.bold,
+    ...typography.headline,
     color: colors.label,
   },
   action: {

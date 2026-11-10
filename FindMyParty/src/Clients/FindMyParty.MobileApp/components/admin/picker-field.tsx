@@ -21,7 +21,7 @@ type Props = {
  * Presentation-only picker row: a persistent label, the current value, and a
  * trailing chevron. Pressing it calls `onPress`; the parent owns the actual
  * `DateTimePicker` (or other) mount and state. Matches the `FormField` fill,
- * border, height, and radius so date/time pickers sit flush with text inputs.
+ * height, and radius so date/time pickers sit flush with text inputs.
  *
  * Usage:
  *   <PickerField label="Date" value="27 May 2026" onPress={openDatePicker}
@@ -78,10 +78,8 @@ const styles = StyleSheet.create({
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: radii.field,
-    borderWidth: 1,
-    borderColor: colors.hairline,
     height: layout.fieldHeightTall,
     paddingHorizontal: spacing.base,
     gap: spacing.md,

@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { ApiConstants } from '../constants/api';
 import { createSession, decodeJwtPayload, type TokenStore } from './session';
@@ -40,7 +41,8 @@ function getArrayClaim(payload: Record<string, unknown>, key: string): string[] 
   return [];
 }
 
-async function storeTokens(response: LoginResponse): Promise<void> {
+/** Starts a session on this device from the tokens a sign-in returned. Used by `authActions.ts`. */
+export async function storeTokens(response: LoginResponse): Promise<void> {
   await Promise.all([
     SecureStore.setItemAsync(TOKEN_KEY, response.accessToken),
     SecureStore.setItemAsync(REFRESH_TOKEN_KEY, response.refreshToken),
@@ -67,6 +69,19 @@ export const session = createSession({
   fetch: fetchWithTimeout,
   store: secureTokenStore,
 });
+
+/** Passes are saved on the phone so they show with no signal at the door (components/pass/passStore.ts). */
+const SAVED_PASS_PREFIX = '@findmyparty/pass/';
+
+/** Removes saved passes so the next account on this phone cannot see them. */
+async function forgetSavedPasses(): Promise<void> {
+  try {
+    const keys = (await AsyncStorage.getAllKeys()).filter((key) => key.startsWith(SAVED_PASS_PREFIX));
+    if (keys.length > 0) await AsyncStorage.multiRemove(keys);
+  } catch {
+    // Storage trouble must not block signing out.
+  }
+}
 
 export const authService = {
   async login(email: string, password: string): Promise<boolean> {
@@ -107,8 +122,9 @@ export const authService = {
   },
 
   /** Ends this device's session on the server too, so the refresh token stops working. */
-  logout(): Promise<void> {
-    return session.signOut();
+  async logout(): Promise<void> {
+    await session.signOut();
+    await forgetSavedPasses();
   },
 
   async deleteAccount(): Promise<boolean> {
@@ -119,6 +135,7 @@ export const authService = {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (response.ok) await forgetSavedPasses();
       return response.ok;
     } catch {
       return false;

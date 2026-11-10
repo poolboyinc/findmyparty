@@ -1,39 +1,40 @@
-import { router, Tabs } from 'expo-router';
-import { AdminTabBar } from '@/components/admin/admin-tab-bar';
+import { Tabs } from 'expo-router';
+import { AfterglowTabBar } from '@/components/afterglow/tab-bar';
 import type { TabIconMap } from '@/components/ui/glass-tab-bar';
 
 /**
- * Host-portal tab definitions. Keys must match the file-based route names under
- * `app/admin/(tabs)/`. Only the two real tabs (Home / Manage) are listed — the
- * center "+" is injected by `AdminTabBar` and opens Create as a modal.
+ * Host tabs: Live (the night in numbers), Scan (the door), Parties (the list).
+ * Keys must match the file names under `app/admin/(tabs)/`.
+ * Creating a party starts from the "+" in the Parties header and opens as a modal.
  */
 const TAB_ICONS: TabIconMap = {
   index: {
-    label: 'Home',
-    sfSymbolActive: 'house.fill',
-    sfSymbolInactive: 'house',
-    ioniconActive: 'home',
-    ioniconInactive: 'home-outline',
+    label: 'Live',
+    sfSymbolActive: 'chart.bar.fill',
+    sfSymbolInactive: 'chart.bar',
+    ioniconActive: 'stats-chart',
+    ioniconInactive: 'stats-chart-outline',
+  },
+  scan: {
+    label: 'Scan',
+    sfSymbolActive: 'qrcode.viewfinder',
+    sfSymbolInactive: 'qrcode.viewfinder',
+    ioniconActive: 'scan',
+    ioniconInactive: 'scan',
   },
   manage: {
-    label: 'Manage',
-    sfSymbolActive: 'calendar',
-    sfSymbolInactive: 'calendar',
-    ioniconActive: 'calendar',
-    ioniconInactive: 'calendar-outline',
+    label: 'Parties',
+    sfSymbolActive: 'flame.fill',
+    sfSymbolInactive: 'flame',
+    ioniconActive: 'flame',
+    ioniconInactive: 'flame-outline',
   },
 };
 
 export default function AdminTabLayout() {
   return (
     <Tabs
-      tabBar={(props) => (
-        <AdminTabBar
-          {...props}
-          iconMap={TAB_ICONS}
-          onCreatePress={() => router.push('/admin/create')}
-        />
-      )}
+      tabBar={(props) => <AfterglowTabBar {...props} iconMap={TAB_ICONS} primaryRoute="scan" />}
       screenOptions={{
         headerShown: false,
         // Carried over from the consumer tab layout: `animation: 'shift'` avoids
@@ -42,11 +43,12 @@ export default function AdminTabLayout() {
         animation: 'shift',
         // `freezeOnBlur: false` avoids react-native-screens v4 dropping a
         // frozen screen's native render buffer during back-and-forth tab nav
-        // (screen thaws black until a re-paint). Negligible cost for 2 tabs.
+        // (screen thaws black until a re-paint). Negligible cost for 3 tabs.
         freezeOnBlur: false,
       }}
     >
       <Tabs.Screen name="index" />
+      <Tabs.Screen name="scan" />
       <Tabs.Screen name="manage" />
     </Tabs>
   );

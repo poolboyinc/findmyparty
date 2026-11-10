@@ -13,16 +13,16 @@ import {
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { HostHeader } from '@/components/host/host-header';
 import { AuthField } from '@/components/ui/auth-field';
-import { AuthHeader } from '@/components/ui/auth-header';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { authService } from '@/services/authService';
+import { queryClient } from '@/services/queryClient';
 import { colors, layout, radii, spacing, typography, weights } from '@/theme';
 
 // Single fixed logo size — intentionally smaller than the welcome screen's
-// hero logo because the AuthHeader's "Host Portal" title already supplies the
-// contextual signal. No wordmark is rendered beneath the mark.
+// hero logo because the header's "Host sign in" title already says where this
+// is. No wordmark is rendered beneath the mark.
 const LOGO_SIZE = 104;
 
 export default function AdminLoginScreen() {
@@ -54,13 +54,15 @@ export default function AdminLoginScreen() {
     try {
       const success = await authService.login(email.trim(), password);
       if (!success) {
-        setFormError('Invalid credentials. Please try again.');
+        setFormError('Could not sign in. Check your email and password.');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         return;
       }
       const userInfo = await authService.getUserInfo();
       const roles = userInfo?.roles ?? [];
       if (roles.includes('Host') || roles.includes('Admin')) {
+        // A new session: nothing loaded for whoever was signed in before may be shown.
+        queryClient.clear();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.replace('/admin');
       } else {
@@ -71,7 +73,7 @@ export default function AdminLoginScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } catch {
-      setFormError('Something went wrong. Please try again.');
+      setFormError('Something went wrong. Check your connection and try again.');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setLoading(false);
@@ -80,7 +82,7 @@ export default function AdminLoginScreen() {
 
   return (
     <View style={styles.root}>
-      <AuthHeader title="Host Portal" disabled={loading} />
+      <HostHeader title="Host sign in" disabled={loading} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -159,27 +161,22 @@ export default function AdminLoginScreen() {
             ) : null}
 
             {roleNotice ? (
-              <Animated.View
-                entering={FadeInDown.duration(180)}
-                style={styles.roleNotice}
-                accessibilityLiveRegion="polite"
-              >
+              <View style={styles.roleNotice} accessibilityLiveRegion="polite">
                 <Ionicons
                   name="information-circle-outline"
                   size={20}
                   color={colors.labelSecondary}
                 />
                 <Text style={styles.roleNoticeText}>{roleNotice}</Text>
-              </Animated.View>
+              </View>
             ) : null}
 
             <PrimaryButton
-              label="Sign In"
-              variant="gradient"
+              label="Sign in"
               onPress={handleLogin}
               disabled={loading}
               loading={loading}
-              accessibilityHint="Signs you into the host portal"
+              accessibilityHint="Signs you in as a host"
             />
           </View>
         </ScrollView>
@@ -221,10 +218,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing.sm,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: radii.field,
-    borderWidth: 1,
-    borderColor: colors.hairline,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.base,
   },

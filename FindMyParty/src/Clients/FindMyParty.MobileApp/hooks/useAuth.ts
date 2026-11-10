@@ -1,25 +1,30 @@
-import { useState, useCallback } from 'react';
-import { authService } from '../services/authService';
+import { useCallback, useState } from 'react';
+import { router } from 'expo-router';
+import { loginDetailed, registerDetailed } from '@/services/authActions';
+import { loginErrorText, registerErrorText } from '@/services/authErrorText';
+import { queryClient } from '@/services/queryClient';
+
+/** After any successful sign-in or sign-up: reload who is signed in (and their bookings), then open the app. */
+export function enterApp(): void {
+  void queryClient.invalidateQueries();
+  router.replace('/(tabs)');
+}
 
 export function useLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  /** True when signed in. On failure `error` holds the sentence to show. */
   const login = useCallback(async (): Promise<boolean> => {
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter your email and password.');
-      return false;
-    }
     setLoading(true);
-    setError('');
+    setError(null);
     try {
-      const success = await authService.login(email, password);
-      if (!success) setError('Invalid email or password.');
-      return success;
-    } catch {
-      setError('Unable to connect. Please try again.');
+      await loginDetailed(email.trim(), password);
+      return true;
+    } catch (e) {
+      setError(loginErrorText(e));
       return false;
     } finally {
       setLoading(false);
@@ -33,22 +38,18 @@ export function useRegister() {
   const [userName, setUserName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  /** True when the account was created and signed in. On failure `error` holds the sentence to show. */
   const register = useCallback(async (): Promise<boolean> => {
-    if (!userName.trim() || !email.trim() || !password.trim()) {
-      setError('All fields are required.');
-      return false;
-    }
     setLoading(true);
-    setError('');
+    setError(null);
     try {
-      const success = await authService.register(userName, email, password);
-      if (!success) setError('Registration failed. Email or username may already be in use.');
-      return success;
-    } catch {
-      setError('Unable to connect. Please try again.');
+      await registerDetailed(userName.trim(), email.trim(), password);
+      return true;
+    } catch (e) {
+      setError(registerErrorText(e));
       return false;
     } finally {
       setLoading(false);

@@ -1,20 +1,23 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { AdminScreen } from '@/components/admin/admin-screen';
 import { ModalFormHeader } from '@/components/admin/modal-form-header';
 import { PartyFormFields, usePartyForm } from '@/components/admin/party-form';
 import { EmptyState } from '@/components/ui/empty-state';
+import { keys } from '@/hooks/queries';
 import { partyService } from '@/services/partyService';
 import { takeEditDraft } from '@/hooks/useEditPartyDraft';
 import { resolveMediaUrl } from '@/constants/api';
-import type { HostPartyResponse, UpdatePartyRequest } from '@/types/parties';
+import type { HostParty } from '@/types/api';
+import type { UpdatePartyRequest } from '@/types/parties';
 import { colors, spacing, typography } from '@/theme';
 
 /** Edit is reachable for Draft parties only. */
-function isDraft(party: HostPartyResponse): boolean {
+function isDraft(party: HostParty): boolean {
   return party.status?.toLowerCase() === 'draft';
 }
 
@@ -23,7 +26,7 @@ export default function EditPartyScreen() {
 
   // Consume the handed-off draft exactly once on mount. Held in state so a
   // re-render never re-takes (the store self-clears on take).
-  const [draft] = useState<HostPartyResponse | null>(() => takeEditDraft());
+  const [draft] = useState<HostParty | null>(() => takeEditDraft());
 
   // Defensive: empty store or a non-draft party means we arrived without a valid
   // handoff — bounce back after surfacing the reason.
@@ -39,7 +42,7 @@ export default function EditPartyScreen() {
     return (
       <View style={styles.root}>
         <ModalFormHeader
-          title="Edit Party"
+          title="Edit party"
           postLabel="Save"
           onCancel={() => router.back()}
           onPost={() => router.back()}
@@ -50,7 +53,7 @@ export default function EditPartyScreen() {
             sfSymbol="exclamationmark.triangle"
             ionicon="alert-circle-outline"
             title="Can't edit this party"
-            body="Only drafts can be edited. Head back to My Parties and try again."
+            body="Only drafts can be edited. Go back to Parties and try again."
             action={{ label: 'Go back', onPress: () => router.back() }}
           />
         </AdminScreen>
@@ -61,18 +64,18 @@ export default function EditPartyScreen() {
   return <EditPartyForm partyId={partyId} draft={draft} />;
 }
 
-function EditPartyForm({ partyId, draft }: { partyId: string; draft: HostPartyResponse }) {
+function EditPartyForm({ partyId, draft }: { partyId: string; draft: HostParty }) {
+  const client = useQueryClient();
   const form = usePartyForm({
     title: draft.title,
     description: draft.description,
-    genre: draft.genre,
-    performerType: draft.performerType,
-    performerName: draft.performerName,
+    genre: draft.genre ?? undefined,
+    performerType: draft.performerType ?? undefined,
+    performerName: draft.performerName ?? undefined,
     startsAt: draft.startsAt,
     endsAt: draft.endsAt,
     price: draft.price,
     capacity: draft.capacity,
-    featured: draft.featured,
     imageUrl: resolveMediaUrl(draft.imageUrl),
   });
 
@@ -94,6 +97,9 @@ function EditPartyForm({ partyId, draft }: { partyId: string; draft: HostPartyRe
       // the cover is updated only via the image-upload endpoint below.
       const request: UpdatePartyRequest = {
         ...payload,
+        // Hosts cannot feature their own parties; the server ignores this field.
+        // It is only here because the shared request type still lists it.
+        featured: draft.featured,
         latitude: draft.latitude,
         longitude: draft.longitude,
       };
@@ -112,14 +118,14 @@ function EditPartyForm({ partyId, draft }: { partyId: string; draft: HostPartyRe
         const imageUrl = await partyService.uploadPartyImage(partyId, form.values.imageUri);
         if (!imageUrl) {
           form.setImageNotice(
-            "Changes saved, but the new cover image didn't upload. Try again from Manage.",
+            "Changes saved, but the new cover image didn't upload. Try again from Parties.",
           );
         }
       }
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // TODO(animation-specialist): the `updatedPartyId` param drives the
-      // updated-party pulse on Manage (#6).
+      // The `updatedPartyId` param highlights the edited card in Parties.
+      client.invalidateQueries({ queryKey: keys.hostParties });
       router.replace({ pathname: '/admin/manage', params: { updatedPartyId: partyId } });
     } catch {
       setSubmitError("Couldn't save your changes. Check your connection and try again.");
@@ -130,7 +136,7 @@ function EditPartyForm({ partyId, draft }: { partyId: string; draft: HostPartyRe
   return (
     <View style={styles.root}>
       <ModalFormHeader
-        title="Edit Party"
+        title="Edit party"
         postLabel="Save"
         onCancel={() => router.back()}
         onPost={handleSubmit}

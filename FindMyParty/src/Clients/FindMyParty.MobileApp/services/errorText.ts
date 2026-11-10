@@ -30,7 +30,8 @@ export function errorText(error: unknown): string {
     case 'server':
       return 'Something went wrong on our side. Try again in a moment.';
     case 'forbidden':
-      return 'You are not allowed to do that.';
+      // The server sometimes says why, e.g. a pass for another host's party.
+      return error.message && error.message !== error.kind ? error.message : 'You are not allowed to do that.';
     case 'not_found':
       return 'That could not be found. It may have been removed.';
     default:

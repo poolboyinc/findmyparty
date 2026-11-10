@@ -36,8 +36,7 @@ type SummaryStripProps = {
 
 /**
  * Themed surface row that lays `StatTile`s out evenly with hairline dividers
- * between them. Used by the dashboard stats block and the party-bookings
- * summary.
+ * between them. Used by the party-bookings summary.
  *
  * Usage:
  *   <SummaryStrip>
@@ -67,8 +66,6 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     backgroundColor: colors.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.hairline,
     paddingVertical: spacing.base,
   },
   divider: {
@@ -87,6 +84,7 @@ const styles = StyleSheet.create({
     ...typography.title2,
     fontWeight: weights.bold,
     color: colors.label,
+    fontVariant: ['tabular-nums'],
   },
   label: {
     ...typography.caption1,

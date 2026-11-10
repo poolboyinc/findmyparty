@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, layout, spacing, typography, weights } from '@/theme';
 
 type Props = {
-  /** Centered modal title, e.g. "New Party" or "Edit Party". */
+  /** Centered modal title, e.g. "New party" or "Edit party". */
   title: string;
   onCancel: () => void;
   onPost: () => void;
@@ -20,8 +20,8 @@ type Props = {
  * navigation-bar modal pattern rather than the app's circular `AuthHeader`.
  *
  * Usage:
- *   <ModalFormHeader title="New Party" onCancel={…} onPost={…} submitting={loading} />
- *   <ModalFormHeader title="Edit Party" postLabel="Save" onCancel={…} onPost={…} submitting={loading} />
+ *   <ModalFormHeader title="New party" onCancel={…} onPost={…} submitting={loading} />
+ *   <ModalFormHeader title="Edit party" postLabel="Save" onCancel={…} onPost={…} submitting={loading} />
  */
 export function ModalFormHeader({ title, onCancel, onPost, submitting, postLabel = 'Post' }: Props) {
   const insets = useSafeAreaInsets();

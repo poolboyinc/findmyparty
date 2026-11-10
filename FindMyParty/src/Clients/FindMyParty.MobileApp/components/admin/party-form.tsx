@@ -6,7 +6,6 @@ import {
   Platform,
   Pressable,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from 'react-native';
@@ -19,7 +18,7 @@ import { FormField, FormTextArea } from '@/components/admin/form-field';
 import { PickerField } from '@/components/admin/picker-field';
 import { Icon } from '@/components/ui/icon';
 import { PARTY_GENRES, PERFORMER_TYPES } from '@/constants/parties';
-import { colors, radii, spacing, typography, weights } from '@/theme';
+import { colors, radii, spacing, typography } from '@/theme';
 
 const DESCRIPTION_MAX = 2000;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -41,7 +40,10 @@ function getEndsAt(date: Date, startTime: Date, endTime: Date): string {
   return end.toISOString();
 }
 
-/** The shared, screen-agnostic payload both Create and Update assemble. */
+/**
+ * The shared, screen-agnostic payload both Create and Update assemble.
+ * There is no "featured" here: hosts cannot feature their own parties.
+ */
 export type PartyFormPayload = {
   title: string;
   description: string;
@@ -52,7 +54,6 @@ export type PartyFormPayload = {
   genre?: string;
   performerName?: string;
   performerType?: string;
-  featured: boolean;
 };
 
 /** Optional prefill for the Edit flow. Omitted fields fall back to create defaults. */
@@ -66,7 +67,6 @@ export type PartyFormInitialValues = {
   endsAt?: string;
   price?: number;
   capacity?: number;
-  featured?: boolean;
   /** Resolved cover-image URL — shown as the existing cover until a new one is picked. */
   imageUrl?: string | null;
 };
@@ -124,9 +124,6 @@ export function usePartyForm(initial?: PartyFormInitialValues) {
   // is set only when the host picks a NEW local image.
   const existingImageUrl = initial?.imageUrl ?? null;
   const [imageUri, setImageUri] = useState<string | null>(null);
-
-  // ─── Visibility
-  const [featured, setFeatured] = useState(initial?.featured ?? false);
 
   // ─── Inline messaging
   const [nameError, setNameError] = useState<string | null>(null);
@@ -239,7 +236,6 @@ export function usePartyForm(initial?: PartyFormInitialValues) {
     genre: genre || undefined,
     performerType: performerType || undefined,
     performerName: performerName.trim() || undefined,
-    featured,
   });
 
   // Field-edit handlers that also clear the matching inline error.
@@ -269,7 +265,6 @@ export function usePartyForm(initial?: PartyFormInitialValues) {
       endTime,
       price,
       capacity,
-      featured,
       imageUri,
       existingImageUrl,
     },
@@ -293,7 +288,6 @@ export function usePartyForm(initial?: PartyFormInitialValues) {
       endTime,
       price,
       capacity,
-      featured,
       imageUri,
       existingImageUrl,
       nameError,
@@ -312,7 +306,6 @@ export function usePartyForm(initial?: PartyFormInitialValues) {
       setPerformerName,
       onChangePrice,
       onChangeCapacity,
-      setFeatured,
       setPartyDate,
       setStartTime,
       setEndTime,
@@ -338,7 +331,6 @@ type PartyFormFieldsProps = {
   endTime: Date;
   price: string;
   capacity: string;
-  featured: boolean;
   imageUri: string | null;
   existingImageUrl: string | null;
   nameError: string | null;
@@ -357,7 +349,6 @@ type PartyFormFieldsProps = {
   setPerformerName: (v: string) => void;
   onChangePrice: (t: string) => void;
   onChangeCapacity: (t: string) => void;
-  setFeatured: (v: boolean) => void;
   setPartyDate: (d: Date) => void;
   setStartTime: (d: Date) => void;
   setEndTime: (d: Date) => void;
@@ -373,9 +364,9 @@ type PartyFormFieldsProps = {
 };
 
 /**
- * Presentational form body: the Details / Lineup / When / Tickets / Cover /
- * Visibility sections, native pickers, image tile, and Featured switch. Drives
- * entirely off the props returned by `usePartyForm().fieldProps`.
+ * Presentational form body: the Details / Lineup / When / Entry / Cover
+ * sections, native pickers, and the image tile. Drives entirely off the props
+ * returned by `usePartyForm().fieldProps`.
  */
 export function PartyFormFields(props: PartyFormFieldsProps) {
   const coverPreview = props.imageUri ?? props.existingImageUrl;
@@ -499,11 +490,11 @@ export function PartyFormFields(props: PartyFormFieldsProps) {
 
       {/* ─── Tickets ─── */}
       <View style={styles.section}>
-        <DashboardSectionHeader title="Tickets" />
+        <DashboardSectionHeader title="Entry" />
         <View style={styles.row}>
           <View style={styles.half}>
             <FormField
-              label="Price (€)"
+              label="Price at the door (€)"
               placeholder="0"
               value={props.price}
               onChangeText={props.onChangePrice}
@@ -558,32 +549,6 @@ export function PartyFormFields(props: PartyFormFieldsProps) {
           </Animated.Text>
         ) : null}
       </View>
-
-      {/* ─── Visibility ─── */}
-      <View style={styles.section}>
-        <DashboardSectionHeader title="Visibility" />
-        <View style={styles.switchRow}>
-          <View style={styles.switchText}>
-            <Text style={styles.switchLabel}>Featured</Text>
-            <Text style={styles.switchHelper}>
-              Featured parties appear at the top of search results
-            </Text>
-          </View>
-          <Switch
-            value={props.featured}
-            onValueChange={(next) => {
-              Haptics.selectionAsync();
-              props.setFeatured(next);
-            }}
-            trackColor={{ false: colors.fill, true: colors.tint }}
-            thumbColor={colors.label}
-            ios_backgroundColor={colors.fill}
-            accessibilityLabel="Featured"
-            accessibilityRole="switch"
-            accessibilityState={{ checked: props.featured }}
-          />
-        </View>
-      </View>
     </>
   );
 }
@@ -604,9 +569,7 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     borderRadius: radii.field,
     overflow: 'hidden',
-    backgroundColor: colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: colors.hairline,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -625,31 +588,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: spacing.sm,
     right: spacing.sm,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.base,
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: radii.field,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-  },
-  switchText: {
-    flex: 1,
-    gap: spacing.xxs,
-  },
-  switchLabel: {
-    ...typography.body,
-    fontWeight: weights.semibold,
-    color: colors.label,
-  },
-  switchHelper: {
-    ...typography.footnote,
-    color: colors.labelSecondary,
   },
   notice: {
     ...typography.footnote,

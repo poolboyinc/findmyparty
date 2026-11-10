@@ -1,28 +1,26 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
+import { StyleSheet, Text } from 'react-native';
 import { router } from 'expo-router';
 import {
-  BottomSheetModal,
   BottomSheetBackdrop,
+  BottomSheetModal,
   BottomSheetView,
   type BottomSheetBackdropProps,
 } from '@gorhom/bottom-sheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Display } from '@/components/afterglow/text';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { colors, layout, radii, spacing, typography, weights } from '@/theme';
+import { colors, layout, radii, spacing, typography } from '@/theme';
 
 export type SignInSheetRef = {
   present: () => void;
   dismiss: () => void;
 };
 
-/**
- * Bottom sheet shown when an unauthenticated user tries to save a party.
- * Imperative API via ref — parent calls `.present()` from its onHeartPress
- * handler.
- */
+/** Asks a signed-out guest to sign in before something that needs an account. Opened through its ref. */
 export const SignInSheet = forwardRef<SignInSheetRef>(function SignInSheet(_, ref) {
+  const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheetModal>(null);
-  const snapPoints = useMemo(() => ['38%'], []);
 
   useImperativeHandle(
     ref,
@@ -33,16 +31,14 @@ export const SignInSheet = forwardRef<SignInSheetRef>(function SignInSheet(_, re
     [],
   );
 
-  const renderBackdrop = (props: BottomSheetBackdropProps) => (
-    <BottomSheetBackdrop
-      {...props}
-      appearsOnIndex={0}
-      disappearsOnIndex={-1}
-      opacity={0.5}
-    />
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.6} pressBehavior="close" />
+    ),
+    [],
   );
 
-  const handleSignIn = () => {
+  const signIn = () => {
     sheetRef.current?.dismiss();
     router.push('/login');
   };
@@ -50,25 +46,17 @@ export const SignInSheet = forwardRef<SignInSheetRef>(function SignInSheet(_, re
   return (
     <BottomSheetModal
       ref={sheetRef}
-      snapPoints={snapPoints}
+      enableDynamicSizing
       backdropComponent={renderBackdrop}
       handleIndicatorStyle={styles.handle}
       backgroundStyle={styles.background}
     >
-      <BottomSheetView style={styles.content}>
-        <Text style={styles.title} accessibilityRole="header">
-          Sign in to save events
-        </Text>
-        <Text style={styles.body}>
-          Create an account or sign in to keep track of parties you&apos;re interested in.
-        </Text>
-        <View style={styles.cta}>
-          <PrimaryButton
-            label="Sign In"
-            onPress={handleSignIn}
-            accessibilityHint="Opens the log in screen"
-          />
-        </View>
+      <BottomSheetView style={[styles.content, { paddingBottom: insets.bottom + spacing.base }]}>
+        <Display size="sm" accessibilityRole="header">
+          Sign in first
+        </Display>
+        <Text style={styles.body}>You need an account to keep parties and take passes.</Text>
+        <PrimaryButton label="Sign in" onPress={signIn} accessibilityHint="Opens the sign in screen" />
       </BottomSheetView>
     </BottomSheetModal>
   );
@@ -76,32 +64,21 @@ export const SignInSheet = forwardRef<SignInSheetRef>(function SignInSheet(_, re
 
 const styles = StyleSheet.create({
   background: {
-    backgroundColor: colors.surfaceElevated,
-    borderTopLeftRadius: radii.xxl,
-    borderTopRightRadius: radii.xxl,
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radii.sheet,
+    borderTopRightRadius: radii.sheet,
   },
   handle: {
     backgroundColor: colors.labelTertiary,
     width: layout.sheetHandleWidth,
   },
   content: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xxl,
-    gap: spacing.md,
-  },
-  title: {
-    ...typography.title2,
-    fontWeight: weights.bold,
-    color: colors.label,
-    textAlign: 'center',
+    paddingHorizontal: layout.screenMargin,
+    paddingTop: spacing.sm,
+    gap: spacing.base,
   },
   body: {
-    ...typography.body,
+    ...typography.subheadline,
     color: colors.labelSecondary,
-    textAlign: 'center',
-  },
-  cta: {
-    marginTop: spacing.md,
   },
 });

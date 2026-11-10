@@ -1,27 +1,16 @@
 import { useRef, useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, type TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useLogin } from '@/hooks/useAuth';
+import { PasswordToggle } from '@/components/account/password-toggle';
 import { AuthField } from '@/components/ui/auth-field';
 import { AuthHeader } from '@/components/ui/auth-header';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { colors, layout, spacing, typography, weights } from '@/theme';
+import { enterApp, useLogin } from '@/hooks/useAuth';
+import { colors, layout, spacing, typography } from '@/theme';
 
-// The identifier field accepts either an email or a username — backend
-// disambiguates by checking for '@'. Frontend validation is minimal so
-// legitimate inputs (plus-addressed emails, dotted usernames, etc.) aren't
-// falsely rejected.
+// The first field takes an email or a username; the server tells them apart by the "@".
+// Checks here are minimal so real inputs (plus-addressed emails, dotted usernames) are not refused.
 const MIN_IDENTIFIER_LENGTH = 3;
 
 export default function LoginPage() {
@@ -30,24 +19,17 @@ export default function LoginPage() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const passwordRef = useRef<TextInput>(null);
 
-  const identifierError =
-    submitAttempted && email.trim().length < MIN_IDENTIFIER_LENGTH
-      ? 'Enter your email or username'
-      : null;
+  const identifierValid = email.trim().length >= MIN_IDENTIFIER_LENGTH;
+  const identifierError = submitAttempted && !identifierValid ? 'Enter your email or username.' : null;
+  const passwordError = submitAttempted && password.length === 0 ? 'Enter your password.' : null;
 
-  const passwordError =
-    submitAttempted && password.length === 0 ? 'Password is required.' : null;
-
-  const formValid =
-    email.trim().length >= MIN_IDENTIFIER_LENGTH && password.length > 0;
-
-  const handleSignIn = async () => {
+  const handleLogIn = async () => {
     setSubmitAttempted(true);
-    if (!formValid) return;
-    const success = await login();
-    if (success) {
+    if (!identifierValid || password.length === 0 || loading) return;
+    const signedIn = await login();
+    if (signedIn) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
+      enterApp();
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
@@ -55,23 +37,16 @@ export default function LoginPage() {
 
   return (
     <View style={styles.root}>
-      <AuthHeader title="Log In" disabled={loading} />
+      <AuthHeader title="Log in" disabled={loading} />
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.form}>
             <AuthField
               placeholder="Email or username"
               value={email}
               onChangeText={setEmail}
-              keyboardType="default"
+              keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
               textContentType="username"
@@ -93,24 +68,12 @@ export default function LoginPage() {
               textContentType="password"
               autoComplete="current-password"
               returnKeyType="done"
-              onSubmitEditing={handleSignIn}
+              onSubmitEditing={handleLogIn}
               accessibilityLabel="Password"
               error={passwordError}
               editable={!loading}
               trailingSlot={
-                <Pressable
-                  onPress={() => setPasswordVisible((v) => !v)}
-                  disabled={loading}
-                  hitSlop={layout.hitSlop}
-                  accessibilityRole="button"
-                  accessibilityLabel={passwordVisible ? 'Hide password' : 'Show password'}
-                >
-                  <Ionicons
-                    name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
-                    size={20}
-                    color={colors.labelSecondary}
-                  />
-                </Pressable>
+                <PasswordToggle visible={passwordVisible} onToggle={() => setPasswordVisible((v) => !v)} disabled={loading} />
               }
             />
 
@@ -119,42 +82,32 @@ export default function LoginPage() {
               disabled={loading}
               hitSlop={layout.hitSlop}
               accessibilityRole="link"
-              accessibilityLabel="Forgot password"
-              accessibilityHint="Opens password recovery"
-              style={styles.forgotWrap}
+              accessibilityLabel="Forgot password?"
+              style={styles.forgot}
             >
-              <Text style={[styles.forgot, loading && styles.forgotDisabled]}>
-                Forgot password?
-              </Text>
+              <Text style={styles.link}>Forgot password?</Text>
             </Pressable>
 
             {error ? (
-              <Text style={styles.formError} accessibilityLiveRegion="polite">
+              <Text style={styles.formError} accessibilityRole="alert" accessibilityLiveRegion="polite">
                 {error}
               </Text>
             ) : null}
 
-            <PrimaryButton
-              label="Log In"
-              variant="gradient"
-              onPress={handleSignIn}
-              disabled={loading}
-              loading={loading}
-              accessibilityHint="Signs you into your account"
-            />
+            <PrimaryButton label="Log in" onPress={handleLogIn} loading={loading} accessibilityHint="Signs you in to your account" />
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              Don&apos;t have an account?{' '}
-              <Text
-                style={[styles.footerLink, loading && styles.footerLinkDisabled]}
-                onPress={loading ? undefined : () => router.push('/register')}
-                accessibilityRole="link"
-              >
-                Sign up
-              </Text>
-            </Text>
+            <Text style={styles.footerText}>No account yet?</Text>
+            <Pressable
+              onPress={() => router.replace('/register')}
+              disabled={loading}
+              hitSlop={layout.hitSlop}
+              accessibilityRole="link"
+              accessibilityLabel="Sign up"
+            >
+              <Text style={styles.link}>Sign up</Text>
+            </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -167,46 +120,42 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
+  fill: {
+    flex: 1,
+  },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: layout.screenMargin,
-    paddingTop: spacing.giant,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xxl,
   },
   form: {
     gap: spacing.base,
   },
-  forgotWrap: {
+  forgot: {
     alignSelf: 'flex-end',
     paddingVertical: spacing.xs,
   },
-  forgot: {
+  link: {
     ...typography.subheadline,
-    fontWeight: weights.medium,
-    color: colors.brand.magenta,
-  },
-  forgotDisabled: {
-    color: colors.labelTertiary,
+    fontWeight: '600',
+    color: colors.tint,
   },
   formError: {
-    ...typography.footnote,
+    ...typography.subheadline,
     color: colors.danger,
-    textAlign: 'center',
   },
   footer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing.sm,
     marginTop: 'auto',
     paddingTop: spacing.xl,
   },
   footerText: {
     ...typography.subheadline,
     color: colors.labelSecondary,
-  },
-  footerLink: {
-    color: colors.brand.magenta,
-    fontWeight: weights.semibold,
-  },
-  footerLinkDisabled: {
-    color: colors.labelTertiary,
   },
 });

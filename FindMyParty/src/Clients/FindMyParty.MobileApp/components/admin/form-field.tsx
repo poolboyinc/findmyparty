@@ -56,9 +56,8 @@ function useShake(showError: boolean) {
 }
 
 /**
- * Labeled single-line text field for host-portal forms. Same focus ring,
- * inline error + shake, elevated fill, and `radii.field` treatment as the
- * consumer `AuthField`, plus a persistent label above the input. Uses
+ * Labeled single-line text field for host forms: a flat fill, a line for focus
+ * and errors, inline error + shake, and a persistent label above the input. Uses
  * `layout.fieldHeightTall` to keep one consistent input height across the app.
  *
  * Usage:
@@ -218,10 +217,11 @@ const styles = StyleSheet.create({
   field: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: colors.surface,
     borderRadius: radii.field,
+    // Flat at rest. The line only shows for focus and for an error.
     borderWidth: 1,
-    borderColor: colors.hairline,
+    borderColor: colors.surface,
     height: layout.fieldHeightTall,
     paddingHorizontal: spacing.base,
     gap: spacing.md,

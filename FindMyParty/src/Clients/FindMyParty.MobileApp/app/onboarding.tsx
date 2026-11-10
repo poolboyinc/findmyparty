@@ -1,513 +1,305 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import * as AuthSession from 'expo-auth-session';
-import * as Google from 'expo-auth-session/providers/google';
-import { useFonts } from 'expo-font';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ApiConstants } from '@/constants/api';
+import { useEffect, useState } from 'react';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ProviderButton } from '@/components/account/provider-button';
+import { useGoogleIdToken } from '@/components/account/use-google-sign-in';
+import { springs, useReducedMotion } from '@/components/afterglow/motion';
+import { Display } from '@/components/afterglow/text';
+import { PrimaryButton } from '@/components/ui/primary-button';
 import { CookiesUrl, PrivacyUrl, TermsUrl } from '@/constants/legal';
-import { ms, s, vs } from '@/constants/responsive';
-import { colors, layout, radii, spacing, typography, weights } from '@/theme';
-import { authService } from '../services/authService';
+import { enterApp } from '@/hooks/useAuth';
+import { useVenues } from '@/hooks/queries';
+import { externalSignInDetailed } from '@/services/authActions';
+import { externalErrorText } from '@/services/authErrorText';
+import { colors, layout, spacing, typography } from '@/theme';
 
-const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
-const GOOGLE_REVERSED_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_REVERSED_CLIENT_ID ?? '';
+type Provider = 'apple' | 'google';
 
-WebBrowser.maybeCompleteAuthSession();
+/** Apple's sign-in sheet rejects with this code when the user closes it. */
+function isCancelled(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'ERR_REQUEST_CANCELED';
+}
 
 export default function WelcomeScreen() {
-  const [loading, setLoading] = useState<'google' | 'apple' | null>(null);
-  const [backendDown, setBackendDown] = useState(false);
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const reduceMotion = useReducedMotion();
+  const venues = useVenues();
+  const getGoogleIdToken = useGoogleIdToken();
+
+  const [busy, setBusy] = useState<Provider | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // Assume it is there on an iPhone so the button does not pop in; take it away if the phone says no.
+  const [appleAvailable, setAppleAvailable] = useState(Platform.OS === 'ios');
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), 5000);
-        const res = await fetch(`${ApiConstants.GatewayBaseUrl}/health`, {
-          signal: controller.signal,
-        });
-        clearTimeout(id);
-        if (!cancelled) setBackendDown(!res.ok);
-      } catch {
-        if (!cancelled) setBackendDown(true);
-      }
-    })();
-    return () => { cancelled = true; };
+    AppleAuthentication.isAvailableAsync()
+      .catch(() => false)
+      .then((available) => {
+        if (!cancelled) setAppleAvailable(available);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const [fontsLoaded] = useFonts({
-    Coolvetica: require('../assets/fonts/coolvetica.ttf'),
-  });
-
-  const { height: H } = useWindowDimensions();
-  const logoSize = Math.min(H * 0.28, 254);
-
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: GOOGLE_REVERSED_CLIENT_ID });
-
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId: GOOGLE_IOS_CLIENT_ID,
-    redirectUri,
-  });
-
+  // The one entrance on this screen: the logo and name settle in once.
+  const arrival = useSharedValue(0);
   useEffect(() => {
-    if (!response) return;
-    if (response.type === 'success' && request?.codeVerifier) {
-      exchangeGoogleCode(response.params.code, request.codeVerifier);
-    } else if (response.type !== 'success') {
-      setLoading(null);
-    }
-  }, [response]);
+    arrival.value = reduceMotion ? withTiming(1, { duration: 200 }) : withSpring(1, springs.arrive);
+  }, [arrival, reduceMotion]);
+  const brandStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, arrival.value),
+    transform: reduceMotion ? [] : [{ translateY: (1 - arrival.value) * 28 }, { scale: 0.9 + 0.1 * arrival.value }],
+  }));
 
-  const exchangeGoogleCode = async (code: string, codeVerifier: string) => {
+  const litCount = venues.isSuccess ? venues.data.filter((venue) => venue.crowdSource === 'live').length : 0;
+  const litLine = `${litCount} ${litCount === 1 ? 'venue' : 'venues'} lit in Podgorica tonight`;
+
+  /** Runs one provider's sign-in. `getIdentity` resolves with null when the user backed out. */
+  const signIn = async (
+    provider: Provider,
+    providerName: 'Apple' | 'Google',
+    getIdentity: () => Promise<{ idToken: string; name?: string } | null>,
+  ) => {
+    if (busy) return;
+    setBusy(provider);
+    setError(null);
     try {
-      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          code,
-          client_id: GOOGLE_IOS_CLIENT_ID,
-          redirect_uri: redirectUri,
-          grant_type: 'authorization_code',
-          code_verifier: codeVerifier,
-        }).toString(),
-      });
-
-      const tokens = await tokenRes.json();
-      if (!tokens.id_token) { setLoading(null); return; }
-
-      const success = await authService.externalSignIn('google', tokens.id_token);
-      if (success) router.replace('/(tabs)');
-      else Alert.alert('Sign-in failed', 'Could not sign in with Google. Please try again.');
-    } catch {
-      Alert.alert('Connection error', 'Could not complete Google sign-in. Check your internet connection.');
+      const identity = await getIdentity();
+      if (!identity) return;
+      await externalSignInDetailed(provider, identity.idToken, identity.name);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      enterApp();
+    } catch (e) {
+      if (isCancelled(e)) return;
+      setError(externalErrorText(providerName, e));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
-      setLoading(null);
+      setBusy(null);
     }
   };
 
-  const handleGoogleSignIn = () => {
-    Haptics.selectionAsync();
-    setLoading('google');
-    promptAsync();
-  };
-
-  const handleAppleSignIn = async () => {
-    Haptics.selectionAsync();
-    setLoading('apple');
-    try {
+  const handleApple = () =>
+    signIn('apple', 'Apple', async () => {
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
       });
+      if (!credential.identityToken) throw new Error('Apple returned no identity token.');
+      const name = [credential.fullName?.givenName, credential.fullName?.familyName].filter(Boolean).join(' ') || undefined;
+      return { idToken: credential.identityToken, name };
+    });
 
-      const { identityToken, fullName } = credential;
-      if (!identityToken) return;
+  const handleGoogle = () =>
+    signIn('google', 'Google', async () => {
+      const idToken = await getGoogleIdToken();
+      return idToken ? { idToken } : null;
+    });
 
-      const name = [fullName?.givenName, fullName?.familyName]
-        .filter(Boolean)
-        .join(' ') || undefined;
-
-      const success = await authService.externalSignIn('apple', identityToken, name);
-      if (success) router.replace('/(tabs)');
-      else Alert.alert('Sign-in failed', 'Could not sign in with Apple. Please try again.');
-    } catch (e: any) {
-      if (e.code !== 'ERR_REQUEST_CANCELED') {
-        Alert.alert('Sign-in error', 'Something went wrong with Apple sign-in. Please try again.');
-      }
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const goRegister = () => {
-    Haptics.selectionAsync();
-    router.push('/register');
-  };
-
-  const goLogin = () => {
-    Haptics.selectionAsync();
-    router.push('/login');
-  };
-
-  const inputDisabled = backendDown || loading !== null;
-
-  const triggerAdminEntry = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    router.push('/admin/login');
-  };
-
-  const midHoldTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const scheduleMidHoldTick = () => {
-    if (midHoldTimerRef.current !== null) {
-      clearTimeout(midHoldTimerRef.current);
-    }
-    midHoldTimerRef.current = setTimeout(() => {
-      Haptics.selectionAsync();
-      midHoldTimerRef.current = null;
-    }, 800);
-  };
-
-  const clearMidHoldTick = () => {
-    if (midHoldTimerRef.current !== null) {
-      clearTimeout(midHoldTimerRef.current);
-      midHoldTimerRef.current = null;
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (midHoldTimerRef.current !== null) {
-        clearTimeout(midHoldTimerRef.current);
-        midHoldTimerRef.current = null;
-      }
-    };
-  }, []);
-
-  const adminGesture = useMemo(
-    () =>
-      Gesture.LongPress()
-        .minDuration(1500)
-        .onBegin(() => {
-          runOnJS(scheduleMidHoldTick)();
-        })
-        .onStart(() => {
-          runOnJS(triggerAdminEntry)();
-        })
-        .onFinalize(() => {
-          runOnJS(clearMidHoldTick)();
-        }),
-    [],
-  );
+  // The image has clear space around the mark; the name tucks up into the space below it.
+  const logoSize = Math.min(height * 0.26, 220);
 
   return (
-    <View style={styles.root}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        {/* Brand */}
-        <View style={styles.logoSection}>
-          <GestureDetector gesture={adminGesture}>
-            <Image
-              source={require('@/assets/images/fmp_logo.png')}
-              style={{ width: logoSize, height: logoSize }}
-              resizeMode="contain"
-              accessibilityIgnoresInvertColors
-              accessible={false}
-            />
-          </GestureDetector>
-          <Text
-            accessibilityRole="header"
-            style={[
-              styles.appName,
-              fontsLoaded ? { fontFamily: 'Coolvetica' } : null,
-            ]}
-          >
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + spacing.base, paddingBottom: insets.bottom + spacing.base },
+      ]}
+      alwaysBounceVertical={false}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.brandArea}>
+        <Animated.View style={[styles.brand, brandStyle]}>
+          <Image
+            source={require('@/assets/images/fmp_logo.png')}
+            style={{ width: logoSize, height: logoSize }}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+            accessible={false}
+          />
+          <Display size="lg" accessibilityRole="header" style={{ marginTop: -logoSize * 0.12 }}>
             FindMyParty
-          </Text>
-        </View>
+          </Display>
+          <Text style={styles.tagline}>Find where the night is</Text>
+        </Animated.View>
+      </View>
 
-        {/* Auth group */}
-        <View style={styles.bottomGroup}>
-          {backendDown && (
-            <View style={styles.connectionBanner} accessibilityRole="alert">
-              <Ionicons name="cloud-offline-outline" size={ms(16)} color={colors.label} />
-              <Text style={styles.connectionBannerText}>
-                Unable to connect to server. Please check your connection.
-              </Text>
-            </View>
-          )}
-
-          <Pressable
-            onPress={handleGoogleSignIn}
-            disabled={inputDisabled}
-            accessibilityRole="button"
-            accessibilityLabel="Continue with Google"
-            accessibilityState={{ busy: loading === 'google', disabled: inputDisabled }}
-            style={({ pressed }) => [
-              styles.socialButton,
-              pressed && !inputDisabled && styles.pressed,
-              inputDisabled && styles.disabled,
-            ]}
-          >
-            {loading === 'google' ? (
-              <ActivityIndicator color={colors.label} />
-            ) : (
-              <View style={styles.socialButtonContent}>
-                <Image
-                  source={require('../assets/images/google_logo.png')}
-                  style={styles.socialIcon}
-                  resizeMode="contain"
-                />
-                <Text style={styles.socialButtonText}>Continue with Google</Text>
-              </View>
-            )}
-          </Pressable>
-
-          <Pressable
-            onPress={handleAppleSignIn}
-            disabled={inputDisabled}
-            accessibilityRole="button"
-            accessibilityLabel="Continue with Apple"
-            accessibilityState={{ busy: loading === 'apple', disabled: inputDisabled }}
-            style={({ pressed }) => [
-              styles.socialButton,
-              pressed && !inputDisabled && styles.pressed,
-              inputDisabled && styles.disabled,
-            ]}
-          >
-            {loading === 'apple' ? (
-              <ActivityIndicator color={colors.label} />
-            ) : (
-              <View style={styles.socialButtonContent}>
-                <Ionicons name="logo-apple" size={ms(28)} color={colors.label} style={styles.appleIcon} />
-                <Text style={styles.socialButtonText}>Continue with Apple</Text>
-              </View>
-            )}
-          </Pressable>
-
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Or</Text>
-            <View style={styles.dividerLine} />
+      {/* A bonus line. Its room is kept so the buttons do not move when it arrives. */}
+      <View style={styles.litSlot}>
+        {litCount > 0 ? (
+          <View style={styles.lit} accessible accessibilityRole="text" accessibilityLabel={litLine}>
+            <View style={styles.litDot} />
+            <Text style={styles.litText}>{litLine}</Text>
           </View>
+        ) : null}
+      </View>
 
-          <Pressable
-            onPress={goRegister}
-            disabled={inputDisabled}
-            accessibilityRole="button"
-            accessibilityLabel="Sign up with email"
-            accessibilityState={{ disabled: inputDisabled }}
-            style={({ pressed }) => [
-              styles.signUpWrapper,
-              pressed && !inputDisabled && styles.pressed,
-              inputDisabled && styles.disabled,
-            ]}
-          >
-            <LinearGradient
-              colors={colors.brand.gradient.colors}
-              locations={colors.brand.gradient.locations}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.signUpGradient}
-            >
-              <Text style={styles.signUpText}>Sign Up</Text>
-            </LinearGradient>
-          </Pressable>
+      <View style={styles.actions}>
+        {error ? (
+          <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
+            {error}
+          </Text>
+        ) : null}
 
+        {appleAvailable ? (
+          <ProviderButton
+            label="Continue with Apple"
+            tone="light"
+            icon={<Ionicons name="logo-apple" size={20} color={colors.ink} />}
+            onPress={handleApple}
+            loading={busy === 'apple'}
+            disabled={busy !== null}
+          />
+        ) : null}
+        <ProviderButton
+          label="Continue with Google"
+          tone="surface"
+          icon={<Image source={require('@/assets/images/google_logo.png')} style={styles.googleLogo} resizeMode="contain" />}
+          onPress={handleGoogle}
+          loading={busy === 'google'}
+          disabled={busy !== null}
+        />
+        <PrimaryButton label="Sign up with email" onPress={() => router.push('/register')} />
+
+        <View style={styles.links}>
           <Pressable
-            onPress={goLogin}
-            disabled={inputDisabled}
+            onPress={() => router.push('/login')}
             hitSlop={layout.hitSlop}
             accessibilityRole="link"
-            accessibilityLabel="Log in to existing account"
-            style={({ pressed }) => [
-              styles.loginPress,
-              pressed && !inputDisabled && { opacity: 0.7 },
-            ]}
+            accessibilityLabel="Have an account? Log in"
           >
-            <Text style={styles.loginText}>
-              Have an account already?{' '}
-              <Text style={styles.loginTextHighlight}>Log in</Text>
+            <Text style={styles.linkText}>
+              Have an account? <Text style={styles.link}>Log in</Text>
             </Text>
           </Pressable>
+          <Pressable
+            onPress={() => router.push('/admin/login')}
+            hitSlop={layout.hitSlop}
+            accessibilityRole="link"
+            accessibilityLabel="Host sign in"
+          >
+            <Text style={styles.linkText}>Host sign in</Text>
+          </Pressable>
         </View>
+      </View>
 
-        {/* Legal — pinned to the bottom (mirrors Figma frame y=792 of 874) */}
-        <Text style={styles.legal}>
-          {'By continuing you automatically accept our '}
-          <Text
-            style={styles.legalUnderline}
-            accessibilityRole="link"
-            onPress={() => WebBrowser.openBrowserAsync(TermsUrl)}
-          >
-            Terms & Conditions
-          </Text>
-          {', '}
-          <Text
-            style={styles.legalUnderline}
-            accessibilityRole="link"
-            onPress={() => WebBrowser.openBrowserAsync(PrivacyUrl)}
-          >
-            Privacy Policy
-          </Text>
-          {' and '}
-          <Text
-            style={styles.legalUnderline}
-            accessibilityRole="link"
-            onPress={() => WebBrowser.openBrowserAsync(CookiesUrl)}
-          >
-            Cookies Policy
-          </Text>
+      <Text style={styles.legal}>
+        {'By continuing you accept our '}
+        <Text style={styles.legalLink} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(TermsUrl)}>
+          Terms and conditions
         </Text>
-      </SafeAreaView>
-    </View>
+        {', '}
+        <Text style={styles.legalLink} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(PrivacyUrl)}>
+          Privacy policy
+        </Text>
+        {' and '}
+        <Text style={styles.legalLink} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(CookiesUrl)}>
+          Cookies policy
+        </Text>
+        .
+      </Text>
+    </ScrollView>
   );
 }
+
+const LIT_DOT = 8;
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: spacing.lg,
-    paddingTop: vs(8),
-    paddingBottom: vs(24),
-    alignItems: 'center',
-    // Top-aligned flow: logo + auth block sit together near the top,
-    // legal text is pushed to the bottom via marginTop:'auto'.
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: layout.screenMargin,
   },
-  logoSection: {
+  brandArea: {
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: vs(24),
+    paddingVertical: spacing.xl,
   },
-  appName: {
-    color: colors.label,
-    fontSize: ms(44),
-    fontWeight: weights.heavy,
-    letterSpacing: 0.5,
-    textAlign: 'center',
-    marginTop: vs(-24),
-  },
-  bottomGroup: {
-    width: '100%',
+  brand: {
     alignItems: 'center',
-    gap: vs(12),
-    marginTop: vs(32),
   },
-  connectionBanner: {
+  tagline: {
+    ...typography.subheadline,
+    color: colors.labelSecondary,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  litSlot: {
+    minHeight: typography.subheadline.lineHeight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.base,
+  },
+  lit: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: spacing.sm,
-    backgroundColor: 'rgba(255,69,58,0.85)',
-    borderRadius: radii.md,
-    paddingVertical: vs(8),
-    paddingHorizontal: spacing.base,
-    marginBottom: vs(4),
-    width: '100%',
   },
-  connectionBannerText: {
-    ...typography.footnote,
-    color: colors.label,
-    fontWeight: weights.medium,
+  litDot: {
+    width: LIT_DOT,
+    height: LIT_DOT,
+    borderRadius: LIT_DOT / 2,
+    backgroundColor: colors.crowd,
+  },
+  litText: {
+    ...typography.subheadline,
+    fontWeight: '600',
+    color: colors.crowd,
     flexShrink: 1,
   },
-  socialButton: {
-    width: '100%',
-    height: vs(48),
-    minHeight: layout.minTouchTarget,
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  socialButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  actions: {
     gap: spacing.md,
   },
-  socialIcon: {
-    width: s(28),
-    height: s(28),
-  },
-  appleIcon: {
-    marginTop: -2,
-  },
-  socialButtonText: {
-    color: colors.label,
-    fontSize: ms(17),
-    fontWeight: weights.semibold,
-    letterSpacing: -0.4,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    marginVertical: vs(2),
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: 'rgba(255,255,255,0.45)',
-  },
-  dividerText: {
-    color: colors.label,
-    fontSize: ms(12),
-    fontWeight: weights.thin,
-    marginHorizontal: spacing.md,
-  },
-  signUpWrapper: {
-    width: '100%',
-    height: vs(48),
-    minHeight: layout.minTouchTarget,
-    borderRadius: radii.pill,
-    overflow: 'hidden',
-  },
-  signUpGradient: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  signUpText: {
-    color: colors.label,
-    fontSize: ms(17),
-    fontWeight: weights.bold,
-    letterSpacing: -0.4,
-  },
-  pressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.99 }],
-  },
-  disabled: {
-    opacity: 0.4,
-  },
-  loginPress: {
-    paddingVertical: vs(6),
-  },
-  loginText: {
-    ...typography.body,
-    color: colors.label,
+  error: {
+    ...typography.subheadline,
+    color: colors.danger,
     textAlign: 'center',
   },
-  loginTextHighlight: {
+  googleLogo: {
+    width: 20,
+    height: 20,
+  },
+  links: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    columnGap: spacing.xxl,
+    rowGap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  linkText: {
+    ...typography.subheadline,
+    color: colors.labelSecondary,
+  },
+  link: {
+    fontWeight: '600',
     color: colors.tint,
-    fontWeight: weights.bold,
   },
   legal: {
     ...typography.caption1,
-    color: colors.gray,
+    color: colors.labelSecondary,
     textAlign: 'center',
-    marginTop: 'auto',
+    marginTop: spacing.base,
     paddingHorizontal: spacing.sm,
-    paddingTop: vs(16),
   },
-  legalUnderline: {
-    textDecorationLine: 'underline',
+  legalLink: {
+    fontWeight: '600',
+    color: colors.label,
   },
 });

@@ -1,74 +1,57 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import type { SymbolViewProps } from 'expo-symbols';
 import type { Ionicons } from '@expo/vector-icons';
+import { PressableScale } from '@/components/afterglow/motion';
 import { Icon } from '@/components/ui/icon';
 import { colors, layout, spacing, typography } from '@/theme';
 
-type Variant = 'default' | 'destructive';
+type Variant = 'default' | 'accent' | 'destructive';
 
 type Props = {
-  sfSymbol: SymbolViewProps['name'];
-  ionicon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
-  /** Defaults to true on `default` rows. Forced false on `destructive` rows. */
+  /** An icon before the label. Rows are plain without one; give both names or neither. */
+  sfSymbol?: SymbolViewProps['name'];
+  ionicon?: keyof typeof Ionicons.glyphMap;
+  /** Defaults to true. Never shown on `destructive` rows. */
   showChevron?: boolean;
-  /** `default` (normal label) or `destructive` (danger color, no chevron). */
+  /** `accent`: the one row that changes mode (tint). `destructive`: danger colour, no chevron. */
   variant?: Variant;
-  /** Optional trailing value text (e.g. "Premium" beside a row). */
+  /** Optional value at the end of the row. */
   value?: string;
 };
 
+const LABEL_COLOR: Record<Variant, string> = {
+  default: colors.label,
+  accent: colors.tint,
+  destructive: colors.danger,
+};
+
 /**
- * Grouped-list settings row in the iOS Settings pattern: icon left, label
- * center, optional trailing value, optional chevron right. The parent
- * container provides the surface background, rounded corners, and inserts
- * `<View style={divider}>` siblings between rows for hairline separators.
- *
- * Press feedback: pressed state applies a subtle fillQuaternary wash across
- * the row, matching iOS's native grouped-list tap highlight.
+ * A plain row in a settings list: a label, sometimes a value, a chevron. It has no
+ * background of its own: the parent is the solid block (`colors.surface`, rounded) and
+ * puts a hairline between rows.
  */
-export function SettingRow({
-  sfSymbol,
-  ionicon,
-  label,
-  onPress,
-  showChevron = true,
-  variant = 'default',
-  value,
-}: Props) {
-  const isDestructive = variant === 'destructive';
-  const textColor = isDestructive ? colors.danger : colors.label;
-  const iconColor = isDestructive ? colors.danger : colors.labelSecondary;
-  const renderChevron = showChevron && !isDestructive;
+export function SettingRow({ label, onPress, sfSymbol, ionicon, showChevron = true, variant = 'default', value }: Props) {
+  const color = LABEL_COLOR[variant];
 
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-    >
-      <View style={styles.iconWrap}>
-        <Icon sfSymbol={sfSymbol} ionicon={ionicon} size={20} color={iconColor} />
-      </View>
-      <Text style={[styles.label, { color: textColor }]} numberOfLines={1}>
-        {label}
-      </Text>
+    <PressableScale onPress={onPress} scaleTo={0.98} accessibilityRole="button" accessibilityLabel={label} style={styles.row}>
+      {sfSymbol && ionicon ? (
+        <View style={styles.icon}>
+          <Icon sfSymbol={sfSymbol} ionicon={ionicon} size={20} color={variant === 'default' ? colors.labelSecondary : color} />
+        </View>
+      ) : null}
+      <Text style={[styles.label, { color }, variant === 'accent' && styles.labelAccent]}>{label}</Text>
       {value ? (
         <Text style={styles.value} numberOfLines={1}>
           {value}
         </Text>
       ) : null}
-      {renderChevron ? (
-        <Icon
-          sfSymbol="chevron.right"
-          ionicon="chevron-forward"
-          size={14}
-          color={colors.labelTertiary}
-        />
+      {showChevron && variant !== 'destructive' ? (
+        <Icon sfSymbol="chevron.right" ionicon="chevron-forward" size={14} color={colors.labelTertiary} />
       ) : null}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -76,15 +59,12 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: layout.minTouchTarget,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
+    minHeight: layout.listItemHeightTall,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     gap: spacing.md,
   },
-  rowPressed: {
-    backgroundColor: colors.fillQuaternary,
-  },
-  iconWrap: {
+  icon: {
     width: 28,
     alignItems: 'center',
   },
@@ -92,9 +72,11 @@ const styles = StyleSheet.create({
     ...typography.body,
     flex: 1,
   },
+  labelAccent: {
+    fontWeight: '600',
+  },
   value: {
-    ...typography.subheadline,
+    ...typography.body,
     color: colors.labelSecondary,
-    marginRight: spacing.xs,
   },
 });

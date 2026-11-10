@@ -1,32 +1,18 @@
 import { StyleSheet, Text, View } from 'react-native';
-import type { SymbolViewProps } from 'expo-symbols';
-import type { Ionicons } from '@expo/vector-icons';
-import { Icon } from '@/components/ui/icon';
-import { colors, spacing, typography, weights } from '@/theme';
+import { colors, spacing, typography } from '@/theme';
 
 type Props = {
   title: string;
-  /** Optional trailing SF Symbol (e.g. `flame.fill` next to "Popping tonight"). */
-  trailingSfSymbol?: SymbolViewProps['name'];
-  /** Ionicons fallback. Required if `trailingSfSymbol` is provided. */
-  trailingIonicon?: keyof typeof Ionicons.glyphMap;
+  /** A rose dot before the title: this section is the live crowd ("Glowing now"). */
+  live?: boolean;
 };
 
-/** Section title used inside the Parties feed. Optional accent glyph after the text. */
-export function SectionHeader({ title, trailingSfSymbol, trailingIonicon }: Props) {
+/** A quiet label above a group: "Later tonight", "Line-up". Sentence case, system font. */
+export function SectionHeader({ title, live = false }: Props) {
   return (
     <View style={styles.row} accessibilityRole="header">
-      <Text style={styles.title} allowFontScaling>
-        {title}
-      </Text>
-      {trailingSfSymbol && trailingIonicon ? (
-        <Icon
-          sfSymbol={trailingSfSymbol}
-          ionicon={trailingIonicon}
-          size={22}
-          color={colors.tint}
-        />
-      ) : null}
+      {live ? <View style={styles.dot} /> : null}
+      <Text style={styles.title}>{title}</Text>
     </View>
   );
 }
@@ -37,9 +23,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.crowd,
+  },
   title: {
-    ...typography.title2,
-    fontWeight: weights.bold,
-    color: colors.label,
+    ...typography.subheadline,
+    fontWeight: '600',
+    color: colors.labelSecondary,
   },
 });

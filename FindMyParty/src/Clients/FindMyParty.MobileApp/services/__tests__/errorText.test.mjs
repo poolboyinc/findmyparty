@@ -29,3 +29,8 @@ test('a signed-out session and a lockout are explained', () => {
   assert.equal(errorText(new ApiError('signed_out')), 'Your session has ended. Sign in again.');
   assert.equal(errorText(new ApiError('rate_limited', undefined, 429)), 'Too many tries. Wait a minute and try again.');
 });
+
+test('when the server explains a refusal, its explanation is shown', () => {
+  assert.equal(errorText(new ApiError('forbidden', "This pass is for another host's party.", 403, 'forbidden')), "This pass is for another host's party.");
+  assert.equal(errorText(new ApiError('forbidden', undefined, 403)), 'You are not allowed to do that.');
+});

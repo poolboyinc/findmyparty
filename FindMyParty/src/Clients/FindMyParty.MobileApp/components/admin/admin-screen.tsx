@@ -10,16 +10,15 @@ import {
   ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AuthHeader } from '@/components/ui/auth-header';
+import { HostHeader } from '@/components/host/host-header';
 import { colors, layout, spacing } from '@/theme';
 
 type Props = {
-  /** When provided, an `AuthHeader` is rendered with this title. Omit on screens
-   *  that supply their own header chrome. */
+  /** When provided, a `HostHeader` is rendered with this title. Omit on screens
+   *  that supply their own header. */
   title?: string;
-  /** Show the circular glass back button in the header. Tab-root screens pass
-   *  `false`; pushed screens leave the default `true`. Only meaningful when
-   *  `title` is set. */
+  /** Show the back button in the header. Tab-root screens pass `false`; pushed
+   *  screens leave the default `true`. Only meaningful when `title` is set. */
   showBack?: boolean;
   /** Override the header's default `router.back()` behavior. */
   onBack?: () => void;
@@ -38,17 +37,16 @@ type Props = {
 };
 
 /**
- * Standard host-portal screen scaffold. Near-black `colors.bg` root (no gradient
- * wallpaper), an optional `AuthHeader`, keyboard avoidance, and a scroll body
- * whose bottom padding clears the floating tab bar. Mirrors the consumer auth
- * scaffold's quality but stays neutral so individual screens own their content.
+ * Standard host screen scaffold. Solid `colors.bg` root, an optional
+ * `HostHeader`, keyboard avoidance, and a scroll body whose bottom padding
+ * clears the floating tab bar. Neutral, so each screen owns its content.
  *
  * Usage:
  *   // Tab-root screen — header without a back button:
- *   <AdminScreen title="Home" showBack={false}>…</AdminScreen>
+ *   <AdminScreen title="Parties" showBack={false}>…</AdminScreen>
  *
  *   // Pushed screen with pull-to-refresh:
- *   <AdminScreen title="My Parties" refreshControl={<RefreshControl … />}>…</AdminScreen>
+ *   <AdminScreen title="Bookings" refreshControl={<RefreshControl … />}>…</AdminScreen>
  *
  *   // Screen managing its own FlatList:
  *   <AdminScreen title="Bookings" scroll={false}><MyList /></AdminScreen>
@@ -66,7 +64,7 @@ export function AdminScreen({
 }: Props) {
   const insets = useSafeAreaInsets();
 
-  // Content must clear the floating glass tab bar + home indicator.
+  // Content must clear the floating tab bar + home indicator.
   const bottomClearance =
     layout.floatingTabBarHeight +
     insets.bottom +
@@ -74,18 +72,13 @@ export function AdminScreen({
     spacing.base;
 
   const header = title ? (
-    <AuthHeader
-      title={title}
-      showBack={showBack}
-      onBack={onBack}
-      disabled={headerDisabled}
-    />
+    <HostHeader title={title} showBack={showBack} onBack={onBack} disabled={headerDisabled} />
   ) : null;
 
-  // When a header is rendered, AuthHeader already pads for `insets.top`. When
-  // it isn't (e.g. tab-root screens that bring their own greeting / large
-  // title inside the scroll), the body must add the top safe-area itself so
-  // content doesn't sit under the Dynamic Island / notch.
+  // When a header is rendered, it already pads for `insets.top`. When it isn't
+  // (tab-root screens that bring their own title inside the scroll), the body
+  // must add the top safe-area itself so content doesn't sit under the
+  // Dynamic Island / notch.
   const topPadding = header ? spacing.lg : insets.top + spacing.lg;
 
   const body = scroll ? (
@@ -142,7 +135,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: layout.screenMargin,
     // `paddingTop` is computed in the component to layer in the safe-area
-    // inset when no `AuthHeader` is rendered.
+    // inset when no header is rendered.
   },
   plainBody: {
     flex: 1,

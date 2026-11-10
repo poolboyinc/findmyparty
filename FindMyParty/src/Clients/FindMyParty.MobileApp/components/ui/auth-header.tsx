@@ -1,13 +1,13 @@
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, layout, spacing, typography } from '@/theme';
+import { PressableScale } from '@/components/afterglow/motion';
+import { Display } from '@/components/afterglow/text';
+import { colors, layout, radii, spacing } from '@/theme';
 
 type Props = {
-  /** Screen title rendered centered between the back button and a matching spacer. */
+  /** The screen's title, in the display face, under the back button. */
   title: string;
   /** Override the default `router.back()` behavior. */
   onBack?: () => void;
@@ -16,30 +16,20 @@ type Props = {
    * to prevent navigation race conditions while a network request is in flight.
    */
   disabled?: boolean;
-  /**
-   * Render the back button. Defaults to true. Tab-root screens (which have no
-   * screen to pop back to) pass `false`; a matching spacer keeps the title
-   * visually centered.
-   */
+  /** Render the back button. Defaults to true. Screens with nothing to go back to pass `false`. */
   showBack?: boolean;
 };
 
-const BACK_SIZE = 44;
+const BACK_SIZE = 40;
 
 /**
- * Top-of-screen header used across the auth flow (Log In, Sign Up, Forgot Password).
- * Renders a circular glass back button on the left, a centered title, and a
- * matching-width spacer on the right so the title sits visually centered on screen.
- *
- * The BlurView starts at intensity 40 / tint="dark" — adjust intensity if streaks
- * become visible during scroll on real devices.
+ * Top of a pushed screen: a flat back button, then the title on its own line.
+ * It pads for the top safe area itself.
  */
 export function AuthHeader({ title, onBack, disabled = false, showBack = true }: Props) {
   const insets = useSafeAreaInsets();
 
   const handleBack = () => {
-    if (disabled) return;
-    Haptics.selectionAsync();
     if (onBack) onBack();
     else router.back();
   };
@@ -47,75 +37,40 @@ export function AuthHeader({ title, onBack, disabled = false, showBack = true }:
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.sm }]}>
       {showBack ? (
-        <Pressable
+        <PressableScale
           onPress={handleBack}
           disabled={disabled}
+          hitSlop={layout.hitSlop}
           accessibilityRole="button"
           accessibilityLabel="Back"
-          accessibilityHint="Returns to the previous screen"
           accessibilityState={{ disabled }}
-          hitSlop={layout.hitSlop}
-          style={({ pressed }) => [
-            styles.backWrap,
-            pressed && !disabled && styles.backPressed,
-            disabled && styles.backDisabled,
-          ]}
+          style={[styles.back, disabled && styles.backDisabled]}
         >
-          <BlurView intensity={40} tint="dark" style={styles.backBlur}>
-            <Ionicons name="chevron-back" size={22} color={colors.label} />
-          </BlurView>
-        </Pressable>
-      ) : (
-        <View style={styles.spacer} />
-      )}
-      <Text
-        style={styles.title}
-        accessibilityRole="header"
-        numberOfLines={1}
-        allowFontScaling
-      >
+          <Ionicons name="chevron-back" size={22} color={colors.label} />
+        </PressableScale>
+      ) : null}
+      <Display size="md" accessibilityRole="header">
         {title}
-      </Text>
-      <View style={styles.spacer} />
+      </Display>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.base,
-    paddingBottom: spacing.sm,
-    gap: spacing.sm,
+    paddingHorizontal: layout.screenMargin,
+    paddingBottom: spacing.md,
+    gap: spacing.base,
   },
-  backWrap: {
+  back: {
     width: BACK_SIZE,
     height: BACK_SIZE,
-    borderRadius: BACK_SIZE / 2,
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceElevated,
-  },
-  backBlur: {
-    flex: 1,
+    borderRadius: radii.card,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backPressed: {
-    opacity: 0.85,
-    transform: [{ scale: 0.95 }],
-  },
   backDisabled: {
     opacity: 0.4,
-  },
-  title: {
-    flex: 1,
-    ...typography.title1,
-    color: colors.label,
-    textAlign: 'center',
-  },
-  spacer: {
-    width: BACK_SIZE,
-    height: BACK_SIZE,
   },
 });

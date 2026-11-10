@@ -1,388 +1,155 @@
-import { useCallback, useEffect, useReducer, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { useCallback, useReducer, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import Constants from 'expo-constants';
-import Animated, {
-  Easing,
-  FadeIn,
-  FadeOut,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSequence,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
-import { Icon } from '@/components/ui/icon';
+import { IdentityBlock } from '@/components/account/identity-block';
+import { emailSupport, SUPPORT_EMAIL } from '@/components/account/support';
+import { Failed, Loading } from '@/components/afterglow/state';
+import { Display } from '@/components/afterglow/text';
+import { PrimaryButton } from '@/components/ui/primary-button';
 import { SettingRow } from '@/components/ui/setting-row';
-import { useProfile } from '@/hooks/useProfile';
-import { useFavorites } from '@/hooks/useFavorites';
+import { useMe } from '@/hooks/queries';
 import { authService } from '@/services/authService';
-import { colors, layout, radii, spacing, typography, weights } from '@/theme';
+import { queryClient } from '@/services/queryClient';
+import { colors, layout, radii, spacing, typography } from '@/theme';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-// Upsell card press spring — physical-feeling scale on press / release.
-const UPSELL_PRESS_SPRING = { damping: 18, stiffness: 350 } as const;
-const UPSELL_PRESS_SCALE = 0.98;
-
-// Sparkles entry shimmer timing. Single one-shot breathe + sway after a short
-// delay so the user notices the icon AFTER the screen has settled in.
-const SPARKLE_SHIMMER_DELAY_MS = 250;
-const SPARKLE_SHIMMER_HALF_MS = 350; // 350 + 350 ≈ 700ms total breathe.
-const SPARKLE_SHIMMER_PEAK_SCALE = 1.15;
-const SPARKLE_SHIMMER_PEAK_ROT_DEG = 6;
-
-const AVATAR_SIZE = 80;
-const AVATAR_HALO_SIZE = 112;
-// Divider inset aligns with the SettingRow icon's right edge so dividers don't
-// cut through the icon column.
-const DIVIDER_INSET = spacing.base + 28 + spacing.md;
+/** Set while the session is being ended, so the screen holds still until the welcome screen replaces it. */
+type Leaving = 'logout' | 'delete' | null;
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { userInfo, bookingCount, load, logout } = useProfile();
-  const { count: favoriteCount } = useFavorites();
-  const [deleting, setDeleting] = useState(false);
+  const me = useMe();
+  const [leaving, setLeaving] = useState<Leaving>(null);
 
-  // Workaround for the react-native-screens v4 view-recycle bug — see the
-  // matching pattern in `parties.tsx`. Forces a fresh render on every focus
-  // so the native view re-paints after being recycled by the navigator.
-  const [, forceRerender] = useReducer((x: number) => x + 1, 0);
-
+  // react-native-screens v4 can hand a tab back unpainted; a render on focus repaints it
+  // (same workaround as the other tabs).
+  const [, repaint] = useReducer((n: number) => n + 1, 0);
   useFocusEffect(
     useCallback(() => {
-      forceRerender();
-      load();
-    }, [load]),
+      repaint();
+    }, []),
   );
 
-  const isPremium = userInfo?.subscription === 'Premium';
-
-  // ── Sparkles shimmer (one-shot on mount, only when on Free plan) ──────────
-  const sparkleScale = useSharedValue(1);
-  const sparkleRotate = useSharedValue(0);
-
-  useEffect(() => {
-    if (isPremium) return;
-    // One-shot breathe: 1 → 1.15 → 1, paired with rotation -6° → +6° → 0°.
-    // Easing.inOut so the sway feels organic rather than mechanical.
-    const easing = Easing.inOut(Easing.quad);
-    sparkleScale.value = withDelay(
-      SPARKLE_SHIMMER_DELAY_MS,
-      withSequence(
-        withTiming(SPARKLE_SHIMMER_PEAK_SCALE, { duration: SPARKLE_SHIMMER_HALF_MS, easing }),
-        withTiming(1, { duration: SPARKLE_SHIMMER_HALF_MS, easing }),
-      ),
-    );
-    sparkleRotate.value = withDelay(
-      SPARKLE_SHIMMER_DELAY_MS,
-      withSequence(
-        withTiming(-SPARKLE_SHIMMER_PEAK_ROT_DEG, {
-          duration: SPARKLE_SHIMMER_HALF_MS / 2,
-          easing,
-        }),
-        withTiming(SPARKLE_SHIMMER_PEAK_ROT_DEG, {
-          duration: SPARKLE_SHIMMER_HALF_MS,
-          easing,
-        }),
-        withTiming(0, { duration: SPARKLE_SHIMMER_HALF_MS / 2, easing }),
-      ),
-    );
-    // Intentionally NOT depending on sparkleScale/sparkleRotate identities —
-    // shared values are stable refs. We only want this once per mount + plan flip.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPremium]);
-
-  const sparkleAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: sparkleScale.value },
-      { rotate: `${sparkleRotate.value}deg` },
-    ],
-  }));
-
-  // ── Upsell card press scale ───────────────────────────────────────────────
-  const upsellScale = useSharedValue(1);
-  const upsellAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: upsellScale.value }],
-  }));
-  const handleUpsellPressIn = () => {
-    upsellScale.value = withSpring(UPSELL_PRESS_SCALE, UPSELL_PRESS_SPRING);
-  };
-  const handleUpsellPressOut = () => {
-    upsellScale.value = withSpring(1, UPSELL_PRESS_SPRING);
-  };
-  const versionString = Constants.expoConfig?.version ?? '—';
-  const buildNumber =
-    Constants.expoConfig?.ios?.buildNumber ??
-    String(Constants.expoConfig?.android?.versionCode ?? '');
-  const versionLabel = buildNumber
-    ? `v${versionString} (${buildNumber})`
-    : `v${versionString}`;
-
-  const scrollPaddingBottom =
-    insets.bottom +
-    layout.floatingTabBarHeight +
-    layout.floatingTabBarBottomOffset +
-    spacing.base;
-
-  const handleSubscriptionPress = () => {
-    Haptics.selectionAsync();
-    if (isPremium) {
-      Alert.alert('Premium', "You're on the Premium plan.");
-    } else {
-      // TODO: open the real upgrade flow when the IAP / paywall lands.
-      Alert.alert('Upgrade to Premium', 'Premium features are coming soon.');
+  /** Ends the session here and on the server, forgets this user's data, and goes to the welcome screen. */
+  const endSession = async () => {
+    try {
+      await authService.logout();
+    } catch {
+      // The tokens could not be removed from the phone. Leave anyway: staying here helps nobody.
     }
+    queryClient.clear();
+    router.replace('/onboarding');
   };
 
-  const handleHelpSupport = () => {
-    Haptics.selectionAsync();
-    // openURL rejects if no mail client is installed/configured. Fall back to
-    // an alert that shows the address so the user can copy it manually.
-    Linking.openURL('mailto:support@findmyparty.com').catch(() => {
-      Alert.alert(
-        'No mail app',
-        'Email support@findmyparty.com from any device.',
-      );
-    });
-  };
-
-  const handleSignOut = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    Alert.alert(
-      'Sign out?',
-      "You'll need to log in again.",
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            // Always navigate even if logout throws (e.g., SecureStore failure).
-            // Stranding the user on Profile with no feedback is worse than a
-            // partial-token-cleanup edge case.
-            try {
-              await logout();
-            } finally {
-              router.replace('/onboarding');
-            }
-          },
+  const confirmLogOut = () => {
+    Alert.alert('Log out?', undefined, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log out',
+        style: 'destructive',
+        onPress: () => {
+          setLeaving('logout');
+          void endSession();
         },
-      ],
-    );
+      },
+    ]);
   };
 
-  const handleDeleteAccount = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+  const deleteAccount = async () => {
+    setLeaving('delete');
+    const deleted = await authService.deleteAccount();
+    if (!deleted) {
+      setLeaving(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert('Could not delete the account', `Try again in a moment. If it keeps failing, write to ${SUPPORT_EMAIL}.`);
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await endSession();
+  };
+
+  const confirmDelete = () => {
     Alert.alert(
       'Delete account?',
-      "This permanently deletes your account and all your data. This can't be undone.",
+      'This deletes your account, your bookings and, if you are a host, cancels your parties.',
       [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            const ok = await authService.deleteAccount();
-            if (ok) {
-              // Success haptic BEFORE the navigation so the user feels a
-              // confirmation pulse during the transition rather than after.
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              // Backend account is gone — tokens are now invalid regardless.
-              // Navigate even if local logout throws so the overlay can't
-              // strand the user on Profile.
-              try {
-                await authService.logout();
-              } finally {
-                router.replace('/onboarding');
-              }
-              // `deleting` lives until unmount; no need to setDeleting(false).
-            } else {
-              setDeleting(false);
-              Alert.alert('Could not delete', 'Something went wrong. Try again or contact support.');
-            }
-          },
-        },
+        { text: 'Delete', style: 'destructive', onPress: () => void deleteAccount() },
       ],
     );
   };
+
+  const user = me.data;
+  const isHost = !!user && (user.roles.includes('Host') || user.roles.includes('Admin'));
+
+  const version = Constants.expoConfig?.version;
+  const build = Constants.expoConfig?.ios?.buildNumber;
+  const versionLabel = version ? `Version ${version}${build ? ` (${build})` : ''}` : null;
+
+  const tabBarRoom = insets.bottom + layout.floatingTabBarHeight + layout.floatingTabBarBottomOffset + spacing.base;
+
+  if (leaving) {
+    const leavingLabel = leaving === 'delete' ? 'Deleting your account' : 'Logging out';
+    return (
+      <View style={[styles.root, styles.leaving]} accessibilityRole="alert" accessibilityLabel={leavingLabel}>
+        <ActivityIndicator color={colors.labelSecondary} />
+        <Text style={styles.leavingText}>{leavingLabel}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top + spacing.xl, paddingBottom: scrollPaddingBottom },
-        ]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.base, paddingBottom: tabBarRoom }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero */}
-        <View style={styles.hero}>
-          <View style={styles.avatarWrap}>
-            <View style={styles.avatarHalo} pointerEvents="none" />
-            <View style={styles.avatar}>
-              <Icon
-                sfSymbol="person.fill"
-                ionicon="person"
-                size={44}
-                color={colors.labelSecondary}
-              />
+        <Display size="md" accessibilityRole="header">
+          Me
+        </Display>
+
+        {user ? (
+          <>
+            <IdentityBlock user={user} />
+
+            <View style={styles.group}>
+              <SettingRow label="Saved parties" onPress={() => router.push('/favorites')} />
+              <View style={styles.divider} />
+              <SettingRow label="Help" onPress={() => emailSupport()} />
+              {isHost ? (
+                <>
+                  <View style={styles.divider} />
+                  <SettingRow label="Switch to host" variant="accent" onPress={() => router.push('/admin')} />
+                </>
+              ) : null}
             </View>
-          </View>
-          <Text style={styles.name} accessibilityRole="header">
-            {userInfo?.userName ?? '—'}
-          </Text>
-          {userInfo?.email ? (
-            <Text style={styles.email} numberOfLines={1} ellipsizeMode="middle">
-              {userInfo.email}
-            </Text>
-          ) : null}
-          {isPremium ? (
-            <Pressable
-              onPress={handleSubscriptionPress}
-              hitSlop={layout.hitSlop}
-              accessibilityRole="button"
-              accessibilityLabel="Subscription: Premium"
-              style={[styles.subscriptionPill, styles.subscriptionPillPremium]}
-            >
-              <Text style={[styles.subscriptionLabel, styles.subscriptionLabelPremium]}>
-                Premium
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
 
-        {/* Premium upsell card — only when on Free plan */}
-        {!isPremium ? (
-          <AnimatedPressable
-            onPress={handleSubscriptionPress}
-            onPressIn={handleUpsellPressIn}
-            onPressOut={handleUpsellPressOut}
-            accessibilityRole="button"
-            accessibilityLabel="Go Premium"
-            style={[styles.upsellCard, upsellAnimatedStyle]}
-          >
-            <Animated.View style={[styles.upsellIconWrap, sparkleAnimatedStyle]}>
-              <Icon sfSymbol="sparkles" ionicon="sparkles-outline" size={28} color={colors.tint} />
-            </Animated.View>
-            <View style={styles.upsellTextWrap}>
-              <Text style={styles.upsellTitle}>Go Premium</Text>
-              <Text style={styles.upsellSubtitle}>Unlock VIP entry, exclusive parties</Text>
+            <View style={styles.group}>
+              <SettingRow label="Log out" onPress={confirmLogOut} showChevron={false} />
+              <View style={styles.divider} />
+              <SettingRow label="Delete account" variant="destructive" onPress={confirmDelete} />
             </View>
-            <Icon
-              sfSymbol="chevron.right"
-              ionicon="chevron-forward"
-              size={14}
-              color={colors.labelSecondary}
-            />
-          </AnimatedPressable>
-        ) : null}
 
-        {/* Stats card — liquid glass surface, 2 columns */}
-        <BlurView intensity={30} tint="dark" style={styles.statsCard}>
-          <View style={styles.cardGlassTint} pointerEvents="none" />
-          <View style={styles.cardTopHighlight} pointerEvents="none" />
-          <View style={styles.statColumn}>
-            <Text style={styles.statValue}>{bookingCount}</Text>
-            <Text style={styles.statLabel}>Parties attended</Text>
+            {versionLabel ? <Text style={styles.version}>{versionLabel}</Text> : null}
+          </>
+        ) : me.isPending ? (
+          <View style={styles.state}>
+            <Loading />
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statColumn}>
-            <Text style={styles.statValue}>{favoriteCount}</Text>
-            <Text style={styles.statLabel}>Favorites</Text>
+        ) : me.isError ? (
+          <View style={styles.state}>
+            <Failed error={me.error} onRetry={() => me.refetch()} />
           </View>
-        </BlurView>
-
-        {/* Settings group — neutral glass */}
-        <BlurView intensity={30} tint="dark" style={styles.group}>
-          <View style={styles.cardTopHighlight} pointerEvents="none" />
-          <SettingRow
-            sfSymbol="ticket"
-            ionicon="ticket-outline"
-            label="My Bookings"
-            onPress={() => router.push('/my-bookings')}
-          />
-          <View style={styles.divider} />
-          <SettingRow
-            sfSymbol="heart"
-            ionicon="heart-outline"
-            label="Favorites"
-            onPress={() => router.push('/favorites')}
-          />
-          <View style={styles.divider} />
-          <SettingRow
-            sfSymbol="questionmark.circle"
-            ionicon="help-circle-outline"
-            label="Help & Support"
-            onPress={handleHelpSupport}
-          />
-        </BlurView>
-
-        {/* Sign Out — separate destructive group, neutral glass */}
-        <BlurView intensity={30} tint="dark" style={styles.group}>
-          <View style={styles.cardTopHighlight} pointerEvents="none" />
-          <SettingRow
-            sfSymbol="rectangle.portrait.and.arrow.right"
-            ionicon="log-out-outline"
-            label="Sign Out"
-            onPress={handleSignOut}
-            variant="destructive"
-            showChevron={false}
-          />
-        </BlurView>
-
-        {/* Delete account — tertiary text link */}
-        <Pressable
-          onPress={handleDeleteAccount}
-          hitSlop={layout.hitSlop}
-          accessibilityRole="button"
-          accessibilityLabel="Delete account"
-          style={styles.deleteAccountWrap}
-        >
-          <Text style={styles.deleteAccountText}>Delete account</Text>
-        </Pressable>
-
-        {/* Version footer */}
-        <Text style={styles.versionText} accessibilityLabel={`App version ${versionLabel}`}>
-          {versionLabel}
-        </Text>
+        ) : (
+          <View style={styles.signedOut}>
+            <Text style={styles.signedOutText}>Sign in to see your account</Text>
+            <PrimaryButton label="Sign in" onPress={() => router.replace('/onboarding')} />
+          </View>
+        )}
       </ScrollView>
-
-      {/* Delete-account loading overlay. Last child = topmost layer.
-          `pointerEvents="auto"` blocks all interaction beneath while
-          the destructive network call is in flight. */}
-      {deleting ? (
-        <Animated.View
-          entering={FadeIn.duration(120)}
-          exiting={FadeOut.duration(120)}
-          pointerEvents="auto"
-          style={styles.deleteOverlay}
-          accessibilityRole="alert"
-          accessibilityLiveRegion="polite"
-          accessibilityLabel="Deleting account"
-        >
-          <ActivityIndicator size="large" color={colors.tint} />
-          <Text style={styles.deleteOverlayText}>Deleting account…</Text>
-        </Animated.View>
-      ) : null}
     </View>
   );
 }
@@ -392,196 +159,45 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.bg,
   },
-  scrollContent: {
+  content: {
+    flexGrow: 1,
     paddingHorizontal: layout.screenMargin,
-    gap: spacing.xl,
-  },
-  hero: {
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  avatarWrap: {
-    width: AVATAR_HALO_SIZE,
-    height: AVATAR_HALO_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
-  },
-  avatarHalo: {
-    position: 'absolute',
-    width: AVATAR_HALO_SIZE,
-    height: AVATAR_HALO_SIZE,
-    borderRadius: AVATAR_HALO_SIZE / 2,
-    backgroundColor: colors.brand.tintBg,
-  },
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: colors.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    // Soft purple glow around the avatar. iOS only — Android's `elevation`
-    // is a drop-shadow with no colored option.
-    ...(Platform.OS === 'ios'
-      ? {
-          shadowColor: colors.tint,
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.55,
-          shadowRadius: 18,
-        }
-      : {}),
-  },
-  name: {
-    ...typography.title2,
-    fontWeight: weights.bold,
-    color: colors.label,
-    textAlign: 'center',
-  },
-  email: {
-    ...typography.subheadline,
-    color: colors.labelSecondary,
-    textAlign: 'center',
-    paddingHorizontal: spacing.lg,
-  },
-  subscriptionPill: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.xs,
-    borderRadius: radii.pill,
-    marginTop: spacing.xs,
-  },
-  subscriptionPillPremium: {
-    backgroundColor: colors.tint,
-    // Brand-color glow on the Premium pill.
-    ...(Platform.OS === 'ios'
-      ? {
-          shadowColor: colors.tint,
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.55,
-          shadowRadius: 8,
-        }
-      : {}),
-  },
-  subscriptionLabel: {
-    ...typography.footnote,
-    fontWeight: weights.semibold,
-    color: colors.labelSecondary,
-  },
-  subscriptionLabelPremium: {
-    color: colors.label,
-  },
-  upsellCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.lg,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    backgroundColor: colors.brand.tintBg,
-  },
-  upsellIconWrap: {
-    width: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  upsellTextWrap: {
-    flex: 1,
-    gap: spacing.xxs,
-  },
-  upsellTitle: {
-    ...typography.bodyEmphasized,
-    color: colors.label,
-  },
-  upsellSubtitle: {
-    ...typography.subheadline,
-    color: colors.labelSecondary,
-  },
-  statsCard: {
-    flexDirection: 'row',
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.hairline,
-    paddingVertical: spacing.lg,
-    overflow: 'hidden',
-  },
-  // Subtle purple wash inside the BlurView surfaces — gives the glass a
-  // brand-tinted feel without crossing into "gradient" territory. Scoped to
-  // the stats card only; settings groups stay neutral.
-  cardGlassTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.brand.tintBg,
-  },
-  // 1px refraction edge at the top of the glass surface — matches the floating
-  // tab bar treatment for visual cohesion across surfaces.
-  cardTopHighlight: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  statColumn: {
-    flex: 1,
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.sm,
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: colors.hairline,
-  },
-  statValue: {
-    ...typography.title1,
-    fontWeight: weights.bold,
-    // Stat values render in brand-light so the user's own numbers feel
-    // identity-tinted, not generic.
-    color: colors.brand.light,
-  },
-  statLabel: {
-    ...typography.caption1,
-    color: colors.labelSecondary,
-    textAlign: 'center',
+    gap: spacing.lg,
   },
   group: {
+    backgroundColor: colors.surface,
     borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.hairline,
     overflow: 'hidden',
   },
   divider: {
-    height: 1,
-    backgroundColor: colors.hairline,
-    marginLeft: DIVIDER_INSET,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.separator,
+    marginHorizontal: spacing.lg,
   },
-  deleteAccountWrap: {
-    alignSelf: 'center',
-    paddingVertical: spacing.sm,
-  },
-  deleteAccountText: {
-    ...typography.footnote,
-    color: colors.danger,
-  },
-  versionText: {
-    ...typography.caption2,
+  version: {
+    ...typography.caption1,
     color: colors.labelTertiary,
     textAlign: 'center',
   },
-  // Deliberate inline rgba scrim — `colors.scrim` (0.7) is too opaque for a
-  // loading state where the user should still feel context behind the spinner.
-  // 0.4 sits between `colors.overlay` (0.5) and softer; documented carve-out.
-  deleteOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+  state: {
+    minHeight: 200,
+    justifyContent: 'center',
+  },
+  signedOut: {
+    gap: spacing.base,
+    paddingTop: spacing.xl,
+  },
+  signedOutText: {
+    ...typography.body,
+    color: colors.labelSecondary,
+  },
+  leaving: {
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,
   },
-  deleteOverlayText: {
+  leavingText: {
     ...typography.subheadline,
-    color: colors.label,
+    color: colors.labelSecondary,
   },
 });
