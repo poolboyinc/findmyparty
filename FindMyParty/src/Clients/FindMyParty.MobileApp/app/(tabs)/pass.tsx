@@ -13,6 +13,7 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { useMe, useMyBookings } from '@/hooks/queries';
 import { ApiError } from '@/services/api';
 import { errorText } from '@/services/errorText';
+import { glowFrom } from '@/services/glow';
 import { colors, layout, spacing, typography } from '@/theme';
 
 /** The Pass tab: the ticket for tonight (or the next night), and the nights before it. */
@@ -48,6 +49,8 @@ export default function PassTab() {
   };
 
   const guestName = me.data?.userName ?? null;
+  // The Glow level the door scans have earned, printed on the ticket next to the name.
+  const levelName = useMemo(() => (data ? glowFrom(data, new Date(minute)).level.name : null), [data, minute]);
 
   let body: ReactNode;
   if (signedOut) {
@@ -62,7 +65,7 @@ export default function PassTab() {
       data.length === 0 ? (
         <NoPass title="No pass yet" fill />
       ) : (
-        <PassBoard entries={upcoming} past={past} now={now} focused={focused} guestName={guestName} />
+        <PassBoard entries={upcoming} past={past} now={now} focused={focused} guestName={guestName} levelName={levelName} />
       );
   } else if (isPending || (cannotLoad && saved === null)) {
     body = <Loading />;
@@ -74,6 +77,7 @@ export default function PassTab() {
         now={now}
         focused={focused}
         guestName={guestName}
+        levelName={null}
         notice={`${errorText(error)} Showing the pass saved on this phone.`}
       />
     );
@@ -107,6 +111,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   title: {
+    fontSize: 32,
+    lineHeight: 34,
     paddingHorizontal: layout.screenMargin,
     paddingBottom: spacing.base,
   },

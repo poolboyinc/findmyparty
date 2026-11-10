@@ -24,7 +24,7 @@ export function CrowdBars({ level, source, size = 12 }: Props) {
             width: Math.max(2, size / 4),
             height: size * (0.3 + 0.175 * i),
             borderRadius: 1,
-            backgroundColor: i < lit ? litColor : colors.fillSecondary,
+            backgroundColor: i < lit ? litColor : colors.labelQuaternary,
           }}
         />
       ))}

@@ -86,7 +86,7 @@ export default function RegisterPage() {
     const created = await register();
     if (created) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      enterApp();
+      void enterApp({ newAccount: true });
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }

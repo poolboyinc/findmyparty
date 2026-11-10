@@ -29,7 +29,7 @@ export default function LoginPage() {
     const signedIn = await login();
     if (signedIn) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      enterApp();
+      void enterApp();
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }

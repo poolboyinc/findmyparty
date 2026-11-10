@@ -3,11 +3,20 @@ import { router } from 'expo-router';
 import { loginDetailed, registerDetailed } from '@/services/authActions';
 import { loginErrorText, registerErrorText } from '@/services/authErrorText';
 import { queryClient } from '@/services/queryClient';
+import { hasFinishedFirstRun } from '@/services/taste';
 
-/** After any successful sign-in or sign-up: reload who is signed in (and their bookings), then open the app. */
-export function enterApp(): void {
+/**
+ * After any successful sign-in or sign-up: reload who is signed in (and their bookings), then open the app.
+ * A new account always goes through first run (your sound, location). Anyone else does too when first run
+ * has not been finished on this phone yet: the server cannot say whether a social sign-in made a new account,
+ * and taste lives on the phone, so a phone that never asked has nothing to mark parties with.
+ */
+export async function enterApp({ newAccount = false }: { newAccount?: boolean } = {}): Promise<void> {
   void queryClient.invalidateQueries();
-  router.replace('/(tabs)');
+  const firstRun = newAccount || !(await hasFinishedFirstRun());
+  // Leave nothing of the sign-in flow underneath (the welcome keeps a live map running).
+  if (router.canDismiss()) router.dismissAll();
+  router.replace(firstRun ? '/first-run' : '/(tabs)');
 }
 
 export function useLogin() {

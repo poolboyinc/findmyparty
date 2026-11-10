@@ -35,9 +35,11 @@ type RowProps = {
 export function InfoRow({ sfSymbol, ionicon, text, onPress, accessibilityLabel }: RowProps) {
   const body = (
     <>
-      <Icon sfSymbol={sfSymbol} ionicon={ionicon} size={20} color={colors.labelSecondary} />
+      <View style={styles.icon}>
+        <Icon sfSymbol={sfSymbol} ionicon={ionicon} size={19} color={colors.labelSecondary} />
+      </View>
       <Text style={styles.text}>{text}</Text>
-      {onPress ? <Icon sfSymbol="chevron.right" ionicon="chevron-forward" size={14} color={colors.labelTertiary} /> : null}
+      {onPress ? <Icon sfSymbol="chevron.right" ionicon="chevron-forward" size={13} color={colors.labelTertiary} /> : null}
     </>
   );
 
@@ -55,6 +57,33 @@ export function InfoRow({ sfSymbol, ionicon, text, onPress, accessibilityLabel }
   );
 }
 
+type LineUpProps = {
+  /** "23:00": when the set starts. */
+  time: string;
+  /** The set is playing now: its time is in the crowd's colour. */
+  playing: boolean;
+  name: string;
+  /** "DJ", "Band". */
+  role?: string | null;
+};
+
+/** One act in the line-up: set time in the left column, the name, and what they are on the right. */
+export function LineUpRow({ time, playing, name, role }: LineUpProps) {
+  return (
+    <View
+      style={styles.row}
+      accessible
+      accessibilityLabel={[name, role, time && (playing ? `on since ${time}` : `from ${time}`)].filter(Boolean).join(', ')}
+    >
+      <Text style={[styles.setTime, playing && styles.setTimeNow]}>{time}</Text>
+      <Text style={styles.act} numberOfLines={2}>
+        {name}
+      </Text>
+      {role ? <Text style={styles.role}>{role}</Text> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
@@ -63,20 +92,44 @@ const styles = StyleSheet.create({
   },
   line: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.separator,
-    marginHorizontal: spacing.base,
+    backgroundColor: colors.hairline,
+    marginHorizontal: spacing.md + 2,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    minHeight: layout.listItemHeightTall,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
+    gap: spacing.md + 2,
+    minHeight: layout.listItemHeight + 6,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.sm + 2,
+  },
+  icon: {
+    width: 22,
+    alignItems: 'center',
   },
   text: {
-    ...typography.body,
+    ...typography.subheadline,
     color: colors.label,
     flex: 1,
+  },
+  setTime: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.labelTertiary,
+    minWidth: 52,
+    fontVariant: ['tabular-nums'],
+  },
+  setTimeNow: {
+    color: colors.crowd,
+  },
+  act: {
+    ...typography.subheadline,
+    fontWeight: '700',
+    color: colors.label,
+    flex: 1,
+  },
+  role: {
+    ...typography.footnote,
+    color: colors.labelSecondary,
   },
 });

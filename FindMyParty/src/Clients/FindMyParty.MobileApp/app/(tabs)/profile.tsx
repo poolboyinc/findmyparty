@@ -1,20 +1,33 @@
-import { useCallback, useReducer, useState } from 'react';
+import { useCallback, useMemo, useReducer, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Constants from 'expo-constants';
-import { IdentityBlock } from '@/components/account/identity-block';
+import { NightId } from '@/components/account/night-id';
 import { emailSupport, SUPPORT_EMAIL } from '@/components/account/support';
+import { YourSound } from '@/components/account/your-sound';
 import { Failed, Loading } from '@/components/afterglow/state';
 import { Display } from '@/components/afterglow/text';
+import { BadgeRow } from '@/components/glow/badges';
+import { useGlow } from '@/components/glow/use-glow';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { SettingRow } from '@/components/ui/setting-row';
 import { useMe } from '@/hooks/queries';
 import { authService } from '@/services/authService';
+import { soundShares } from '@/services/glow';
 import { queryClient } from '@/services/queryClient';
+import { useTaste } from '@/services/taste';
 import { colors, layout, radii, spacing, typography } from '@/theme';
+import type { Booking } from '@/types/api';
+
+/** The year of the guest's first pass: the closest the app knows to when they joined. */
+function firstYear(bookings: Booking[] | undefined): number | null {
+  if (!bookings || bookings.length === 0) return null;
+  const first = Math.min(...bookings.map((booking) => Date.parse(booking.createdAt)).filter((t) => !Number.isNaN(t)));
+  return Number.isFinite(first) ? new Date(first).getFullYear() : null;
+}
 
 /** Set while the session is being ended, so the screen holds still until the welcome screen replaces it. */
 type Leaving = 'logout' | 'delete' | null;
@@ -22,6 +35,8 @@ type Leaving = 'logout' | 'delete' | null;
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const me = useMe();
+  const { glow, bookings } = useGlow();
+  const { taste, loaded: tasteLoaded } = useTaste();
   const [leaving, setLeaving] = useState<Leaving>(null);
 
   // react-native-screens v4 can hand a tab back unpainted; a render on focus repaints it
@@ -83,6 +98,8 @@ export default function ProfileScreen() {
   };
 
   const user = me.data;
+  const since = useMemo(() => firstYear(bookings.data), [bookings.data]);
+  const shares = useMemo(() => (tasteLoaded ? soundShares(taste, glow?.nights ?? []) : []), [taste, tasteLoaded, glow]);
   const isHost = !!user && (user.roles.includes('Host') || user.roles.includes('Admin'));
 
   const version = Constants.expoConfig?.version;
@@ -107,14 +124,43 @@ export default function ProfileScreen() {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.base, paddingBottom: tabBarRoom }]}
         showsVerticalScrollIndicator={false}
       >
-        <Display size="md" accessibilityRole="header">
+        <Display size="lg" accessibilityRole="header">
           Me
         </Display>
 
         {user ? (
           <>
-            <IdentityBlock user={user} />
+            <View style={styles.first}>
+              <NightId
+                user={user}
+                glow={glow}
+                since={since}
+                error={bookings.isError ? bookings.error : null}
+                onRetry={() => bookings.refetch()}
+              />
+            </View>
 
+            {shares.length > 0 ? (
+              <>
+                <Text style={styles.section} accessibilityRole="header">
+                  Your sound
+                </Text>
+                <YourSound shares={shares} />
+              </>
+            ) : null}
+
+            {glow ? (
+              <>
+                <Text style={styles.section} accessibilityRole="header">
+                  Badges
+                </Text>
+                <BadgeRow badges={glow.badges} />
+              </>
+            ) : null}
+
+            <Text style={styles.section} accessibilityRole="header">
+              Account
+            </Text>
             <View style={styles.group}>
               <SettingRow label="Saved parties" onPress={() => router.push('/favorites')} />
               <View style={styles.divider} />
@@ -127,7 +173,7 @@ export default function ProfileScreen() {
               ) : null}
             </View>
 
-            <View style={styles.group}>
+            <View style={[styles.group, styles.groupAfter]}>
               <SettingRow label="Log out" onPress={confirmLogOut} showChevron={false} />
               <View style={styles.divider} />
               <SettingRow label="Delete account" variant="destructive" onPress={confirmDelete} />
@@ -162,12 +208,24 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: layout.screenMargin,
-    gap: spacing.lg,
+  },
+  first: {
+    marginTop: spacing.md,
+  },
+  section: {
+    ...typography.subheadline,
+    fontWeight: '600',
+    color: colors.labelSecondary,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
   group: {
     backgroundColor: colors.surface,
     borderRadius: radii.card,
     overflow: 'hidden',
+  },
+  groupAfter: {
+    marginTop: spacing.base,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
@@ -178,6 +236,7 @@ const styles = StyleSheet.create({
     ...typography.caption1,
     color: colors.labelTertiary,
     textAlign: 'center',
+    marginTop: spacing.lg,
   },
   state: {
     minHeight: 200,

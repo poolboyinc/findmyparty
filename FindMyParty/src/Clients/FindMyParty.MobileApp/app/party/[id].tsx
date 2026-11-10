@@ -7,10 +7,10 @@ import { CrowdBars } from '@/components/afterglow/crowd-bars';
 import { Failed, Loading } from '@/components/afterglow/state';
 import { Display } from '@/components/afterglow/text';
 import { CheckoutSheet, type CheckoutSheetRef } from '@/components/finding/checkout-sheet';
-import { isOver, liveLabel, priceText, whenText } from '@/components/finding/format';
+import { dayText, isOnNow, isOver, joinParts, liveLabel, priceText, timeRangeText, timeText } from '@/components/finding/format';
 import { BackOnlyScreen, HeroScroll, SquareControl } from '@/components/finding/hero';
-import { InfoCard, InfoRow } from '@/components/finding/info-rows';
-import { openInMaps, useAreaLabel } from '@/components/finding/place';
+import { InfoCard, InfoRow, LineUpRow } from '@/components/finding/info-rows';
+import { openInMaps, useAreaLabel, useDistanceText } from '@/components/finding/place';
 import { useNow } from '@/components/finding/use-now';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { SectionHeader } from '@/components/ui/section-header';
@@ -21,7 +21,11 @@ import { crowdText } from '@/services/crowd';
 import { colors, layout, radii, spacing, typography } from '@/theme';
 
 /** Share of the screen's height the poster takes. */
-const HERO_SHARE = 0.36;
+const HERO_SHARE = 0.34;
+/** The party's name on its poster, set on two lines. */
+const SIGN_SIZE = 54;
+/** How far the blocks and title start up over the poster's faded edge. */
+const OVERLAP = 20;
 
 export default function PartyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,6 +36,7 @@ export default function PartyScreen() {
   // The feed's entry for this party carries the crowd; the party itself does not.
   const listing = useParties().data?.find((p) => p.id === id);
   const area = useAreaLabel(party?.latitude, party?.longitude);
+  const distance = useDistanceText(party?.latitude, party?.longitude);
   const { isFavorite, toggle: toggleFavorite, loaded: favoritesLoaded } = useFavorites();
   const sheetRef = useRef<CheckoutSheetRef>(null);
 
@@ -56,7 +61,9 @@ export default function PartyScreen() {
   const favorite = favoritesLoaded && isFavorite(party.id);
   const crowd = crowdText(listing?.crowdLevel, listing?.crowdSource);
   const live = !!crowd && listing?.crowdSource === 'live';
-  const barHeight = spacing.md + layout.buttonHeight + spacing.md + insets.bottom;
+  const barHeight = spacing.base + layout.buttonHeight + spacing.base + insets.bottom;
+  const place = area ?? party.venueName;
+  const when = joinParts([dayText(party, now), timeRangeText(party), over && 'ended']);
 
   const share = async () => {
     try {
@@ -76,6 +83,10 @@ export default function PartyScreen() {
       <HeroScroll
         title={party.title}
         imageUrl={party.imageUrl}
+        venueName={party.venueName}
+        signSize={SIGN_SIZE}
+        signLines="stack"
+        overlap={OVERLAP}
         heroHeight={Math.round(windowHeight * HERO_SHARE)}
         bottomSpace={(over ? insets.bottom : barHeight) + spacing.xl}
         actions={
@@ -106,16 +117,20 @@ export default function PartyScreen() {
                   <Text style={styles.expectedText}>{crowd}</Text>
                 </View>
               ) : null}
-              {party.genre ? <Text style={styles.secondary}>{party.genre}</Text> : null}
+              {party.genre ? (
+                <View style={styles.chip}>
+                  <Text style={styles.chipText}>{party.genre}</Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
-          <View style={styles.heading}>
-            <Display size="md" accessibilityRole="header">
-              {party.title}
-            </Display>
+          <Display size="lg" style={styles.title} accessibilityRole="header">
+            {party.title}
+          </Display>
+          <Text style={styles.subline}>
             {party.venueName ? (
-              <Text style={styles.secondary}>
+              <>
                 at{' '}
                 {party.venueId ? (
                   <Text
@@ -127,48 +142,56 @@ export default function PartyScreen() {
                     {party.venueName}
                   </Text>
                 ) : (
-                  party.venueName
+                  <Text style={styles.venueLink}>{party.venueName}</Text>
                 )}
-              </Text>
-            ) : null}
-            <Text style={styles.secondary}>{whenText(party, now)}</Text>
-          </View>
+                {when ? `, ${when}` : ''}
+              </>
+            ) : (
+              when
+            )}
+          </Text>
 
           {party.performerName ? (
-            <View style={styles.section}>
-              <SectionHeader title="Line-up" />
-              <View style={styles.lineUp}>
-                <Text style={styles.performer}>{party.performerName}</Text>
-                {party.performerType ? <Text style={styles.secondary}>{party.performerType}</Text> : null}
+            <>
+              <View style={styles.sectionHeader}>
+                <SectionHeader title="Line-up" />
               </View>
-            </View>
+              <InfoCard>
+                <LineUpRow
+                  time={timeText(party.startsAt)}
+                  playing={isOnNow(party, now)}
+                  name={party.performerName}
+                  role={party.performerType}
+                />
+              </InfoCard>
+            </>
           ) : null}
 
-          <View style={styles.section}>
+          <View style={styles.sectionHeader}>
             <SectionHeader title="Good to know" />
-            <InfoCard>
-              <InfoRow
-                sfSymbol="mappin.and.ellipse"
-                ionicon="location-outline"
-                text={area ?? party.venueName ?? 'Open in Maps'}
-                onPress={() => openInMaps(party.latitude, party.longitude, party.venueName ?? party.title)}
-                accessibilityLabel={`${area ?? party.venueName ?? 'The place'}, open in Maps`}
-              />
-              <InfoRow
-                sfSymbol="ticket"
-                ionicon="ticket-outline"
-                text={free ? 'Free entry' : `${priceText(party.price)}, pay at the door`}
-              />
-              {soldOut ? <InfoRow sfSymbol="person.2" ionicon="people-outline" text="Sold out" /> : null}
-            </InfoCard>
           </View>
+          <InfoCard>
+            <InfoRow
+              sfSymbol="mappin.and.ellipse"
+              ionicon="location-outline"
+              text={joinParts([place, distance]) || 'Open in Maps'}
+              onPress={() => openInMaps(party.latitude, party.longitude, party.venueName ?? party.title)}
+              accessibilityLabel={`${joinParts([place, distance]) || 'The place'}, open in Maps`}
+            />
+            <InfoRow
+              sfSymbol="ticket"
+              ionicon="ticket-outline"
+              text={free ? 'Free entry' : `${priceText(party.price)}, pay at the door`}
+            />
+            {soldOut ? <InfoRow sfSymbol="person.2" ionicon="people-outline" text="Sold out" /> : null}
+          </InfoCard>
 
           {party.description ? <Text style={styles.description}>{party.description}</Text> : null}
         </View>
       </HeroScroll>
 
       {over ? null : (
-        <View style={[styles.bar, { paddingBottom: insets.bottom + spacing.md }]}>
+        <View style={[styles.bar, { paddingBottom: insets.bottom + spacing.base }]}>
           <PrimaryButton
             label={soldOut ? 'Sold out' : free ? 'Get pass, free' : `Get pass for ${priceText(party.price)}`}
             disabled={soldOut}
@@ -190,16 +213,12 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: layout.screenMargin,
-    paddingTop: spacing.xs,
-    gap: spacing.xl,
   },
   blocks: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: spacing.sm,
-    // Belongs to the title under it, so it sits closer than the sections do to each other.
-    marginBottom: -spacing.md,
   },
   expected: {
     flexDirection: 'row',
@@ -207,50 +226,51 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   expectedText: {
-    ...typography.subheadline,
+    ...typography.footnote,
     fontWeight: '600',
     color: colors.quiet,
   },
-  heading: {
-    gap: spacing.xs,
+  // A solid chip, like the filters on Tonight: a fact, not a control.
+  chip: {
+    minHeight: 24,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm + 1,
+    borderRadius: radii.chip,
+    backgroundColor: colors.surfaceElevated,
   },
-  secondary: {
-    ...typography.subheadline,
+  chipText: {
+    ...typography.caption1,
+    fontWeight: '600',
     color: colors.labelSecondary,
+  },
+  title: {
+    marginTop: spacing.md - 1,
+  },
+  subline: {
+    ...typography.subheadline,
+    fontSize: 14,
+    color: colors.labelSecondary,
+    marginTop: spacing.xs,
   },
   venueLink: {
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.label,
   },
-  section: {
-    gap: spacing.sm,
-  },
-  lineUp: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-    minHeight: layout.listItemHeightTall,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-    borderRadius: radii.card,
-    backgroundColor: colors.surface,
-  },
-  performer: {
-    ...typography.headline,
-    color: colors.label,
-    flexShrink: 1,
+  sectionHeader: {
+    marginTop: spacing.base + 2,
+    marginBottom: spacing.sm,
   },
   description: {
-    ...typography.body,
+    ...typography.subheadline,
     color: colors.labelSecondary,
+    marginTop: spacing.lg,
   },
   bar: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    paddingTop: spacing.md,
+    paddingTop: spacing.base,
     paddingHorizontal: layout.screenMargin,
     backgroundColor: colors.surface,
   },

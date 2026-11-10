@@ -3,8 +3,22 @@
 import type { LineString, Position } from 'geojson';
 import type { LngLat } from './constants';
 
+/** One manoeuvre on the way, from the Directions steps. */
+export type TurnStep = {
+  /** Where the manoeuvre happens. */
+  at: LngLat;
+  /** Directions' maneuver type: "depart", "turn", "arrive", … */
+  type: string;
+  /** "left", "slight right", "straight", "uturn", … or '' when there is none. */
+  modifier: string;
+  /** The street the step continues on; '' when it has no name. */
+  street: string;
+};
+
 export type WalkingRoute = {
   line: LineString;
+  /** The manoeuvres in order, from "depart" to "arrive". Empty when Directions sent none. */
+  steps: TurnStep[];
   seconds: number;
   metres: number;
   /** Opposite corners of the box around the line, for framing it on the map. */
@@ -18,6 +32,23 @@ function isPosition(value: unknown): value is Position {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function text(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+/** The steps of a route's first leg; anything malformed is skipped. */
+function parseSteps(route: Record<string, unknown>): TurnStep[] {
+  const legs = route.legs;
+  if (!Array.isArray(legs) || !isRecord(legs[0]) || !Array.isArray(legs[0].steps)) return [];
+  const steps: TurnStep[] = [];
+  for (const step of legs[0].steps as unknown[]) {
+    if (!isRecord(step) || !isRecord(step.maneuver) || !isPosition(step.maneuver.location)) continue;
+    const [lng, lat] = step.maneuver.location;
+    steps.push({ at: [lng, lat], type: text(step.maneuver.type), modifier: text(step.maneuver.modifier), street: text(step.name) });
+  }
+  return steps;
 }
 
 /** Reads the first route out of a Directions response; null when it is not there or malformed. */
@@ -48,6 +79,7 @@ export function parseRoute(json: unknown): WalkingRoute | null {
 
   return {
     line: { type: 'LineString', coordinates: points },
+    steps: parseSteps(first),
     seconds,
     metres,
     ne: [east, north],
@@ -67,7 +99,7 @@ export async function fetchWalkingRoute(
 ): Promise<WalkingRoute> {
   const url =
     `https://api.mapbox.com/directions/v5/mapbox/walking/${from[0]},${from[1]};${to[0]},${to[1]}` +
-    `?geometries=geojson&overview=full&access_token=${encodeURIComponent(token)}`;
+    `?geometries=geojson&overview=full&steps=true&access_token=${encodeURIComponent(token)}`;
   const response = await fetch(url, { signal });
   if (!response.ok) throw new Error(`Directions answered ${response.status}`);
   const route = parseRoute(await response.json());
@@ -89,4 +121,26 @@ export function distanceText(metres: number): string {
   const tens = Math.round(metres / 10) * 10;
   if (tens < 1000) return `${Math.max(10, tens)} m`;
   return `${(metres / 1000).toFixed(1)} km`;
+}
+
+/**
+ * The next manoeuvre in words, as on the mock's banner: "Left on Njegoševa", "Straight on",
+ * "Arrive at Monkey". `direction` picks the arrow.
+ */
+export function turnText(step: TurnStep, venueName: string): { title: string; direction: 'left' | 'right' | 'straight' | 'back' | 'arrive' } {
+  if (step.type === 'arrive') return { title: `Arrive at ${venueName}`, direction: 'arrive' };
+  const modifier = step.modifier;
+  let verb = 'Straight';
+  let direction: 'left' | 'right' | 'straight' | 'back' = 'straight';
+  if (modifier === 'uturn') {
+    verb = 'Turn around';
+    direction = 'back';
+  } else if (modifier.endsWith('left')) {
+    verb = modifier === 'slight left' ? 'Bear left' : modifier === 'sharp left' ? 'Sharp left' : 'Left';
+    direction = 'left';
+  } else if (modifier.endsWith('right')) {
+    verb = modifier === 'slight right' ? 'Bear right' : modifier === 'sharp right' ? 'Sharp right' : 'Right';
+    direction = 'right';
+  }
+  return { title: step.street ? `${verb} on ${step.street}` : verb, direction };
 }

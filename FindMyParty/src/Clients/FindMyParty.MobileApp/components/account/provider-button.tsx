@@ -5,19 +5,30 @@ import { PressableScale } from '@/components/afterglow/motion';
 
 type Props = {
   label: string;
-  /** `light`: white with dark text (Apple). `surface`: a flat dark block (Google). */
-  tone: 'light' | 'surface';
-  icon: ReactNode;
+  /** `light`: white with dark text (Apple). `surface`: a flat dark block (Google). `action`: the violet primary. */
+  tone: 'light' | 'surface' | 'action';
+  icon?: ReactNode;
   onPress: () => void;
-  /** This provider's sign-in is under way. */
+  /** This button's work is under way. */
   loading?: boolean;
   disabled?: boolean;
+  accessibilityHint?: string;
 };
 
-/** "Continue with …" on the welcome screen. Flat fill, no outline. */
-export function ProviderButton({ label, tone, icon, onPress, loading = false, disabled = false }: Props) {
+/** The mock's 40 pt button on its 286 pt screen, scaled to a phone. */
+const HEIGHT = layout.buttonHeight + spacing.xs;
+
+const FILL = { light: colors.label, surface: colors.surfaceElevated, action: colors.action } as const;
+const TEXT = { light: colors.ink, surface: colors.label, action: colors.label } as const;
+
+/**
+ * The tall flat buttons of the welcome and first run (S-01 to S-03): "Continue with …", "Sign up with email",
+ * "Continue", "Light up my city". Flat fill, no outline, gives under the finger.
+ */
+export function FlatButton({ label, tone, icon, onPress, loading = false, disabled = false, accessibilityHint }: Props) {
   const inactive = disabled || loading;
-  const textColor = tone === 'light' ? colors.ink : colors.label;
+  const off = disabled && !loading;
+  const textColor = off ? colors.labelTertiary : TEXT[tone];
 
   return (
     <PressableScale
@@ -25,14 +36,15 @@ export function ProviderButton({ label, tone, icon, onPress, loading = false, di
       disabled={inactive}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: inactive, busy: loading }}
-      style={[styles.button, tone === 'light' ? styles.light : styles.surface]}
+      style={[styles.button, { backgroundColor: off ? colors.fillTertiary : FILL[tone] }]}
     >
       {loading ? (
         <ActivityIndicator color={textColor} />
       ) : (
         <>
-          <View style={styles.icon}>{icon}</View>
+          {icon ? <View style={styles.icon}>{icon}</View> : null}
           <Text style={[styles.label, { color: textColor }]}>{label}</Text>
         </>
       )}
@@ -40,9 +52,12 @@ export function ProviderButton({ label, tone, icon, onPress, loading = false, di
   );
 }
 
+/** "Continue with …" on the welcome screen. */
+export const ProviderButton = FlatButton;
+
 const styles = StyleSheet.create({
   button: {
-    minHeight: layout.buttonHeight,
+    minHeight: HEIGHT,
     borderRadius: radii.button,
     flexDirection: 'row',
     alignItems: 'center',
@@ -50,12 +65,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-  },
-  light: {
-    backgroundColor: colors.label,
-  },
-  surface: {
-    backgroundColor: colors.surfaceElevated,
   },
   icon: {
     width: 22,

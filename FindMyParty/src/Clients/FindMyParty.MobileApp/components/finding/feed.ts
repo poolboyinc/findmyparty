@@ -3,8 +3,11 @@ import { crowdBars } from '../../services/crowd.ts';
 import type { Party } from '../../types/api.ts';
 import { isOver, nightEnd } from './format.ts';
 
-export const FILTERS = ['All', 'Tonight', 'Free entry', 'Weekend'] as const;
-export type Filter = (typeof FILTERS)[number];
+/** The chips on Tonight, in order. Tapping the chip that is on turns it off, which shows everything ('All'). */
+export const FILTERS = ['Tonight', 'For you', 'Free entry', 'Weekend'] as const;
+export type Filter = (typeof FILTERS)[number] | 'All';
+/** The screen is called Tonight, so that is where it opens. */
+export const DEFAULT_FILTER: Filter = 'Tonight';
 
 const HOUR_MS = 60 * 60_000;
 const FRIDAY = 5;
@@ -33,12 +36,20 @@ function weekend(now: number): { from: number; to: number } {
   return { from, to: from + WEEKEND_HOURS * HOUR_MS };
 }
 
-export function matchesFilter(party: Party, filter: Filter, now: number): boolean {
+/** The party's genre is one the user picked as their sound (`useTaste()`), ignoring case. */
+export function matchesTaste(genre: string | null | undefined, taste: readonly string[]): boolean {
+  const g = genre?.trim().toLowerCase();
+  return !!g && taste.some((picked) => picked.trim().toLowerCase() === g);
+}
+
+export function matchesFilter(party: Party, filter: Filter, now: number, taste: readonly string[] = []): boolean {
   const start = Date.parse(party.startsAt);
   const end = Date.parse(party.endsAt);
   switch (filter) {
     case 'Tonight':
       return start < nightEnd(now) && end > now;
+    case 'For you':
+      return matchesTaste(party.genre, taste);
     case 'Free entry':
       return !(party.price > 0);
     case 'Weekend': {

@@ -22,8 +22,8 @@ const FOIL = [
   colors.you,
 ] as const;
 
-const STRIPE_HEIGHT = 8;
-const SEAL_SIZE = 34;
+const STRIPE_HEIGHT = 10;
+const SEAL_SIZE = 36;
 /** How much of the spare half-width the foil travels at full tilt. */
 const TRAVEL = 0.9;
 

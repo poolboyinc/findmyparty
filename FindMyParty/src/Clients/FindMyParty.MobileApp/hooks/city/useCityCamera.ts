@@ -1,14 +1,54 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Camera, CameraPadding, CameraStop } from '@rnmapbox/maps';
-import { CAMERA, CITY, type LngLat } from '@/components/city/constants';
+import { useReducedMotion } from '@/components/afterglow/motion';
+import { CAMERA, CITY, DROP_DAY_KEY, SWITCH, type LngLat } from '@/components/city/constants';
 
-/** Where the camera starts. Given to `<Camera defaultSettings>` once; never changed afterwards. */
+/** The tilted city view. The camera rests here, and comes back here from 2D. */
 export const DEFAULT_CAMERA: CameraStop = {
   centerCoordinate: CITY.center,
   zoomLevel: CAMERA.zoom,
   pitch: CAMERA.pitch,
   heading: CAMERA.heading,
 };
+
+/** Where the first open of the day starts: straight above the city and further out. */
+const DROP_START: CameraStop = {
+  centerCoordinate: CITY.center,
+  zoomLevel: CAMERA.zoom - CAMERA.drop.zoomOut,
+  pitch: CAMERA.drop.pitch,
+  heading: CAMERA.drop.heading,
+};
+
+/** "2026-11-10" in the phone's own time. */
+function today(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+/** Once known for this run of the app, the answer is kept here, so a remount does not wait. */
+let dropDecided: boolean | null = null;
+
+/** Asked once per run of the app, however often the screen mounts. */
+let firstOpenAsked: Promise<boolean> | null = null;
+
+/** True the first time the map opens on a given day; records the day. Never throws. */
+function firstOpenToday(): Promise<boolean> {
+  firstOpenAsked ??= readAndRecordDay();
+  return firstOpenAsked;
+}
+
+async function readAndRecordDay(): Promise<boolean> {
+  try {
+    const day = today();
+    const last = await AsyncStorage.getItem(DROP_DAY_KEY);
+    if (last === day) return false;
+    await AsyncStorage.setItem(DROP_DAY_KEY, day);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** A measured sheet height closer than this to the assumed one is not worth a second move. */
 const REFOCUS_FROM = 12;
@@ -20,7 +60,7 @@ function paddingWithBottom(bottom: number): CameraPadding {
 /**
  * The one owner of the map camera: centre, zoom, pitch, heading and padding.
  *
- * `<Camera>` gets only `ref` and `defaultSettings` from here; every later move is an imperative
+ * `<Camera>` gets only `ref` and `defaultSettings` (`initial`) from here; every later move is an imperative
  * `setCamera` through the ref, so no property is ever driven both ways.
  *
  * Every move sends the padding too. The native camera treats padding that is left out as zero,
@@ -28,6 +68,12 @@ function paddingWithBottom(bottom: number): CameraPadding {
  */
 export function useCityCamera() {
   const ref = useRef<Camera>(null);
+  const reduceMotion = useReducedMotion();
+  /**
+   * Whether this opening drops in from above. Null until known: the map waits for it (a read of
+   * one stored day, a few milliseconds), so the camera never has to jump.
+   */
+  const [drop, setDrop] = useState<boolean | null>(dropDecided === null ? null : false);
   /** Flat is 2D: looking straight down, north up. */
   const [flat, setFlatState] = useState(false);
   const flatRef = useRef(false);
@@ -36,6 +82,22 @@ export function useCityCamera() {
   const focused = useRef<LngLat | null>(null);
   /** Until this time, pitch reported by the map is ignored: our own tilt animation is running. */
   const ignorePitchUntil = useRef(0);
+
+  useEffect(() => {
+    if (drop !== null) return;
+    let alive = true;
+    const wanted = SWITCH.cameraDrop && !reduceMotion;
+    firstOpenToday().then((first) => {
+      const result = wanted && first;
+      dropDecided = result;
+      // Until the drop has run, the pitch the map reports (straight down) is not the user's choice.
+      if (result) ignorePitchUntil.current = Date.now() + 15_000;
+      if (alive) setDrop(result);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [drop, reduceMotion]);
 
   const move = useCallback((stop: CameraStop) => {
     ref.current?.setCamera({
@@ -75,6 +137,16 @@ export function useCityCamera() {
     },
     [setFlat],
   );
+
+  /**
+   * The map has loaded. On the first open of the day the camera falls from straight above into
+   * the tilted city (the mock's opening). The 2D/3D control ignores the pitch on the way down.
+   */
+  const onMapLoaded = useCallback(() => {
+    if (!drop) return;
+    ignorePitchUntil.current = Date.now() + CAMERA.drop.ms + 600;
+    move({ ...DEFAULT_CAMERA, animationMode: 'easeTo', animationDuration: CAMERA.drop.ms });
+  }, [drop, move]);
 
   /** Locate-me: fly to a coordinate, close in. */
   const flyTo = useCallback(
@@ -143,9 +215,12 @@ export function useCityCamera() {
     [move],
   );
 
+  /** Given to `<Camera defaultSettings>` once the drop is decided; never changed afterwards. */
+  const initial = drop === null ? null : drop ? DROP_START : DEFAULT_CAMERA;
+
   return useMemo(
-    () => ({ ref, flat, toggleFlat, syncPitch, flyTo, focus, refocus, release, fitBounds }),
-    [flat, toggleFlat, syncPitch, flyTo, focus, refocus, release, fitBounds],
+    () => ({ ref, initial, flat, toggleFlat, syncPitch, onMapLoaded, flyTo, focus, refocus, release, fitBounds }),
+    [initial, flat, toggleFlat, syncPitch, onMapLoaded, flyTo, focus, refocus, release, fitBounds],
   );
 }
 

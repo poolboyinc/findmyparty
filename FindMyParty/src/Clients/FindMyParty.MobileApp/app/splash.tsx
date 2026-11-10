@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { authService } from '@/services/authService';
+import { hasFinishedFirstRun } from '@/services/taste';
 import { colors } from '@/theme';
 
 /** Long enough that the logo does not flash by. */
@@ -9,9 +10,16 @@ const MIN_VISIBLE_MS = 400;
 /** The native launch screen shows the mark at this width; keep it the same so nothing jumps. */
 const LOGO_SIZE = 200;
 
+/** Where a launch goes: signed out to the welcome, signed in to first run until it is done on this phone, then the app. */
+async function launchRoute(): Promise<'/onboarding' | '/first-run' | '/(tabs)'> {
+  const signedIn = await authService.isAuthenticated().catch(() => false);
+  if (!signedIn) return '/onboarding';
+  return (await hasFinishedFirstRun()) ? '/(tabs)' : '/first-run';
+}
+
 /**
- * The first screen: decides where to go from the session alone. A signed-in user goes straight
- * to the app, also with no connection (being offline is not being signed out).
+ * The first screen: decides where to go from the session and the first-run flag alone. A signed-in user
+ * goes straight on, also with no connection (being offline is not being signed out).
  */
 export default function SplashPage() {
   useEffect(() => {
@@ -19,14 +27,11 @@ export default function SplashPage() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const startedAt = Date.now();
 
-    authService
-      .isAuthenticated()
-      .catch(() => false)
-      .then((signedIn) => {
-        if (cancelled) return;
-        const remaining = Math.max(0, MIN_VISIBLE_MS - (Date.now() - startedAt));
-        timer = setTimeout(() => router.replace(signedIn ? '/(tabs)' : '/onboarding'), remaining);
-      });
+    launchRoute().then((route) => {
+      if (cancelled) return;
+      const remaining = Math.max(0, MIN_VISIBLE_MS - (Date.now() - startedAt));
+      timer = setTimeout(() => router.replace(route), remaining);
+    });
 
     return () => {
       cancelled = true;

@@ -63,7 +63,7 @@ export function PassActions({ booking, onCancel }: Props) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.md - 1,
     paddingHorizontal: layout.screenMargin,
     paddingTop: spacing.base,
   },
@@ -73,15 +73,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    minHeight: layout.buttonHeight,
+    minHeight: 48,
     borderRadius: radii.button,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceElevated,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
   },
   label: {
     ...typography.subheadline,
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.label,
     flexShrink: 1,
   },

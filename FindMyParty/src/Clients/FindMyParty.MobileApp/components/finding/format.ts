@@ -146,3 +146,66 @@ export function openingText(
   const to = hoursText(close);
   return joinParts([...dayWords, from && to ? `${from} to ${to}` : '']);
 }
+
+/** "23:00–04:00", the way a flyer writes it. Just the start when the end cannot be read. */
+export function timeRangeText(party: Pick<Party, 'startsAt' | 'endsAt'>): string {
+  const from = timeText(party.startsAt);
+  const to = timeText(party.endsAt);
+  return from && to ? `${from}–${to}` : from;
+}
+
+const WEEK = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+
+/** "Thu–Sat" for a run of three days or more, else "Fri, Sat". Empty when no day can be read. */
+export function openDaysText(days: string | null | undefined): string {
+  const picked = [
+    ...new Set(
+      (days ?? '')
+        .split(',')
+        .map((day) => WEEK.indexOf(day.trim().slice(0, 3).toLowerCase() as (typeof WEEK)[number]))
+        .filter((index) => index >= 0),
+    ),
+  ].sort((a, b) => a - b);
+  if (picked.length === 0) return '';
+  const word = (index: number) => WEEK[index].charAt(0).toUpperCase() + WEEK[index].slice(1);
+  const run = picked.every((index, i) => i === 0 || index === picked[i - 1] + 1);
+  if (run && picked.length >= 3) return `${word(picked[0])}–${word(picked[picked.length - 1])}`;
+  return picked.map(word).join(', ');
+}
+
+/** Walking pace for "7 min walk": 80 metres a minute. */
+const WALK_M_PER_MIN = 80;
+/** Past this a walk is not the way to get there, so only the distance is given. */
+const WALKABLE_M = 3000;
+
+/** "550 m, 7 min walk", "1.4 km, 18 min walk", "6.2 km". */
+export function distanceText(metres: number): string {
+  if (!Number.isFinite(metres) || metres < 0) return '';
+  const walk = `${Math.max(1, Math.round(metres / WALK_M_PER_MIN))} min walk`;
+  if (metres < 1000) return `${Math.max(50, Math.round(metres / 50) * 50)} m, ${walk}`;
+  const km = `${(metres / 1000).toFixed(1)} km`;
+  return metres <= WALKABLE_M ? `${km}, ${walk}` : km;
+}
+
+/** Straight-line distance in metres between two points on the earth. */
+export function metresBetween(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }): number {
+  const rad = Math.PI / 180;
+  const dLat = (b.latitude - a.latitude) * rad;
+  const dLng = (b.longitude - a.longitude) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.latitude * rad) * Math.cos(b.latitude * rad) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6_371_000 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** "open Thu–Sat, 22:00–04:00" for a venue's line, from its working days and hours. Empty when neither is known. */
+export function openShortText(
+  days: string | null | undefined,
+  open: string | null | undefined,
+  close: string | null | undefined,
+): string {
+  const dayWords = openDaysText(days);
+  const from = hoursText(open);
+  const to = hoursText(close);
+  const hours = from && to ? `${from}–${to}` : '';
+  const parts = joinParts([dayWords, hours]);
+  return parts ? `open ${parts}` : '';
+}

@@ -17,20 +17,22 @@ export function SectionHeader({ title, live = false }: Props) {
   );
 }
 
+const DOT = 8;
+
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.xs + 1,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: DOT,
+    height: DOT,
+    borderRadius: DOT / 2,
     backgroundColor: colors.crowd,
   },
   title: {
-    ...typography.subheadline,
+    ...typography.footnote,
     fontWeight: '600',
     color: colors.labelSecondary,
   },

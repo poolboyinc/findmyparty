@@ -37,8 +37,8 @@ const styles = StyleSheet.create({
   block: {
     alignSelf: 'flex-start',
     borderRadius: radii.badge,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
   label: {
     color: colors.ink,

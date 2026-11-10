@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import Animated from 'react-native-reanimated';
 import { useQueryClient } from '@tanstack/react-query';
+import { useReducedMotion } from '@/components/afterglow/motion';
 import { Display } from '@/components/afterglow/text';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { keys, useCancelBooking } from '@/hooks/queries';
@@ -31,11 +32,13 @@ type Props = {
   now: number;
   focused: boolean;
   guestName: string | null;
+  /** The guest's Glow level ("Flame"), printed after the name on the ticket. */
+  levelName: string | null;
   /** A sentence above the tickets, e.g. that these are the copies saved on the phone. */
   notice?: string | null;
 };
 
-type Moment = { time: string; venueName: string | null };
+type Moment = { time: string; venueName: string | null; bookingId: string };
 
 /** "No pass" with the way to get one. Fills the screen when there is nothing else on it. */
 export function NoPass({ title, fill = false }: { title: string; fill?: boolean }) {
@@ -57,7 +60,8 @@ export function NoPass({ title, fill = false }: { title: string; fill?: boolean 
 }
 
 /** Everything on the Pass tab once there is something to show: the tickets, what to do with them, and earlier nights. */
-export function PassBoard({ entries, past, now, focused, guestName, notice }: Props) {
+export function PassBoard({ entries, past, now, focused, guestName, levelName, notice }: Props) {
+  const reduceMotion = useReducedMotion();
   const { width } = useWindowDimensions();
   const client = useQueryClient();
   const cancel = useCancelBooking();
@@ -80,7 +84,7 @@ export function PassBoard({ entries, past, now, focused, guestName, notice }: Pr
 
   const onScanned = useCallback(
     (pass: Pass) => {
-      setMoment({ time: clock(new Date()), venueName: pass.venueName });
+      setMoment({ time: clock(new Date()), venueName: pass.venueName, bookingId: pass.bookingId });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
         .then(() => {
           setTimeout(() => {
@@ -133,9 +137,12 @@ export function PassBoard({ entries, past, now, focused, guestName, notice }: Pr
             now={now}
             watching={focused && !moment}
             guestName={guestName}
+            levelName={levelName}
             tilt={tilt}
             onScanned={onScanned}
           />
+          {/* The foil follows the phone's tilt; with Reduce Motion it stays still, so there is nothing to say. */}
+          {reduceMotion ? null : <Text style={styles.tiltHint}>Tilt your phone and the foil moves</Text>}
           <Animated.View layout={glide}>
             <PassActions booking={current} onCancel={askCancel} />
           </Animated.View>
@@ -155,12 +162,19 @@ export function PassBoard({ entries, past, now, focused, guestName, notice }: Pr
         onDismiss={() => setTarget(null)}
       />
 
-      {moment ? <ScanMoment time={moment.time} venueName={moment.venueName} onDone={() => setMoment(null)} /> : null}
+      {moment ? <ScanMoment time={moment.time} venueName={moment.venueName} bookingId={moment.bookingId} onDone={() => setMoment(null)} /> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  tiltHint: {
+    ...typography.footnote,
+    color: colors.labelTertiary,
+    textAlign: 'center',
+    paddingHorizontal: layout.screenMargin,
+    paddingTop: spacing.base,
+  },
   notice: {
     ...typography.footnote,
     color: colors.labelSecondary,

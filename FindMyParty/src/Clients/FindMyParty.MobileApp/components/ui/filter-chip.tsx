@@ -6,10 +6,12 @@ type Props = {
   label: string;
   selected: boolean;
   onPress: () => void;
+  /** Read out instead of `label`, e.g. without a decorative mark. */
+  accessibilityLabel?: string;
 };
 
 /** A solid filter chip. Unselected it is a dark block with quiet text; selected it is a white block with dark text. */
-export function FilterChip({ label, selected, onPress }: Props) {
+export function FilterChip({ label, selected, onPress, accessibilityLabel }: Props) {
   return (
     <PressableScale
       onPress={onPress}
@@ -17,7 +19,7 @@ export function FilterChip({ label, selected, onPress }: Props) {
       style={[styles.chip, selected && styles.chipSelected]}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
     >
       <Text style={[styles.label, selected && styles.labelSelected]} numberOfLines={1}>
         {label}
@@ -28,8 +30,9 @@ export function FilterChip({ label, selected, onPress }: Props) {
 
 const styles = StyleSheet.create({
   chip: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
+    minHeight: 34,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.xs + 3,
     borderRadius: radii.chip,
     backgroundColor: colors.surfaceElevated,
     alignItems: 'center',
@@ -40,6 +43,8 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typography.subheadline,
+    fontSize: 14,
+    lineHeight: 19,
     fontWeight: '600',
     color: colors.labelSecondary,
   },

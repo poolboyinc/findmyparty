@@ -7,9 +7,16 @@ import { PressableScale } from '@/components/afterglow/motion';
 import { Poster } from '@/components/afterglow/poster';
 import { Failed, Loading } from '@/components/afterglow/state';
 import { Display } from '@/components/afterglow/text';
-import { isOnNow, isOver, joinParts, openingText, priceText, shortDateText, whenText } from '@/components/finding/format';
-import { BackOnlyScreen, HeroScroll } from '@/components/finding/hero';
-import { InfoCard, InfoRow } from '@/components/finding/info-rows';
+import {
+  dayText,
+  isOver,
+  joinParts,
+  openShortText,
+  priceText,
+  shortDateText,
+  timeRangeText,
+} from '@/components/finding/format';
+import { BackOnlyScreen, HeroScroll, SquareControl } from '@/components/finding/hero';
 import { openInMaps } from '@/components/finding/place';
 import { useNow } from '@/components/finding/use-now';
 import { SectionHeader } from '@/components/ui/section-header';
@@ -20,10 +27,26 @@ import type { Party } from '@/types/api';
 
 /** Share of the screen's height the poster takes. */
 const HERO_SHARE = 0.32;
-const THUMB = 64;
+/** The venue's name on its poster. */
+const SIGN_SIZE = 58;
+/** How far the name starts up over the poster's faded edge. */
+const OVERLAP = 38;
+const THUMB = 54;
+const THUMB_SIGN = 12;
+/** The coloured edge on the crowd card. */
+const EDGE = 3;
+const DOT = 8;
 
 function openParty(id: string) {
   router.push(`/party/${id}`);
+}
+
+/** "On tonight", "Tomorrow", or "Next" above the venue's first party. */
+function nextHeading(party: Party, now: number): string {
+  const day = dayText(party, now);
+  if (day === 'Tonight') return 'On tonight';
+  if (day === 'Tomorrow') return 'Tomorrow';
+  return 'Next';
 }
 
 export default function VenueScreen() {
@@ -49,9 +72,9 @@ export default function VenueScreen() {
   }
 
   const [next, ...comingUp] = venue.parties.filter((party) => !isOver(party, now));
-  const opening = openingText(venue.workingDays, venue.workingHoursOpen, venue.workingHoursClose);
+  const line = joinParts([venue.address, openShortText(venue.workingDays, venue.workingHoursOpen, venue.workingHoursClose)]);
   const crowd = crowdText(venue.crowdLevel, venue.crowdSource);
-  const expected = venue.crowdSource === 'expected';
+  const crowdTone = venue.crowdSource === 'expected' ? colors.quiet : colors.crowd;
 
   return (
     <View style={styles.root}>
@@ -59,37 +82,52 @@ export default function VenueScreen() {
 
       <HeroScroll
         title={venue.name}
+        venueName={venue.name}
+        signSize={SIGN_SIZE}
+        overlap={OVERLAP}
         heroHeight={Math.round(windowHeight * HERO_SHARE)}
         bottomSpace={insets.bottom + spacing.xl}
+        actions={
+          <SquareControl
+            sfSymbol="map"
+            ionicon="map-outline"
+            onPress={() => openInMaps(venue.latitude, venue.longitude, venue.name)}
+            accessibilityLabel={`Open ${venue.name} in Maps`}
+          />
+        }
       >
         <View style={styles.content}>
-          <View style={styles.heading}>
-            <Display size="md" accessibilityRole="header">
-              {venue.name}
-            </Display>
-            {venue.address ? <Text style={styles.secondary}>{venue.address}</Text> : null}
-            {opening ? <Text style={styles.secondary}>{opening}</Text> : null}
-          </View>
+          <Display size="lg" accessibilityRole="header">
+            {venue.name}
+          </Display>
+          {line ? <Text style={styles.line}>{line}</Text> : null}
 
           {crowd ? (
-            <View style={styles.crowd}>
-              <Text style={[styles.crowdText, expected && styles.crowdExpected]}>{crowd}</Text>
-              <CrowdBars level={venue.crowdLevel} source={venue.crowdSource} size={18} />
+            <View style={[styles.crowd, { borderLeftColor: crowdTone }]}>
+              <View style={styles.crowdLabel}>
+                <View style={[styles.dot, { backgroundColor: crowdTone }]} />
+                <Text style={[styles.crowdText, { color: crowdTone }]}>{crowd}</Text>
+              </View>
+              <CrowdBars level={venue.crowdLevel} source={venue.crowdSource} size={14} />
             </View>
           ) : null}
 
           {next ? (
-            <View style={styles.section}>
-              <SectionHeader title={isOnNow(next, now) ? 'On now' : 'Next'} />
-              <NextParty party={next} now={now} />
-            </View>
+            <>
+              <View style={styles.sectionHeader}>
+                <SectionHeader title={nextHeading(next, now)} />
+              </View>
+              <NextParty party={next} venueName={venue.name} now={now} />
+            </>
           ) : (
-            <Text style={styles.secondary}>No parties announced yet.</Text>
+            <Text style={[styles.line, styles.none]}>No parties announced yet.</Text>
           )}
 
           {comingUp.length > 0 ? (
-            <View style={styles.section}>
-              <SectionHeader title="Coming up" />
+            <>
+              <View style={styles.sectionHeader}>
+                <SectionHeader title="Coming up" />
+              </View>
               <View>
                 {comingUp.map((party, i) => (
                   <View key={party.id}>
@@ -98,18 +136,8 @@ export default function VenueScreen() {
                   </View>
                 ))}
               </View>
-            </View>
+            </>
           ) : null}
-
-          <InfoCard>
-            <InfoRow
-              sfSymbol="map"
-              ionicon="map-outline"
-              text="Open in Maps"
-              onPress={() => openInMaps(venue.latitude, venue.longitude, venue.name)}
-              accessibilityLabel={`Open ${venue.name} in Maps`}
-            />
-          </InfoCard>
         </View>
       </HeroScroll>
     </View>
@@ -117,8 +145,9 @@ export default function VenueScreen() {
 }
 
 /** The venue's party that is on, or its next one: one card, one tap, the price where the eye lands. */
-function NextParty({ party, now }: { party: Party; now: number }) {
-  const when = whenText(party, now);
+function NextParty({ party, venueName, now }: { party: Party; venueName: string; now: number }) {
+  const day = dayText(party, now);
+  const detail = joinParts([day !== 'Tonight' && day, party.genre, timeRangeText(party)]);
   const price = priceText(party.price);
 
   return (
@@ -126,16 +155,24 @@ function NextParty({ party, now }: { party: Party; now: number }) {
       onPress={() => openParty(party.id)}
       style={styles.next}
       accessibilityRole="button"
-      accessibilityLabel={joinParts([party.title, when, party.isSoldOut ? 'Sold out' : price])}
+      accessibilityLabel={joinParts([party.title, day === 'Tonight' && day, detail, party.isSoldOut ? 'Sold out' : price])}
     >
-      <Poster imageUrl={party.imageUrl} title={party.title} titleSize={14} style={styles.thumb} />
+      <Poster
+        imageUrl={party.imageUrl}
+        title={party.title}
+        venueName={venueName}
+        titleSize={THUMB_SIGN}
+        style={styles.thumb}
+      />
       <View style={styles.nextText}>
         <Text style={styles.nextTitle} numberOfLines={2}>
           {party.title}
         </Text>
-        <Text style={styles.secondary} numberOfLines={2}>
-          {joinParts([party.genre, when])}
-        </Text>
+        {detail ? (
+          <Text style={styles.nextDetail} numberOfLines={2}>
+            {detail}
+          </Text>
+        ) : null}
       </View>
       {party.isSoldOut ? (
         <View>
@@ -178,68 +215,89 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: layout.screenMargin,
-    paddingTop: spacing.xs,
-    gap: spacing.xl,
   },
-  heading: {
-    gap: spacing.xs,
-  },
-  secondary: {
-    ...typography.subheadline,
+  line: {
+    ...typography.footnote,
     color: colors.labelSecondary,
+    marginTop: spacing.xs,
   },
+  none: {
+    marginTop: spacing.xl,
+  },
+  // The crowd now, on a card with an edge in the crowd's colour (rose live, violet expected).
   crowd: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.base,
-    borderRadius: radii.card,
+    marginTop: spacing.md + 2,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.md + 2,
+    borderLeftWidth: EDGE,
+    borderTopLeftRadius: radii.badge,
+    borderBottomLeftRadius: radii.badge,
+    borderTopRightRadius: radii.card,
+    borderBottomRightRadius: radii.card,
     backgroundColor: colors.surface,
   },
-  crowdText: {
-    ...typography.headline,
-    color: colors.crowd,
+  crowdLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 1,
     flexShrink: 1,
   },
-  crowdExpected: {
-    color: colors.quiet,
+  dot: {
+    width: DOT,
+    height: DOT,
+    borderRadius: DOT / 2,
   },
-  section: {
-    gap: spacing.sm,
+  crowdText: {
+    ...typography.footnote,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  sectionHeader: {
+    marginTop: spacing.base + 2,
+    marginBottom: spacing.sm,
   },
   next: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
+    gap: spacing.md - 1,
+    padding: spacing.md - 1,
     borderRadius: radii.card,
     backgroundColor: colors.surface,
   },
   thumb: {
     width: THUMB,
     height: THUMB,
-    borderRadius: radii.chip,
+    borderRadius: radii.card,
   },
   nextText: {
     flex: 1,
     gap: spacing.xxs,
   },
   nextTitle: {
-    ...typography.headline,
+    ...typography.callout,
+    fontWeight: '600',
     color: colors.label,
   },
+  nextDetail: {
+    ...typography.footnote,
+    color: colors.labelSecondary,
+  },
   priceButton: {
-    minWidth: 56,
+    minWidth: 54,
+    minHeight: 40,
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
     borderRadius: radii.button,
     backgroundColor: colors.action,
   },
   priceButtonLabel: {
-    ...typography.headline,
+    ...typography.subheadline,
+    fontWeight: '700',
     color: colors.label,
     fontVariant: ['tabular-nums'],
   },
@@ -249,24 +307,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.md,
     minHeight: layout.listItemHeight,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
   },
   rowText: {
-    ...typography.body,
+    ...typography.subheadline,
     color: colors.labelSecondary,
     flex: 1,
   },
   rowDay: {
-    fontWeight: '600',
+    fontWeight: '700',
     color: colors.label,
   },
   rowPrice: {
-    ...typography.body,
+    ...typography.subheadline,
     color: colors.labelSecondary,
     fontVariant: ['tabular-nums'],
   },
   rowLine: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.separator,
+    backgroundColor: colors.hairline,
   },
 });

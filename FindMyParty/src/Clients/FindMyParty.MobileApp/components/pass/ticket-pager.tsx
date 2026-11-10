@@ -29,6 +29,7 @@ type Props = {
   /** The screen is focused: the ticket on screen checks with the server for a door scan. */
   watching: boolean;
   guestName: string | null;
+  levelName: string | null;
   tilt: SharedValue<number>;
   onScanned: (pass: Pass) => void;
 };
@@ -37,7 +38,7 @@ type Props = {
  * The upcoming passes, one ticket per page, swiped sideways. The tickets settle in once when the
  * pager first appears; that is the screen's one entrance.
  */
-export function TicketPager({ entries, pageWidth, page, onPageChange, now, watching, guestName, tilt, onScanned }: Props) {
+export function TicketPager({ entries, pageWidth, page, onPageChange, now, watching, guestName, levelName, tilt, onScanned }: Props) {
   const reduceMotion = useReducedMotion();
   const ticketWidth = Math.min(pageWidth - layout.screenMargin * 2, MAX_TICKET_WIDTH);
 
@@ -92,6 +93,7 @@ export function TicketPager({ entries, pageWidth, page, onPageChange, now, watch
               now={now}
               watch={watching && index === page}
               guestName={guestName}
+              levelName={levelName}
               tilt={tilt}
               onScanned={onScanned}
             />

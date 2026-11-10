@@ -14,8 +14,8 @@ import { usePassData } from './usePassData';
 
 const INK_SOFT = alpha(colors.ink, 0.62);
 const TEAR_INK = alpha(colors.ink, 0.3);
-const NOTCH = 20;
-const PADDING = spacing.lg;
+const NOTCH = 22;
+const PADDING = spacing.lg - 1;
 
 type Props = {
   bookingId: string;
@@ -27,6 +27,8 @@ type Props = {
   /** True while this ticket is the one on screen: checks with the server for a door scan. */
   watch: boolean;
   guestName: string | null;
+  /** The guest's Glow level, printed in bold after the name. */
+  levelName?: string | null;
   tilt: SharedValue<number>;
   onScanned: (pass: Pass) => void;
 };
@@ -35,7 +37,7 @@ type Props = {
  * The pass as a paper ticket: the one pale object in a dark app. Party, foil band, the changing
  * door code, a tear line, and who it admits.
  */
-export function Ticket({ bookingId, booking, width, now, watch, guestName, tilt, onScanned }: Props) {
+export function Ticket({ bookingId, booking, width, now, watch, guestName, levelName, tilt, onScanned }: Props) {
   const { pass, isLoading, error, refetch } = usePassData(bookingId, watch, onScanned);
 
   const title = booking?.party?.title ?? pass?.partyTitle ?? 'Your pass';
@@ -53,7 +55,7 @@ export function Ticket({ bookingId, booking, width, now, watch, guestName, tilt,
       <View style={styles.head}>
         <View style={styles.headText}>
           {doors ? <Text style={styles.doors}>{doors}</Text> : null}
-          <Display size="md" color={colors.ink} numberOfLines={2} accessibilityRole="header">
+          <Display size="lg" color={colors.ink} numberOfLines={2} style={styles.title} accessibilityRole="header">
             {title}
           </Display>
           {venue ? <Text style={styles.venue}>{venue}</Text> : null}
@@ -112,9 +114,11 @@ export function Ticket({ bookingId, booking, width, now, watch, guestName, tilt,
       </View>
 
       <View style={styles.footer}>
-        {guestName ? (
+        {guestName || levelName ? (
           <Text style={styles.guest} numberOfLines={1}>
             {guestName}
+            {guestName && levelName ? ', ' : null}
+            {levelName ? <Text style={styles.level}>{levelName}</Text> : null}
           </Text>
         ) : null}
         <Text style={styles.admit}>
@@ -141,7 +145,9 @@ const styles = StyleSheet.create({
   },
   headText: {
     flex: 1,
-    gap: spacing.xs,
+  },
+  title: {
+    marginTop: spacing.md - 1,
   },
   doors: {
     ...typography.footnote,
@@ -151,13 +157,16 @@ const styles = StyleSheet.create({
   },
   venue: {
     ...typography.subheadline,
+    fontSize: 14,
     color: INK_SOFT,
+    marginTop: spacing.xs,
   },
   body: {
     alignItems: 'center',
-    gap: spacing.base,
+    gap: spacing.md,
     paddingHorizontal: PADDING,
-    paddingVertical: spacing.lg,
+    paddingTop: spacing.lg + 2,
+    paddingBottom: spacing.base,
   },
   scanned: {
     alignItems: 'center',
@@ -223,16 +232,21 @@ const styles = StyleSheet.create({
     columnGap: spacing.md,
     rowGap: spacing.xs,
     paddingHorizontal: PADDING,
-    paddingTop: spacing.md,
-    paddingBottom: PADDING,
+    paddingTop: spacing.md + 2,
+    paddingBottom: spacing.base + 2,
   },
   guest: {
-    ...typography.subheadline,
+    ...typography.footnote,
+    fontSize: 14,
     color: colors.ink,
     flexShrink: 1,
   },
+  level: {
+    fontWeight: '700',
+  },
   admit: {
-    ...typography.subheadline,
+    ...typography.footnote,
+    fontSize: 14,
     color: colors.ink,
     fontVariant: ['tabular-nums'],
   },

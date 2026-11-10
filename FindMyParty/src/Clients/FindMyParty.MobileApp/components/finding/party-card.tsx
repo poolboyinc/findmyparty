@@ -3,20 +3,31 @@ import { Block } from '@/components/afterglow/block';
 import { CrowdBars } from '@/components/afterglow/crowd-bars';
 import { PressableScale } from '@/components/afterglow/motion';
 import { Poster } from '@/components/afterglow/poster';
-import { colors, radii, spacing, typography } from '@/theme';
+import { Icon } from '@/components/ui/icon';
+import { colors, layout, radii, spacing, typography } from '@/theme';
 import type { Party } from '@/types/api';
 import { cardLine, isOnNow, joinParts, liveLabel, onNowText, priceText, rowLine, type PartyListing } from './format';
 
-const CARD_POSTER_HEIGHT = 150;
-const THUMB = 60;
+const CARD_POSTER_HEIGHT = 160;
+const CARD_SIGN = 46;
+const THUMB = 54;
+const THUMB_SIGN = 12;
+const HEART = 36;
+/** "Matches your sound": the mark after a title whose genre the user picked. */
+const MATCH = '✦';
 
 type CardProps = {
   party: Party;
   onPress: () => void;
+  /** The genre is one the user picked as their sound. */
+  match?: boolean;
+  /** With these the poster carries a heart in its corner. */
+  favorite?: boolean;
+  onToggleFavorite?: () => void;
 };
 
 /** A party that is glowing now: its poster with the live crowd in the corner, then title, bars and one line. */
-export function PartyCard({ party, onPress }: CardProps) {
+export function PartyCard({ party, onPress, match = false, favorite = false, onToggleFavorite }: CardProps) {
   const line = cardLine(party);
 
   return (
@@ -24,23 +35,55 @@ export function PartyCard({ party, onPress }: CardProps) {
       onPress={onPress}
       style={styles.card}
       accessibilityRole="button"
-      accessibilityLabel={joinParts([party.title, liveLabel(party.crowdLevel), line, party.isSoldOut && 'Sold out'])}
+      accessibilityLabel={joinParts([
+        party.title,
+        match && 'matches your sound',
+        liveLabel(party.crowdLevel),
+        line,
+        party.isSoldOut && 'Sold out',
+      ])}
     >
       <View>
-        <Poster imageUrl={party.imageUrl} title={party.venueName ?? party.title} style={styles.cardPoster} />
+        <Poster
+          imageUrl={party.imageUrl}
+          title={party.venueName ?? party.title}
+          venueName={party.venueName}
+          titleSize={CARD_SIGN}
+          style={styles.cardPoster}
+        />
         <View style={styles.cardBlocks}>
           <Block tone="crowd" label={liveLabel(party.crowdLevel)} />
           {party.isSoldOut ? <Block tone="light" label="Sold out" /> : null}
         </View>
+        {onToggleFavorite ? (
+          <PressableScale
+            onPress={onToggleFavorite}
+            scaleTo={0.9}
+            hitSlop={layout.hitSlop}
+            style={styles.heart}
+            accessibilityRole="button"
+            accessibilityLabel={favorite ? 'Remove from favourites' : 'Add to favourites'}
+            accessibilityState={{ selected: favorite }}
+          >
+            <View style={styles.heartFill} />
+            <Icon
+              sfSymbol={favorite ? 'heart.fill' : 'heart'}
+              ionicon={favorite ? 'heart' : 'heart-outline'}
+              size={16}
+              color={colors.label}
+            />
+          </PressableScale>
+        ) : null}
       </View>
       <View style={styles.cardBody}>
         <View style={styles.cardTitleRow}>
           <Text style={styles.cardTitle} numberOfLines={2}>
             {party.title}
+            {match ? <Text style={styles.match}> {MATCH}</Text> : null}
           </Text>
-          <CrowdBars level={party.crowdLevel} source={party.crowdSource} size={16} />
+          <CrowdBars level={party.crowdLevel} source={party.crowdSource} size={14} />
         </View>
-        <Text style={styles.line} numberOfLines={2}>
+        <Text style={styles.cardLine} numberOfLines={2}>
           {line}
         </Text>
       </View>
@@ -53,11 +96,13 @@ type RowProps = {
   /** From `useNow()`: decides between "from 23:00", "until 04:00" and a day word. */
   now: number;
   onPress: () => void;
+  /** The genre is one the user picked as their sound. */
+  match?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
-/** A party in a list: small poster, title, one line, and the price on the right. */
-export function PartyRow({ party, now, onPress, style }: RowProps) {
+/** A party in a list: square poster, title, one line, and the price on the right. */
+export function PartyRow({ party, now, onPress, match = false, style }: RowProps) {
   const line = rowLine(party, now);
   const onNow = isOnNow(party, now);
   const price = priceText(party.price);
@@ -68,14 +113,27 @@ export function PartyRow({ party, now, onPress, style }: RowProps) {
       scaleTo={0.98}
       style={[styles.row, style]}
       accessibilityRole="button"
-      accessibilityLabel={joinParts([party.title, line, onNow && onNowText(party), party.isSoldOut ? 'Sold out' : price])}
+      accessibilityLabel={joinParts([
+        party.title,
+        match && 'matches your sound',
+        line,
+        onNow && onNowText(party),
+        party.isSoldOut ? 'Sold out' : price,
+      ])}
     >
-      <Poster imageUrl={party.imageUrl} title={party.venueName ?? party.title} titleSize={13} style={styles.thumb} />
+      <Poster
+        imageUrl={party.imageUrl}
+        title={party.venueName ?? party.title}
+        venueName={party.venueName}
+        titleSize={THUMB_SIGN}
+        style={styles.thumb}
+      />
       <View style={styles.rowText}>
         <Text style={styles.rowTitle} numberOfLines={1}>
           {party.title}
+          {match ? <Text style={styles.match}> {MATCH}</Text> : null}
         </Text>
-        <Text style={styles.line} numberOfLines={2}>
+        <Text style={styles.rowLine} numberOfLines={2}>
           {line}
         </Text>
         {onNow ? (
@@ -109,13 +167,30 @@ const styles = StyleSheet.create({
   },
   cardBlocks: {
     position: 'absolute',
-    top: spacing.md,
-    left: spacing.md,
+    top: spacing.md - 1,
+    left: spacing.md - 1,
     flexDirection: 'row',
     gap: spacing.xs,
   },
+  heart: {
+    position: 'absolute',
+    top: spacing.md - 1,
+    right: spacing.md - 1,
+    width: HEART,
+    height: HEART,
+    borderRadius: radii.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  // The mock's dark square on the poster: the page's own black, mostly opaque. No blur.
+  heartFill: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.bg,
+    opacity: 0.74,
+  },
   cardBody: {
-    paddingHorizontal: spacing.base,
+    paddingHorizontal: spacing.md + 2,
     paddingTop: spacing.md,
     paddingBottom: spacing.base,
     gap: spacing.xs,
@@ -127,33 +202,41 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   cardTitle: {
-    ...typography.title3,
-    fontWeight: '600',
+    ...typography.headline,
+    fontWeight: '700',
     color: colors.label,
     flexShrink: 1,
   },
-  line: {
-    ...typography.subheadline,
+  cardLine: {
+    ...typography.footnote,
     color: colors.labelSecondary,
+  },
+  match: {
+    color: colors.quiet,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.md - 1,
   },
   thumb: {
     width: THUMB,
     height: THUMB,
-    borderRadius: radii.chip,
+    borderRadius: radii.card,
   },
   rowText: {
     flex: 1,
     gap: spacing.xxs,
   },
   rowTitle: {
-    ...typography.headline,
+    ...typography.subheadline,
+    fontWeight: '600',
     color: colors.label,
+  },
+  rowLine: {
+    ...typography.footnote,
+    color: colors.labelSecondary,
   },
   crowdLine: {
     ...typography.footnote,
@@ -167,7 +250,8 @@ const styles = StyleSheet.create({
     color: colors.quiet,
   },
   price: {
-    ...typography.headline,
+    ...typography.subheadline,
+    fontWeight: '700',
     color: colors.label,
     fontVariant: ['tabular-nums'],
   },

@@ -3,9 +3,8 @@ import { AfterglowTabBar } from '@/components/afterglow/tab-bar';
 import type { TabIconMap } from '@/components/ui/glass-tab-bar';
 
 /**
- * Guest tabs: City (the map), Tonight (the feed), Pass (your ticket), Me.
+ * Guest tabs: City (the map), Tonight (the feed), Pass (your ticket), Glow (points from door scans), Me.
  * Keys must match the file names under `app/(tabs)/`.
- * A "Glow" tab joins these when rewards are built; nothing is shown for it until then.
  */
 const TAB_ICONS: TabIconMap = {
   index: {
@@ -28,6 +27,13 @@ const TAB_ICONS: TabIconMap = {
     sfSymbolInactive: 'ticket.fill',
     ioniconActive: 'ticket',
     ioniconInactive: 'ticket',
+  },
+  glow: {
+    label: 'Glow',
+    sfSymbolActive: 'bolt.fill',
+    sfSymbolInactive: 'bolt',
+    ioniconActive: 'flash',
+    ioniconInactive: 'flash-outline',
   },
   profile: {
     label: 'Me',
@@ -55,6 +61,7 @@ export default function TabLayout() {
       <Tabs.Screen name="index" />
       <Tabs.Screen name="parties" />
       <Tabs.Screen name="pass" />
+      <Tabs.Screen name="glow" />
       <Tabs.Screen name="profile" />
     </Tabs>
   );

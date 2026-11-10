@@ -6,9 +6,10 @@ import { PASS_STEP_SECONDS, passCode, passQrText, passStepAt, secondsUntilNextCo
 import { colors, spacing, typography } from '@/theme';
 import { alpha, countdown } from './format';
 
-export const QR_SIZE = 180;
+/** About half the screen's width, as on the mock. */
+export const QR_SIZE = 200;
 
-const RING_SIZE = 18;
+const RING_SIZE = 19;
 const RING_STROKE = 3;
 const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;

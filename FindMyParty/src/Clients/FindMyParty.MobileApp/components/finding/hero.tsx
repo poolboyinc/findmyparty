@@ -17,6 +17,8 @@ import { Icon } from '@/components/ui/icon';
 import { colors, layout, radii, spacing } from '@/theme';
 
 const CONTROL = layout.minTouchTarget;
+/** How far below the poster's middle the sign sits, as a share of the poster's height. */
+const SIGN_DROP = 0.045;
 /** How far before the hero is gone the bar starts to fill in. */
 const BAR_FILL_DISTANCE = 48;
 
@@ -76,9 +78,17 @@ export function BackOnlyScreen({ children }: { children: ReactNode }) {
 }
 
 type HeroScrollProps = {
-  /** Drawn on the poster when there is no image, and shown in the bar once the hero has scrolled away. */
+  /** Shown in the bar once the hero has scrolled away, and drawn on the poster when there is no image. */
   title: string;
   imageUrl?: string | null;
+  /** Picks the drawn poster's colours, so a party's poster matches its venue's. */
+  venueName?: string | null;
+  /** Font size of the poster's neon sign. Default 58. */
+  signSize?: number;
+  /** `stack` sets a two-word title on two lines. */
+  signLines?: 'wrap' | 'stack';
+  /** How far the content starts up over the poster's faded bottom edge. Default 0. */
+  overlap?: number;
   /** Height of the poster. */
   heroHeight: number;
   /** Controls on the right of the bar. */
@@ -92,7 +102,18 @@ type HeroScrollProps = {
  * A page under a poster. The poster follows the finger: it trails the content at half speed on the way up
  * and stretches from the top edge when pulled down. As it leaves, the title settles into a solid bar.
  */
-export function HeroScroll({ title, imageUrl, heroHeight, actions, bottomSpace = 0, children }: HeroScrollProps) {
+export function HeroScroll({
+  title,
+  imageUrl,
+  venueName,
+  signSize = 58,
+  signLines = 'wrap',
+  overlap = 0,
+  heroHeight,
+  actions,
+  bottomSpace = 0,
+  children,
+}: HeroScrollProps) {
   const insets = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
   const barHeight = insets.top + spacing.sm + CONTROL + spacing.sm;
@@ -138,12 +159,34 @@ export function HeroScroll({ title, imageUrl, heroHeight, actions, bottomSpace =
         contentContainerStyle={{ paddingBottom: bottomSpace }}
       >
         <Animated.View style={[{ height: heroHeight }, heroStyle]}>
-          <Poster imageUrl={imageUrl} title={title} titleSize={44} style={StyleSheet.absoluteFill} />
+          <Poster
+            imageUrl={imageUrl}
+            title={title}
+            venueName={venueName}
+            titleSize={signSize}
+            signLines={signLines}
+            // A little below the middle, clear of the status bar and the controls, as on the mock.
+            signOffset={Math.round(heroHeight * SIGN_DROP)}
+            style={StyleSheet.absoluteFill}
+          />
           {/* The poster darkens into the page so the content can start on it. */}
           <LinearGradient colors={['transparent', colors.bg]} style={styles.heroFade} pointerEvents="none" />
         </Animated.View>
-        {/* Opaque, so the trailing poster slides away underneath it. */}
-        <View style={styles.content}>{children}</View>
+        {/* Opaque below the overlap, so the trailing poster slides away underneath it. Over the overlap it
+            darkens from clear, so the poster never meets the page in a hard edge however far it trails. */}
+        <View style={[styles.content, overlap > 0 && { marginTop: -overlap, backgroundColor: 'transparent' }]}>
+          {overlap > 0 ? (
+            <>
+              <LinearGradient
+                colors={['transparent', colors.bg]}
+                style={[styles.contentFade, { height: overlap }]}
+                pointerEvents="none"
+              />
+              <View style={[styles.contentFill, { top: overlap }]} pointerEvents="none" />
+            </>
+          ) : null}
+          {children}
+        </View>
       </Animated.ScrollView>
 
       <View style={[styles.bar, { paddingTop: insets.top + spacing.sm }]} pointerEvents="box-none">
@@ -178,7 +221,7 @@ const styles = StyleSheet.create({
   },
   controlOverlay: {
     backgroundColor: colors.bg,
-    opacity: 0.86,
+    opacity: 0.74,
   },
   controlSolid: {
     backgroundColor: colors.surface,
@@ -188,9 +231,22 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: '40%',
+    height: '45%',
   },
   content: {
+    backgroundColor: colors.bg,
+  },
+  contentFade: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  contentFill: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: colors.bg,
   },
   bar: {

@@ -5,25 +5,65 @@ import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ProviderButton } from '@/components/account/provider-button';
+import { outTonightLine } from '@/components/account/out-tonight';
+import { FlatButton } from '@/components/account/provider-button';
 import { useGoogleIdToken } from '@/components/account/use-google-sign-in';
 import { springs, useReducedMotion } from '@/components/afterglow/motion';
 import { Display } from '@/components/afterglow/text';
-import { PrimaryButton } from '@/components/ui/primary-button';
+import { CityBackdrop } from '@/components/city/backdrop';
+import { CITY } from '@/components/city/constants';
+import { Scrim, type ScrimStop } from '@/components/first-run/scrim';
 import { CookiesUrl, PrivacyUrl, TermsUrl } from '@/constants/legal';
 import { enterApp } from '@/hooks/useAuth';
 import { useVenues } from '@/hooks/queries';
 import { externalSignInDetailed } from '@/services/authActions';
 import { externalErrorText } from '@/services/authErrorText';
-import { colors, layout, spacing, typography } from '@/theme';
+import { colors, display, layout, radii, spacing, typography } from '@/theme';
 
 type Provider = 'apple' | 'google';
+
+/** S-01: dark behind the logo, clear in the middle where the beams stand, dark again behind the buttons. */
+const SCRIM: readonly ScrimStop[] = [
+  [0, 0.86],
+  [0.34, 0.8],
+  [0.5, 0.1],
+  [0.62, 0.2],
+  [0.78, 0.96],
+  [1, 0.96],
+];
+
+// The logo image has empty space around the mark. These are the mark's edges in the 873 px square,
+// so the mark can be sized and placed by itself.
+const MARK_TOP = 95 / 873;
+const MARK_BOTTOM = 718 / 873;
+/** The mock's 128 pt mark on a 286 pt wide screen, scaled to a phone. */
+const MARK_HEIGHT = 173;
 
 /** Apple's sign-in sheet rejects with this code when the user closes it. */
 function isCancelled(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'ERR_REQUEST_CANCELED';
+}
+
+/** The rose dot before the live line; it breathes like the mock's, and holds still with Reduce Motion on. */
+function LiveDot() {
+  const reduceMotion = useReducedMotion();
+  const glow = useSharedValue(1);
+  useEffect(() => {
+    glow.value = reduceMotion
+      ? 1
+      : withRepeat(withSequence(withTiming(0.35, { duration: 800 }), withTiming(1, { duration: 800 })), -1);
+  }, [glow, reduceMotion]);
+  const style = useAnimatedStyle(() => ({ opacity: glow.value }));
+  return <Animated.View style={[styles.liveDot, style]} />;
 }
 
 export default function WelcomeScreen() {
@@ -60,8 +100,7 @@ export default function WelcomeScreen() {
     transform: reduceMotion ? [] : [{ translateY: (1 - arrival.value) * 28 }, { scale: 0.9 + 0.1 * arrival.value }],
   }));
 
-  const litCount = venues.isSuccess ? venues.data.filter((venue) => venue.crowdSource === 'live').length : 0;
-  const litLine = `${litCount} ${litCount === 1 ? 'venue' : 'venues'} lit in Podgorica tonight`;
+  const liveLine = venues.isSuccess ? outTonightLine(venues.data, CITY.name) : null;
 
   /** Runs one provider's sign-in. `getIdentity` resolves with null when the user backed out. */
   const signIn = async (
@@ -77,7 +116,8 @@ export default function WelcomeScreen() {
       if (!identity) return;
       await externalSignInDetailed(provider, identity.idToken, identity.name);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      enterApp();
+      // The server does not say whether this made a new account; first run shows when this phone has not had it.
+      await enterApp();
     } catch (e) {
       if (isCancelled(e)) return;
       setError(externalErrorText(providerName, e));
@@ -106,164 +146,187 @@ export default function WelcomeScreen() {
       return idToken ? { idToken } : null;
     });
 
-  // The image has clear space around the mark; the name tucks up into the space below it.
-  const logoSize = Math.min(height * 0.26, 220);
+  // Smaller phones get a smaller mark so the city still shows between the name and the buttons.
+  const markHeight = Math.min(MARK_HEIGHT, height * 0.2);
+  const logoSize = markHeight / (MARK_BOTTOM - MARK_TOP);
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + spacing.base, paddingBottom: insets.bottom + spacing.base },
-      ]}
-      alwaysBounceVertical={false}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.brandArea}>
+    <View style={styles.root}>
+      <CityBackdrop style={StyleSheet.absoluteFill} />
+      <Scrim stops={SCRIM} />
+
+      <ScrollView
+        style={styles.fill}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + spacing.xs },
+        ]}
+        alwaysBounceVertical={false}
+        showsVerticalScrollIndicator={false}
+      >
         <Animated.View style={[styles.brand, brandStyle]}>
           <Image
             source={require('@/assets/images/fmp_logo.png')}
-            style={{ width: logoSize, height: logoSize }}
+            style={{
+              width: logoSize,
+              height: logoSize,
+              marginTop: -logoSize * MARK_TOP,
+              marginBottom: -logoSize * (1 - MARK_BOTTOM),
+            }}
             resizeMode="contain"
             accessibilityIgnoresInvertColors
             accessible={false}
           />
-          <Display size="lg" accessibilityRole="header" style={{ marginTop: -logoSize * 0.12 }}>
+          <Display accessibilityRole="header" style={styles.name}>
             FindMyParty
           </Display>
           <Text style={styles.tagline}>Find where the night is</Text>
         </Animated.View>
-      </View>
 
-      {/* A bonus line. Its room is kept so the buttons do not move when it arrives. */}
-      <View style={styles.litSlot}>
-        {litCount > 0 ? (
-          <View style={styles.lit} accessible accessibilityRole="text" accessibilityLabel={litLine}>
-            <View style={styles.litDot} />
-            <Text style={styles.litText}>{litLine}</Text>
+        <View style={styles.bottom}>
+          {/* The live line keeps its room, so the buttons do not move when it arrives. */}
+          <View style={styles.liveSlot}>
+            {liveLine ? (
+              <View style={styles.live} accessible accessibilityRole="text" accessibilityLabel={liveLine}>
+                <LiveDot />
+                <Text style={styles.liveText}>{liveLine}</Text>
+              </View>
+            ) : null}
           </View>
-        ) : null}
-      </View>
 
-      <View style={styles.actions}>
-        {error ? (
-          <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
-            {error}
-          </Text>
-        ) : null}
+          {error ? (
+            <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              {error}
+            </Text>
+          ) : null}
 
-        {appleAvailable ? (
-          <ProviderButton
-            label="Continue with Apple"
-            tone="light"
-            icon={<Ionicons name="logo-apple" size={20} color={colors.ink} />}
-            onPress={handleApple}
-            loading={busy === 'apple'}
+          {appleAvailable ? (
+            <FlatButton
+              label="Continue with Apple"
+              tone="light"
+              icon={<Ionicons name="logo-apple" size={20} color={colors.ink} />}
+              onPress={handleApple}
+              loading={busy === 'apple'}
+              disabled={busy !== null}
+            />
+          ) : null}
+          <FlatButton
+            label="Continue with Google"
+            tone="surface"
+            icon={<Image source={require('@/assets/images/google_logo.png')} style={styles.googleLogo} resizeMode="contain" />}
+            onPress={handleGoogle}
+            loading={busy === 'google'}
             disabled={busy !== null}
           />
-        ) : null}
-        <ProviderButton
-          label="Continue with Google"
-          tone="surface"
-          icon={<Image source={require('@/assets/images/google_logo.png')} style={styles.googleLogo} resizeMode="contain" />}
-          onPress={handleGoogle}
-          loading={busy === 'google'}
-          disabled={busy !== null}
-        />
-        <PrimaryButton label="Sign up with email" onPress={() => router.push('/register')} />
+          <FlatButton label="Sign up with email" tone="action" onPress={() => router.push('/register')} disabled={busy !== null} />
 
-        <View style={styles.links}>
-          <Pressable
-            onPress={() => router.push('/login')}
-            hitSlop={layout.hitSlop}
-            accessibilityRole="link"
-            accessibilityLabel="Have an account? Log in"
-          >
-            <Text style={styles.linkText}>
-              Have an account? <Text style={styles.link}>Log in</Text>
+          <View style={styles.links}>
+            <Pressable
+              onPress={() => router.push('/login')}
+              hitSlop={layout.hitSlop}
+              accessibilityRole="link"
+              accessibilityLabel="Have an account? Log in"
+            >
+              <Text style={styles.linkText}>
+                Have an account? <Text style={styles.logIn}>Log in</Text>
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/admin/login')}
+              hitSlop={layout.hitSlop}
+              accessibilityRole="link"
+              accessibilityLabel="Host sign in"
+            >
+              <Text style={styles.hostText}>Host sign in</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.legal}>
+            {'By continuing you accept our '}
+            <Text style={styles.legalLink} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(TermsUrl)}>
+              Terms and conditions
             </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => router.push('/admin/login')}
-            hitSlop={layout.hitSlop}
-            accessibilityRole="link"
-            accessibilityLabel="Host sign in"
-          >
-            <Text style={styles.linkText}>Host sign in</Text>
-          </Pressable>
+            {', '}
+            <Text style={styles.legalLink} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(PrivacyUrl)}>
+              Privacy policy
+            </Text>
+            {' and '}
+            <Text style={styles.legalLink} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(CookiesUrl)}>
+              Cookies policy
+            </Text>
+            .
+          </Text>
         </View>
-      </View>
-
-      <Text style={styles.legal}>
-        {'By continuing you accept our '}
-        <Text style={styles.legalLink} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(TermsUrl)}>
-          Terms and conditions
-        </Text>
-        {', '}
-        <Text style={styles.legalLink} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(PrivacyUrl)}>
-          Privacy policy
-        </Text>
-        {' and '}
-        <Text style={styles.legalLink} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(CookiesUrl)}>
-          Cookies policy
-        </Text>
-        .
-      </Text>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
-const LIT_DOT = 8;
+const LIVE_DOT = 8;
+/** The mock's 31 pt name on a 286 pt wide screen, scaled to a phone (between `display.lg` and `display.xl`). */
+const NAME_SIZE = 42;
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
   },
+  fill: {
+    flex: 1,
+  },
   content: {
     flexGrow: 1,
-    paddingHorizontal: layout.screenMargin,
-  },
-  brandArea: {
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xl,
+    justifyContent: 'space-between',
   },
   brand: {
     alignItems: 'center',
+    paddingHorizontal: layout.screenMargin,
   },
-  tagline: {
-    ...typography.subheadline,
-    color: colors.labelSecondary,
+  name: {
+    fontFamily: display.lg.fontFamily,
+    fontSize: NAME_SIZE,
+    lineHeight: NAME_SIZE + 2,
     marginTop: spacing.sm,
     textAlign: 'center',
   },
-  litSlot: {
-    minHeight: typography.subheadline.lineHeight,
+  tagline: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.labelTertiary,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  bottom: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    gap: spacing.md,
+  },
+  liveSlot: {
+    minHeight: typography.footnote.lineHeight + spacing.base,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.base,
+    marginBottom: spacing.xs,
   },
-  lit: {
+  live: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radii.sheet,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.base,
   },
-  litDot: {
-    width: LIT_DOT,
-    height: LIT_DOT,
-    borderRadius: LIT_DOT / 2,
+  liveDot: {
+    width: LIVE_DOT,
+    height: LIVE_DOT,
+    borderRadius: LIVE_DOT / 2,
     backgroundColor: colors.crowd,
   },
-  litText: {
-    ...typography.subheadline,
-    fontWeight: '600',
+  liveText: {
+    ...typography.footnote,
+    fontWeight: '700',
     color: colors.crowd,
     flexShrink: 1,
-  },
-  actions: {
-    gap: spacing.md,
   },
   error: {
     ...typography.subheadline,
@@ -279,27 +342,30 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
     alignItems: 'center',
-    columnGap: spacing.xxl,
-    rowGap: spacing.md,
-    paddingVertical: spacing.sm,
+    columnGap: spacing.xl,
+    rowGap: spacing.sm,
+    paddingTop: spacing.xs,
   },
   linkText: {
     ...typography.subheadline,
     color: colors.labelSecondary,
   },
-  link: {
-    fontWeight: '600',
-    color: colors.tint,
+  logIn: {
+    fontWeight: '700',
+    color: colors.crowd,
+  },
+  hostText: {
+    ...typography.subheadline,
+    color: colors.labelTertiary,
   },
   legal: {
-    ...typography.caption1,
-    color: colors.labelSecondary,
+    ...typography.caption2,
+    color: colors.labelTertiary,
     textAlign: 'center',
-    marginTop: spacing.base,
     paddingHorizontal: spacing.sm,
   },
   legalLink: {
     fontWeight: '600',
-    color: colors.label,
+    color: colors.labelSecondary,
   },
 });

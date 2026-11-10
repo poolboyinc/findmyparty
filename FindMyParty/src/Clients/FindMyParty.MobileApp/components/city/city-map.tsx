@@ -1,13 +1,14 @@
 import { memo, useCallback, useMemo, type ComponentProps } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { LineString } from 'geojson';
 import { Camera, MapView } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DEFAULT_CAMERA, type CityCamera } from '@/hooks/city/useCityCamera';
-import { layout, spacing } from '@/theme';
+import type { CityCamera } from '@/hooks/city/useCityCamera';
+import { colors, layout, spacing } from '@/theme';
 import type { VenueSummary } from '@/types/api';
 import { CityStyle } from './city-style';
-import { MAP_STYLE_URL, NIGHT_STYLE_JSON, USE_STANDARD_STYLE, type LngLat } from './constants';
+import { MAP_STYLE_URL, type LngLat } from './constants';
+import type { CityMode } from './geojson';
 import { RouteLayer } from './route-layer';
 import { UserDot } from './user-dot';
 import { VenueLayers } from './venue-layers';
@@ -18,6 +19,10 @@ type Props = {
   camera: CityCamera;
   venues: readonly VenueSummary[];
   selectedId: string | null;
+  /** Live, or My City. */
+  mode: CityMode;
+  /** My City: the venues the user has been scanned into. */
+  earned: ReadonlySet<string>;
   onSelectVenue: (venueId: string) => void;
   /** A tap that hit no venue. */
   onPressEmpty: () => void;
@@ -25,6 +30,8 @@ type Props = {
   /** Draw the user's position. Only ever true once location permission is granted. */
   showUser: boolean;
   onPressUser: (at: LngLat) => void;
+  /** Each new position of the user. */
+  onUserMove: (at: LngLat) => void;
 };
 
 /** Left edge of the Mapbox wordmark, and of the "i" button beside it. */
@@ -32,8 +39,8 @@ const LOGO_LEFT = spacing.base;
 const ATTRIBUTION_LEFT = LOGO_LEFT + 96;
 
 /**
- * The map itself: Mapbox's city under the night light, the route, the venues as beams, and you.
- * Layers are mounted bottom to top: basemap settings, route, venue layers, user dot.
+ * The map itself: Mapbox's dark-v11 repainted as the mock's violet city (city-style.tsx), the route,
+ * the venues as beams, and you. Layers are mounted bottom to top: city, route, venues, user dot.
  *
  * The Mapbox wordmark and the attribution button stay on, as Mapbox's terms require, and sit
  * at the bottom left just above the tab bar.
@@ -42,11 +49,14 @@ export const CityMap = memo(function CityMap({
   camera,
   venues,
   selectedId,
+  mode,
+  earned,
   onSelectVenue,
   onPressEmpty,
   routeLine,
   showUser,
   onPressUser,
+  onUserMove,
 }: Props) {
   const insets = useSafeAreaInsets();
 
@@ -63,10 +73,13 @@ export const CityMap = memo(function CityMap({
   const { syncPitch } = camera;
   const handleIdle = useCallback((state: MapState) => syncPitch(state.properties.pitch), [syncPitch]);
 
+  // The camera's first position depends on whether today's drop runs; known within a moment.
+  if (!camera.initial) return <View style={styles.waiting} />;
+
   return (
     <MapView
       style={styles.map}
-      {...(USE_STANDARD_STYLE ? { styleJSON: NIGHT_STYLE_JSON } : { styleURL: MAP_STYLE_URL })}
+      styleURL={MAP_STYLE_URL}
       logoEnabled
       logoPosition={ornaments.logo}
       attributionEnabled
@@ -75,12 +88,20 @@ export const CityMap = memo(function CityMap({
       scaleBarEnabled={false}
       onPress={onPressEmpty}
       onMapIdle={handleIdle}
+      onDidFinishLoadingMap={camera.onMapLoaded}
     >
-      <Camera ref={camera.ref} defaultSettings={DEFAULT_CAMERA} />
+      <Camera ref={camera.ref} defaultSettings={camera.initial} />
       <CityStyle />
       <RouteLayer line={routeLine} />
-      <VenueLayers venues={venues} selectedId={selectedId} flat={camera.flat} onSelect={onSelectVenue} />
-      {showUser ? <UserDot onPress={onPressUser} /> : null}
+      <VenueLayers
+        venues={venues}
+        selectedId={selectedId}
+        flat={camera.flat}
+        mode={mode}
+        earned={earned}
+        onSelect={onSelectVenue}
+      />
+      {showUser ? <UserDot onPress={onPressUser} onMove={onUserMove} /> : null}
     </MapView>
   );
 });
@@ -88,5 +109,9 @@ export const CityMap = memo(function CityMap({
 const styles = StyleSheet.create({
   map: {
     flex: 1,
+  },
+  waiting: {
+    flex: 1,
+    backgroundColor: colors.bg,
   },
 });

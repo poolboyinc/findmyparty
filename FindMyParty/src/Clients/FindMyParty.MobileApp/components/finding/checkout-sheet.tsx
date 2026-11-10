@@ -116,7 +116,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetRef, Props>(function Checko
     >
       <BottomSheetView style={[styles.content, { paddingBottom: insets.bottom + spacing.base }]}>
         <View style={styles.heading}>
-          <Display size="sm" accessibilityRole="header">
+          <Display size="md" accessibilityRole="header">
             Your pass
           </Display>
           <Text style={styles.secondary}>
@@ -126,8 +126,8 @@ export const CheckoutSheet = forwardRef<CheckoutSheetRef, Props>(function Checko
 
         <View style={[styles.block, styles.guests]}>
           <View style={styles.guestsText}>
-            <Text style={styles.strong}>Guests</Text>
-            <Text style={styles.secondary}>Up to {MAX_GUESTS_PER_BOOKING} on one pass</Text>
+            <Text style={styles.guestsLabel}>Guests</Text>
+            <Text style={styles.small}>Up to {MAX_GUESTS_PER_BOOKING} on one pass</Text>
           </View>
           <View style={styles.stepper}>
             <StepButton
@@ -169,14 +169,14 @@ export const CheckoutSheet = forwardRef<CheckoutSheetRef, Props>(function Checko
               </View>
               <View style={styles.line} />
               <View style={styles.sumRow}>
-                <Text style={styles.strong}>To pay at the door</Text>
-                <Text style={[styles.amount, styles.amountTotal]}>{priceText(total)}</Text>
+                <Text style={styles.totalLabel}>To pay at the door</Text>
+                <Text style={styles.totalAmount}>{priceText(total)}</Text>
               </View>
             </>
           )}
         </View>
 
-        <Text style={styles.secondary}>
+        <Text style={styles.small}>
           {free ? 'Nothing to pay.' : 'You pay at the door.'} Your pass appears in the Pass tab.
         </Text>
 
@@ -227,10 +227,12 @@ function StepButton({ sfSymbol, ionicon, label, disabled, onPress }: StepButtonP
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
     >
-      <Icon sfSymbol={sfSymbol} ionicon={ionicon} size={18} color={colors.label} />
+      <Icon sfSymbol={sfSymbol} ionicon={ionicon} size={16} color={colors.label} />
     </PressableScale>
   );
 }
+
+const STEP = 40;
 
 const styles = StyleSheet.create({
   background: {
@@ -244,7 +246,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: layout.screenMargin,
-    paddingTop: spacing.sm,
+    paddingTop: spacing.base,
     gap: spacing.base,
   },
   heading: {
@@ -259,21 +261,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.md + 2,
   },
   guestsText: {
     flex: 1,
     gap: spacing.xxs,
   },
+  guestsLabel: {
+    ...typography.callout,
+    fontWeight: '700',
+    color: colors.label,
+  },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   step: {
-    width: layout.minTouchTarget,
-    height: layout.minTouchTarget,
-    borderRadius: radii.chip,
+    width: STEP,
+    height: STEP,
+    borderRadius: radii.button,
     backgroundColor: colors.surfaceHigh,
     alignItems: 'center',
     justifyContent: 'center',
@@ -282,10 +289,10 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   count: {
-    ...typography.title2,
+    ...typography.title3,
     fontWeight: '700',
     color: colors.label,
-    minWidth: 32,
+    minWidth: 24,
     textAlign: 'center',
     fontVariant: ['tabular-nums'],
   },
@@ -294,14 +301,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
-    paddingVertical: spacing.base,
+    paddingVertical: spacing.md + 2,
   },
   line: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.separator,
+    backgroundColor: colors.hairline,
   },
   body: {
-    ...typography.body,
+    ...typography.subheadline,
     color: colors.label,
     flexShrink: 1,
   },
@@ -311,16 +318,30 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   amount: {
-    ...typography.headline,
+    ...typography.subheadline,
+    fontWeight: '700',
     color: colors.label,
     fontVariant: ['tabular-nums'],
   },
-  amountTotal: {
+  totalLabel: {
+    ...typography.headline,
+    fontWeight: '700',
+    color: colors.label,
+    flexShrink: 1,
+  },
+  totalAmount: {
     ...typography.title3,
     fontWeight: '700',
+    color: colors.label,
+    fontVariant: ['tabular-nums'],
   },
   secondary: {
     ...typography.subheadline,
+    fontSize: 14,
+    color: colors.labelSecondary,
+  },
+  small: {
+    ...typography.footnote,
     color: colors.labelSecondary,
   },
   error: {

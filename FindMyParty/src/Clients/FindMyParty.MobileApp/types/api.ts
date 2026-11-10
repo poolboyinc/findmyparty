@@ -98,6 +98,8 @@ export interface Booking {
   party: BookingParty | null;
   /** Guests from this booking already let in at the door. */
   checkedInCount: number;
+  /** When the door first let someone in on this booking (UTC). Optional until every server sends it. */
+  firstCheckedInAt?: string | null;
 }
 
 /** What the phone needs to draw a pass and keep its door code changing offline. See services/passCode.ts. */

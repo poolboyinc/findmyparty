@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale, springs, useReducedMotion } from '@/components/afterglow/motion';
 import { Display } from '@/components/afterglow/text';
+import { useMyBookings } from '@/hooks/queries';
+import { REGULAR_STREAK, formatGlow, scanReward, scannedBookingId } from '@/services/glow';
 import { colors, layout, radii, spacing, typography } from '@/theme';
 import { alpha } from './format';
 
@@ -24,11 +26,16 @@ const CORE_STOPS = [0, 0.5, 1] as const;
 const CORE_WIDTH = 6;
 /** The beam reaches below the screen so the spring's overshoot never shows its end. */
 const BLEED = 160;
+/** Segments on the weekend-streak bar. */
+const STREAK_STEPS = 4;
+const COUNT_WORDS = ['no', 'one', 'two', 'three'] as const;
 
 type Props = {
   /** Local time of the scan, "23:47". */
   time: string;
   venueName: string | null;
+  /** The booking the door scanned. Without it, the booking is found from the venue and the time. */
+  bookingId?: string;
   onDone: () => void;
 };
 
@@ -36,10 +43,27 @@ type Props = {
  * "You're in." The moment the door scans the pass: a lime beam rises from the bottom of the screen.
  * With Reduce Motion the beam is simply there.
  */
-export function ScanMoment({ time, venueName, onDone }: Props) {
+export function ScanMoment({ time, venueName, bookingId, onDone }: Props) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
+
+  // The Glow this scan earned, worked out from the guest's bookings (already loaded by the Pass tab).
+  // The booking is pinned once found, so the refetch that follows the scan cannot swap it for another.
+  const bookings = useMyBookings();
+  const [scannedAt] = useState(() => new Date());
+  const [pinned, setPinned] = useState<string | null>(bookingId ?? null);
+  const found = useMemo(
+    () => bookingId ?? (bookings.data ? scannedBookingId(bookings.data, { venueName, now: scannedAt }) : null),
+    [bookingId, bookings.data, venueName, scannedAt],
+  );
+  useEffect(() => {
+    if (!pinned && found) setPinned(found);
+  }, [pinned, found]);
+  const reward = useMemo(
+    () => (bookings.data ? scanReward(bookings.data, pinned ?? found ?? '', scannedAt) : null),
+    [bookings.data, pinned, found, scannedAt],
+  );
 
   const below = useSharedValue(reduceMotion ? 0 : 1);
   useEffect(() => {
@@ -66,18 +90,54 @@ export function ScanMoment({ time, venueName, onDone }: Props) {
           <Display size="xl" style={styles.title} accessibilityRole="header">
             You&apos;re in.
           </Display>
+          {reward ? (
+            <View style={styles.reward} accessible accessibilityRole="text" accessibilityLabel={`Plus ${reward.points} Glow: ${reward.line}`}>
+              <Display size="lg" color={colors.earned} style={styles.points}>
+                +{formatGlow(reward.points)} Glow
+              </Display>
+              <Text style={styles.breakdown}>{reward.line}</Text>
+            </View>
+          ) : null}
         </View>
 
-        <PressableScale
-          onPress={onDone}
-          style={[styles.done, { marginBottom: insets.bottom + spacing.base }]}
-          accessibilityRole="button"
-          accessibilityLabel="Done"
-        >
-          <Text style={styles.doneLabel}>Done</Text>
-        </PressableScale>
+        <View style={[styles.bottom, { marginBottom: insets.bottom + spacing.base }]}>
+          {reward && reward.streak > 0 ? <StreakCard weeks={reward.streak} /> : null}
+          <PressableScale onPress={onDone} style={styles.done} accessibilityRole="button" accessibilityLabel="Done">
+            <Text style={styles.doneLabel}>Done</Text>
+          </PressableScale>
+        </View>
       </View>
     </Modal>
+  );
+}
+
+/** Weekends in a row with a night out, as segments, and what the next weekend would make of it. */
+function StreakCard({ weeks }: { weeks: number }) {
+  const toRegular = REGULAR_STREAK - weeks;
+  const next = toRegular > 0 ? `${COUNT_WORDS[toRegular] ?? toRegular} more for Regular` : 'You are a Regular';
+  const lit = Math.min(weeks, STREAK_STEPS);
+  return (
+    <View
+      style={styles.streak}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={`Weekend streak: ${weeks} ${weeks === 1 ? 'week' : 'weeks'}. ${next}.`}
+    >
+      <View style={styles.streakLeft}>
+        <Text style={styles.streakLabel}>Weekend streak</Text>
+        <View style={styles.steps}>
+          {Array.from({ length: STREAK_STEPS }, (_, i) => (
+            <View key={i} style={[styles.step, i < lit && styles.stepLit]} />
+          ))}
+        </View>
+      </View>
+      <View style={styles.streakRight}>
+        <Text style={styles.streakWeeks}>
+          {weeks} {weeks === 1 ? 'week' : 'weeks'}
+        </Text>
+        <Text style={styles.streakNext}>{next}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -124,8 +184,71 @@ const styles = StyleSheet.create({
   title: {
     textAlign: 'center',
   },
-  done: {
+  reward: {
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  points: {
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+  },
+  breakdown: {
+    ...typography.subheadline,
+    color: colors.labelSecondary,
+    textAlign: 'center',
+  },
+  bottom: {
     marginHorizontal: layout.screenMargin,
+    gap: spacing.md,
+  },
+  streak: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.md + 1,
+  },
+  streakLeft: {
+    gap: spacing.sm,
+  },
+  streakLabel: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.labelTertiary,
+  },
+  steps: {
+    flexDirection: 'row',
+    gap: spacing.xs + 1,
+  },
+  step: {
+    width: 24,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.labelQuaternary,
+  },
+  stepLit: {
+    backgroundColor: colors.earned,
+  },
+  streakRight: {
+    flexShrink: 1,
+    alignItems: 'flex-end',
+    gap: spacing.xxs,
+  },
+  streakWeeks: {
+    ...typography.headline,
+    color: colors.label,
+    fontVariant: ['tabular-nums'],
+  },
+  streakNext: {
+    ...typography.footnote,
+    color: colors.labelSecondary,
+    textAlign: 'right',
+  },
+  done: {
     minHeight: layout.buttonHeight,
     borderRadius: radii.button,
     backgroundColor: colors.earned,
