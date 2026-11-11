@@ -1,7 +1,7 @@
 // The building a venue is in, picked from the map's building features (components/city/footprint.ts).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pickFootprint, inflate, venueOfBuilding } from '../../components/city/footprint.ts';
+import { footprintFromServer, pickFootprint, inflate, venueOfBuilding } from '../../components/city/footprint.ts';
 
 // A square building ~20 m across around [19.26, 42.44], and another ~60 m east.
 const square = (lng, lat, d = 0.0001) => [[lng - d, lat - d], [lng + d, lat - d], [lng + d, lat + d], [lng - d, lat + d], [lng - d, lat - d]];
@@ -80,4 +80,14 @@ test('a tap on a venue\'s building finds the venue; a tap on another building fi
   assert.equal(venueOfBuilding([club], footprints), 'monkey');
   assert.equal(venueOfBuilding([other], footprints), null);
   assert.equal(venueOfBuilding([], footprints), null);
+});
+
+test('an outline held by the server becomes the venue\'s building; a broken one is ignored', () => {
+  const found = footprintFromServer({ ring: square(19.26, 42.44), heightM: 18 });
+  assert.equal(found.height, 18);
+  assert.deepEqual(found.centroid.map((v) => +v.toFixed(5)), [19.26, 42.44]);
+
+  assert.equal(footprintFromServer(null), null);
+  assert.equal(footprintFromServer({ ring: [[19.26, 42.44]], heightM: 10 }), null);
+  assert.equal(footprintFromServer({ ring: 'nonsense' }), null);
 });

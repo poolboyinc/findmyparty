@@ -138,6 +138,19 @@ function merged(rings: Position[][]): Position[][] {
   }
 }
 
+/**
+ * A building outline the server holds for a venue (`VenueSummary.footprint`: the ring and the
+ * height in metres), as the map's `Footprint`. Null when it is missing or not a usable ring.
+ */
+export function footprintFromServer(stored: { ring?: unknown; heightM?: unknown } | null | undefined): Footprint | null {
+  if (!stored || !Array.isArray(stored.ring)) return null;
+  const ring = stored.ring.filter(
+    (p): p is Position => Array.isArray(p) && p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]),
+  );
+  if (ring.length < 4) return null;
+  return { ring, centroid: centroidOf(ring), height: numberOr(stored.heightM, DEFAULT_HEIGHT_M), minHeight: 0 };
+}
+
 /** Every building among the features, each put back together, as outline, middle and height. */
 export function allFootprints(features: readonly BuildingFeature[]): Footprint[] {
   return gather(features).flatMap((building) =>

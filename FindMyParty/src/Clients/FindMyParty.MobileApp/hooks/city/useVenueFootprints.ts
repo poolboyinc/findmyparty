@@ -1,7 +1,7 @@
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import type { MapView } from '@rnmapbox/maps';
 import { LAYER } from '@/components/city/constants';
-import { pickFootprint, type Footprint } from '@/components/city/footprint';
+import { footprintFromServer, pickFootprint, type Footprint } from '@/components/city/footprint';
 import type { VenueSummary } from '@/types/api';
 
 /** Points around a venue in which its building is looked for. */
@@ -28,9 +28,15 @@ function snapshot(): Footprints {
 const foundAt = new Map<string, string>();
 const placeOf = (venue: VenueSummary) => `${venue.longitude},${venue.latitude}`;
 
+/** The outline the server holds for a venue's building, when the venue's host has picked one. */
+function stored(venue: VenueSummary): Footprint | null {
+  return footprintFromServer((venue as { footprint?: { ring?: unknown; heightM?: unknown } | null }).footprint);
+}
+
 async function scan(map: MapView | null, venues: readonly VenueSummary[]): Promise<void> {
   if (!map || busy) return;
-  const missing = venues.filter((venue) => foundAt.get(venue.id) !== placeOf(venue));
+  // A venue whose building the server knows needs no looking for.
+  const missing = venues.filter((venue) => !stored(venue) && foundAt.get(venue.id) !== placeOf(venue));
   if (missing.length === 0) return;
   busy = true;
   let next: Record<string, Footprint> | null = null;
@@ -66,12 +72,24 @@ async function scan(map: MapView | null, venues: readonly VenueSummary[]): Promi
 }
 
 /**
- * The real building each venue is in, found from the buildings a map has drawn, so the venue
- * lights up its own roof and its beam stands on it (and its walls can carry signs). Call `scan`
- * when a map settles; venues found once are kept, the rest are tried again on the next scan.
+ * The real building each venue is in, so the venue lights up its own roof and its beam stands on
+ * it (and its walls can carry signs). The server's outline is used when the venue has one;
+ * otherwise the building is found from the buildings a map has drawn. Call `scan` when a map
+ * settles; venues found once are kept, the rest are tried again on the next scan.
  */
-export function useVenueFootprints() {
-  const footprints = useSyncExternalStore(subscribe, snapshot, snapshot);
-  const scanMap = useCallback((map: MapView | null, venues: readonly VenueSummary[]) => scan(map, venues), []);
+export function useVenueFootprints(venues: readonly VenueSummary[]) {
+  const found = useSyncExternalStore(subscribe, snapshot, snapshot);
+  const footprints = useMemo(() => {
+    let merged: Record<string, Footprint> | null = null;
+    for (const venue of venues) {
+      const fromServer = stored(venue);
+      if (fromServer) {
+        merged ??= { ...found };
+        merged[venue.id] = fromServer;
+      }
+    }
+    return merged ?? found;
+  }, [venues, found]);
+  const scanMap = useCallback((map: MapView | null) => scan(map, venues), [venues]);
   return { footprints, scan: scanMap };
 }

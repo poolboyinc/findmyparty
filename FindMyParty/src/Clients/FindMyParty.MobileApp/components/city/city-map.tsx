@@ -77,15 +77,15 @@ export const CityMap = memo(function CityMap({
   }, [insets.bottom]);
 
   const mapRef = useRef<MapView>(null);
-  const { footprints, scan } = useVenueFootprints();
+  const { footprints, scan } = useVenueFootprints(venues);
   const { syncView } = camera;
   const handleIdle = useCallback(
     (state: MapState) => {
       syncView(state.properties.pitch, state.properties.zoom);
       // Once the buildings are drawn, find each venue's own building so its roof lights up.
-      void scan(mapRef.current, venues);
+      void scan(mapRef.current);
     },
-    [syncView, scan, venues],
+    [syncView, scan],
   );
 
   // A tap anywhere on a venue's own building (its walls, its roof) selects the venue, not only a
