@@ -1,17 +1,47 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SHEET_CUSHION, SHEET_HEIGHT_GUESS, type LngLat } from '@/components/city/constants';
+import {
+  filterIsOn,
+  filterVenues,
+  friendsPulse,
+  holdsLivePass,
+  layerFromParam,
+  livePulse,
+  minePulse,
+  NO_FILTER,
+  walkTail,
+  type MapFilter,
+  type Pulse,
+} from '@/components/city/city-lines';
+import { CITY, SHEET_CUSHION, SHEET_HEIGHT_GUESS, type LngLat } from '@/components/city/constants';
 import { turnText, type TurnStep } from '@/components/city/directions';
 import { metresBetween, nearestVenueId, type CityMode } from '@/components/city/geojson';
-import { useMyBookings, useParties, useVenues } from '@/hooks/queries';
+import {
+  useFriendsOut,
+  useGlow,
+  useMyBookings,
+  useParty,
+  useProfile,
+  useSigns,
+  useVenues,
+} from '@/hooks/queries';
+import { useHomeCity } from '@/hooks/useHomeCity';
 import { layout, spacing } from '@/theme';
-import type { Booking, VenueSummary } from '@/types/api';
+import type { Booking, MapSign, VenueSummary } from '@/types/api';
 import { useCityCamera } from './useCityCamera';
 import { useCityLocation } from './useCityLocation';
 import { useWalkingRoute } from './useWalkingRoute';
 
+export type { Pulse } from '@/components/city/city-lines';
+
 const NO_VENUES: readonly VenueSummary[] = [];
+const NO_BOOKINGS: readonly Booking[] = [];
+const NO_SIGNS: readonly MapSign[] = [];
+const NO_STEPS: readonly TurnStep[] = [];
+const NO_TASTE: readonly string[] = [];
+const NO_IDS: readonly string[] = [];
 
 /** Something to tell the user in a banner. The venue is kept so "Try again" can try again. */
 type Notice =
@@ -20,12 +50,16 @@ type Notice =
   | { kind: 'route-no-position'; venue: VenueSummary }
   | { kind: 'route-failed'; venue: VenueSummary };
 
+export type Banner = { message: string; action?: { label: string; onPress: () => void } };
+
 /** A banner goes away by itself after this long. */
 const NOTICE_MS = 8000;
 /** Tapping your own dot selects a venue you are standing at, if one is this close. */
 const AT_VENUE_M = 60;
-/** Room the route card takes above the tab bar, for framing the route. */
-const ROUTE_CARD_ROOM = 132;
+/** What the walking sheet's height is taken to be (above the home indicator) until it has been measured. */
+const ROUTE_SHEET_GUESS = 170;
+/** Room the sign's card takes at the bottom, so the camera keeps the sign above it. */
+const SIGN_SHEET_ROOM = 300;
 /** Room the title takes below the status bar, for framing the route. */
 const HEADER_ROOM = 110;
 const ROUTE_SIDE_ROOM = 56;
@@ -33,85 +67,67 @@ const ROUTE_SIDE_ROOM = 56;
 const MOVE_STEP_M = 12;
 /** Within this distance of a manoeuvre, the banner moves on to the next one. */
 const TURN_REACHED_M = 20;
+/** A city further than this from where the camera is gets a flight there. */
+const NEW_CITY_M = 2000;
+/** How often the walking card's "doors open" is looked at again. */
+const CLOCK_MS = 30_000;
 
-const NO_BOOKINGS: readonly Booking[] = [];
-const NO_STEPS: readonly TurnStep[] = [];
-/** The lowest number each crowd range stands for. */
-const LEVEL_FLOOR: Record<string, number> = { quiet: 0, '20+': 20, '50+': 50, '100+': 100, '200+': 200 };
-
-/** The line under the city's name: bold part and the rest, e.g. "1,200+" and " out tonight, 14 venues lit". */
-export type Pulse = { strong: string; rest: string; tone: 'live' | 'earned' };
-
-function thousands(n: number): string {
-  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+/** "herceg-novi" → "Herceg Novi": the city's name until the server's list has loaded. */
+function nameFromSlug(slug: string): string {
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }
 
-function venuesWord(n: number): string {
-  return n === 1 ? '1 venue' : `${n} venues`;
-}
+type Params = { walkTo?: string | string[]; venue?: string | string[]; layer?: string | string[] };
 
-/**
- * Live: at least how many people are out (the sum of the lowest number of each live range,
- * never an exact count) and how many venues are lit. My City: how many of the city's venues you lit.
- */
-function pulseLine(venues: readonly VenueSummary[], mode: CityMode, earned: ReadonlySet<string>): Pulse | null {
-  if (venues.length === 0) return null;
-  if (mode === 'mine') {
-    const lit = venues.filter((venue) => earned.has(venue.id)).length;
-    return { strong: `${lit} of ${venues.length}`, rest: ' venues lit', tone: 'earned' };
-  }
-  const live = venues.filter((venue) => venue.crowdSource === 'live');
-  const out = live.reduce((sum, venue) => sum + (LEVEL_FLOOR[venue.crowdLevel ?? ''] ?? 0), 0);
-  if (live.length === 0) return { strong: '', rest: 'No venues lit yet', tone: 'live' };
-  if (out === 0) return { strong: venuesWord(live.length), rest: ' lit', tone: 'live' };
-  return { strong: `${thousands(out)}+`, rest: ` out tonight, ${venuesWord(live.length)} lit`, tone: 'live' };
-}
-
-/** Venues the user has been scanned into: a booking with someone let in at the door. */
-function earnedVenues(bookings: readonly Booking[]): ReadonlySet<string> {
-  const ids = new Set<string>();
-  for (const booking of bookings) {
-    const venueId = booking.party?.venueId;
-    if (booking.checkedInCount > 0 && venueId) ids.add(venueId);
-  }
-  return ids;
-}
-
-/** A pass the user holds for a party at this venue that has not ended. */
-function holdsPass(bookings: readonly Booking[], venueId: string, now: number): boolean {
-  return bookings.some(
-    (booking) =>
-      booking.status !== 'Cancelled' && booking.party?.venueId === venueId && Date.parse(booking.partyEndsAt) > now,
-  );
+function one(value: string | string[] | undefined): string | null {
+  const text = Array.isArray(value) ? value[0] : value;
+  return text ? text : null;
 }
 
 /**
- * Everything the city screen does, so the screen file is only layout:
- * the venues and which one is selected, the camera, location, the walking route,
- * and the banners that explain a failure.
+ * Everything the City tab does, so the screen file is only layout: the chosen city and its pulse,
+ * the venues (filtered) and which one is selected, the three layers, signs, the camera, location,
+ * the walking route, the route params (`walkTo`, `venue`, `layer`), and the banners that explain
+ * a failure.
  */
 export function useCity() {
   const insets = useSafeAreaInsets();
-  const venuesQuery = useVenues();
-  const { data: parties } = useParties();
+  const home = useHomeCity();
+  const { slug, city } = home;
+  const venuesQuery = useVenues(slug);
   const { data: bookingsData } = useMyBookings();
-  const venues = venuesQuery.data ?? NO_VENUES;
+  const glowQuery = useGlow();
+  const { data: profile } = useProfile();
+  const { data: signsData } = useSigns(slug);
+  const allVenues = venuesQuery.data ?? NO_VENUES;
   const bookings = bookingsData ?? NO_BOOKINGS;
+  const signs = signsData ?? NO_SIGNS;
 
-  const camera = useCityCamera();
+  const homeCenter = useMemo<LngLat>(
+    () => (city ? [city.longitude, city.latitude] : CITY.center),
+    [city],
+  );
+  const camera = useCityCamera(homeCenter);
   const location = useCityLocation();
   const walk = useWalkingRoute();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedSignId, setSelectedSignId] = useState<string | null>(null);
   const lastSelectAt = useRef(0);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [asking, setAsking] = useState(false);
   const [locating, setLocating] = useState(false);
   const [mode, setModeState] = useState<CityMode>('live');
+  const [filter, setFilter] = useState<MapFilter>(NO_FILTER);
   /** Where the user was last seen, updated every MOVE_STEP_M metres. */
   const [userAt, setUserAt] = useState<LngLat | null>(null);
   /** Which of the route's steps is the next manoeuvre. */
   const [stepIndex, setStepIndex] = useState(1);
+  const [routeSheetHeight, setRouteSheetHeight] = useState<number | null>(null);
 
   /** The venue sheet's height as last measured; the camera keeps this much free under a beam. */
   const sheetHeight = useRef(SHEET_HEIGHT_GUESS);
@@ -121,32 +137,61 @@ export function useCity() {
   /** Bottom padding for anything that sits above the floating tab bar. */
   const tabBarClearance =
     insets.bottom + layout.floatingTabBarHeight + layout.floatingTabBarBottomOffset + spacing.base;
-  const routeInset = tabBarClearance + ROUTE_CARD_ROOM;
+  /** The walking sheet covers the bottom of the screen, tab bar included. */
+  const routeInset = routeSheetHeight ?? insets.bottom + ROUTE_SHEET_GUESS;
+
+  // ── The city ──────────────────────────────────────────────────────────────
+
+  // Another city was chosen (the city sheet, or the account changed it): fly there and start over.
+  const { goTo } = camera;
+  const { end: endWalk } = walk;
+  const shownCenter = useRef<LngLat>(homeCenter);
+  const mapReady = camera.initial !== null;
+  useEffect(() => {
+    if (!mapReady) return;
+    if (metresBetween(shownCenter.current, homeCenter) < NEW_CITY_M) return;
+    shownCenter.current = homeCenter;
+    setSelectedId(null);
+    setSelectedSignId(null);
+    endWalk();
+    goTo(homeCenter);
+  }, [mapReady, homeCenter, goTo, endWalk]);
+
+  const cityName = city?.name ?? nameFromSlug(slug);
+
+  // ── Filter ────────────────────────────────────────────────────────────────
+
+  const taste = profile?.taste ?? NO_TASTE;
+  const venues = useMemo(
+    () => filterVenues(allVenues, filter, taste, selectedId),
+    [allVenues, filter, taste, selectedId],
+  );
 
   // ── Selection ─────────────────────────────────────────────────────────────
 
   const selected = useMemo(
-    () => (selectedId ? (venues.find((venue) => venue.id === selectedId) ?? null) : null),
-    [venues, selectedId],
+    () => (selectedId ? (allVenues.find((venue) => venue.id === selectedId) ?? null) : null),
+    [allVenues, selectedId],
   );
-  const selectedParty = useMemo(() => {
-    const partyId = selected?.partyId;
-    return partyId ? (parties?.find((party) => party.id === partyId) ?? null) : null;
-  }, [parties, selected]);
+  const partyQuery = useParty(selected?.partyId ?? undefined);
+  const selectedParty = selected?.partyId && partyQuery.data?.id === selected.partyId ? partyQuery.data : null;
 
+  const { focus } = camera;
   const select = useCallback(
     (venueId: string) => {
-      const venue = venues.find((candidate) => candidate.id === venueId);
+      const venue = allVenues.find((candidate) => candidate.id === venueId);
       if (!venue) return;
       Haptics.selectionAsync();
       lastSelectAt.current = Date.now();
+      setSelectedSignId(null);
       setSelectedId(venueId);
-      camera.focus([venue.longitude, venue.latitude], sheetHeight.current + SHEET_CUSHION);
+      focus([venue.longitude, venue.latitude], sheetHeight.current + SHEET_CUSHION);
     },
-    [venues, camera],
+    [allVenues, focus],
   );
 
   const clearSelection = useCallback(() => setSelectedId(null), []);
+
   /**
    * A tap on empty map closes the sheet. The map also reports the tap that just selected a beam as a
    * map tap, so taps within a moment of a selection are ignored.
@@ -156,35 +201,92 @@ export function useCity() {
     setSelectedId(null);
   }, []);
 
+  const { refocus } = camera;
   const onSheetHeight = useCallback(
     (height: number) => {
       sheetHeight.current = height;
-      camera.refocus(height + SHEET_CUSHION);
+      refocus(height + SHEET_CUSHION);
     },
-    [camera],
+    [refocus],
   );
 
   const selectNearUser = useCallback(
     (at: LngLat) => {
-      const venueId = nearestVenueId(venues, at, AT_VENUE_M);
+      const venueId = nearestVenueId(allVenues, at, AT_VENUE_M);
       if (venueId) select(venueId);
     },
-    [venues, select],
+    [allVenues, select],
   );
 
-  // With nothing selected, the camera keeps room only for the route card, if there is one.
-  // This is also what gives the padding back when the sheet is dismissed.
+  // ── Signs (S-19) ──────────────────────────────────────────────────────────
+
+  const selectedSign = useMemo(
+    () => (selectedSignId ? (signs.find((sign) => sign.id === selectedSignId) ?? null) : null),
+    [signs, selectedSignId],
+  );
+
+  const selectSign = useCallback(
+    (signId: string) => {
+      const sign = signs.find((candidate) => candidate.id === signId);
+      if (!sign) return;
+      Haptics.selectionAsync();
+      lastSelectAt.current = Date.now();
+      setSelectedId(null);
+      setSelectedSignId(signId);
+      focus([sign.spot.longitude, sign.spot.latitude], SIGN_SHEET_ROOM);
+    },
+    [signs, focus],
+  );
+
+  const clearSign = useCallback(() => setSelectedSignId(null), []);
+
+  /** "Stara Varoš": the spot's own area, else the area of the venue nearest to it. */
+  const signArea = useMemo(() => {
+    if (!selectedSign) return '';
+    if (selectedSign.spot.area) return selectedSign.spot.area;
+    const at: LngLat = [selectedSign.spot.longitude, selectedSign.spot.latitude];
+    let best: { area: string; metres: number } | null = null;
+    for (const venue of allVenues) {
+      if (!venue.area) continue;
+      const metres = metresBetween(at, [venue.longitude, venue.latitude]);
+      if (!best || metres < best.metres) best = { area: venue.area, metres };
+    }
+    return best?.area ?? '';
+  }, [selectedSign, allVenues]);
+
+  // With nothing selected, the camera keeps room only for the walking sheet, if there is one.
+  // This is also what gives the padding back when a sheet is dismissed.
   const walking = walk.state.status !== 'idle';
-  const nothingSelected = selected === null;
+  const nothingSelected = selected === null && selectedSign === null;
   const { release } = camera;
   useEffect(() => {
     if (nothingSelected) release(walking ? routeInset : 0);
   }, [nothingSelected, walking, routeInset, release]);
 
-  // ── Live / My City ────────────────────────────────────────────────────────
+  // ── Live / My City / Friends ──────────────────────────────────────────────
 
-  const earned = useMemo(() => earnedVenues(bookings), [bookings]);
-  const pulse = useMemo(() => pulseLine(venues, mode, earned), [venues, mode, earned]);
+  const glow = glowQuery.data;
+  const litIds = glow?.venuesLitIds ?? NO_IDS;
+  const earned = useMemo<ReadonlySet<string>>(() => new Set(litIds), [litIds]);
+
+  const friendsQuery = useFriendsOut(mode === 'friends' ? slug : undefined);
+  const friendsOut = friendsQuery.data;
+
+  const pulse = useMemo<Pulse | null>(() => {
+    if (mode === 'friends') return friendsPulse(friendsOut);
+    if (mode === 'mine') {
+      if (!glow) return null;
+      const explorer = glow.badges.find((badge) => badge.id === 'explorer') ?? null;
+      return minePulse({
+        litIds,
+        cityVenueIds: venuesQuery.data ? venuesQuery.data.map((venue) => venue.id) : null,
+        venueCount: city?.venueCount ?? null,
+        explorer,
+      });
+    }
+    return livePulse(city);
+  }, [mode, friendsOut, glow, litIds, venuesQuery.data, city]);
+
   const setMode = useCallback(
     (next: CityMode) => {
       if (next === mode) return;
@@ -211,16 +313,19 @@ export function useCity() {
   const { start } = walk;
   const { fitBounds } = camera;
   const headerInset = insets.top + HEADER_ROOM;
+  const routeInsetRef = useRef(routeInset);
+  routeInsetRef.current = routeInset;
 
   /** Position, then route, then frame it. Location permission must already be granted. */
   const runWalk = useCallback(
     async (venue: VenueSummary) => {
       setNotice(null);
       setSelectedId(null);
+      setSelectedSignId(null);
       const outcome = await start(venue, getPosition);
       if (outcome.result === 'ready') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        fitBounds(outcome.route.ne, outcome.route.sw, { top: headerInset, bottom: routeInset, side: ROUTE_SIDE_ROOM });
+        fitBounds(outcome.route.ne, outcome.route.sw, { top: headerInset, bottom: routeInsetRef.current, side: ROUTE_SIDE_ROOM });
       } else if (outcome.result === 'no-position') {
         setNotice({ kind: 'route-no-position', venue });
       } else if (outcome.result === 'failed') {
@@ -228,10 +333,10 @@ export function useCity() {
         setNotice({ kind: 'route-failed', venue });
       }
     },
-    [start, getPosition, fitBounds, headerInset, routeInset],
+    [start, getPosition, fitBounds, headerInset],
   );
 
-  /** The walking button on the venue sheet. */
+  /** The walking button on the venue sheet, and `walkTo` from another screen. */
   const walkTo = useCallback(
     (venue: VenueSummary) => {
       if (permission === 'denied') {
@@ -264,11 +369,29 @@ export function useCity() {
     return { ...turnText(step, walk.state.venue.name), metres: metresBetween(from, step.at) };
   }, [walk.state, steps, stepIndex, userAt]);
 
+  // "doors open" changes with the clock; look again now and then while walking.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!walking) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), CLOCK_MS);
+    return () => clearInterval(timer);
+  }, [walking]);
+
   const walkVenueId = walk.state.status === 'idle' ? null : walk.state.venue.id;
-  const passReady = useMemo(
-    () => (walkVenueId ? holdsPass(bookings, walkVenueId, Date.now()) : false),
-    [bookings, walkVenueId],
-  );
+  // The latest copy of the venue: its party may have changed since the walk started.
+  const walkVenue = useMemo(() => {
+    if (walk.state.status === 'idle') return null;
+    return allVenues.find((venue) => venue.id === walkVenueId) ?? walk.state.venue;
+  }, [walk.state, allVenues, walkVenueId]);
+  const passReady = walkVenue ? holdsLivePass(bookings, walkVenue.partyId, now) : false;
+  const routeTail = walkVenue
+    ? walkTail(walkVenue.partyId ? { startsAt: walkVenue.partyStartsAt, endsAt: walkVenue.partyEndsAt } : null, passReady, now)
+    : '';
+
+  const onRouteSheetHeight = useCallback((height: number) => {
+    setRouteSheetHeight((last) => (last !== null && Math.abs(last - height) < 1 ? last : height));
+  }, []);
 
   // ── Location ──────────────────────────────────────────────────────────────
 
@@ -306,6 +429,49 @@ export function useCity() {
     else setNotice({ kind: 'no-position' });
   }, [permission, offerAgain, getPosition, flyTo]);
 
+  // ── Route params: walkTo, venue, layer (BUILD-3-SPEC §3.5) ────────────────
+
+  const params = useLocalSearchParams<Params>();
+  const walkParam = one(params.walkTo);
+  const venueParam = one(params.venue);
+  const layerParam = layerFromParam(params.layer);
+  const venuesLoaded = venuesQuery.data !== undefined;
+
+  useEffect(() => {
+    if (!layerParam) return;
+    setModeState(layerParam);
+    router.setParams({ layer: undefined });
+  }, [layerParam]);
+
+  // A param is handled once; it is also cleared, and a later link with the same id comes in after that.
+  const handledVenue = useRef<string | null>(null);
+  useEffect(() => {
+    if (!venueParam) {
+      handledVenue.current = null;
+      return;
+    }
+    if (handledVenue.current === venueParam || !venuesLoaded || !mapReady) return;
+    handledVenue.current = venueParam;
+    router.setParams({ venue: undefined });
+    if (allVenues.some((venue) => venue.id === venueParam)) select(venueParam);
+    // Not on this city's map: its own page says what is on.
+    else router.push(`/venue/${venueParam}`);
+  }, [venueParam, venuesLoaded, mapReady, allVenues, select]);
+
+  const handledWalk = useRef<string | null>(null);
+  useEffect(() => {
+    if (!walkParam) {
+      handledWalk.current = null;
+      return;
+    }
+    if (handledWalk.current === walkParam || !venuesLoaded || !mapReady || permission === 'checking') return;
+    handledWalk.current = walkParam;
+    router.setParams({ walkTo: undefined });
+    const venue = allVenues.find((candidate) => candidate.id === walkParam);
+    if (venue) walkTo(venue);
+    else router.push(`/venue/${walkParam}`);
+  }, [walkParam, venuesLoaded, mapReady, permission, allVenues, walkTo]);
+
   // ── Banners ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -315,7 +481,7 @@ export function useCity() {
   }, [notice]);
 
   const { openSettings } = location;
-  const banner = useMemo(() => {
+  const banner = useMemo<Banner | null>(() => {
     if (!notice) return null;
     switch (notice.kind) {
       case 'location-off':
@@ -338,27 +504,50 @@ export function useCity() {
     }
   }, [notice, openSettings, walkTo]);
 
-  const { refetch } = venuesQuery;
+  const { refetch: refetchVenues } = venuesQuery;
   const retryVenues = useCallback(() => {
-    refetch();
-  }, [refetch]);
+    refetchVenues();
+  }, [refetchVenues]);
+
+  /** The layer on screen could not load what it shows: say so, with "Try again". */
+  const { refetch: refetchGlow } = glowQuery;
+  const { refetch: refetchFriends } = friendsQuery;
+  const layerError =
+    mode === 'mine' && glowQuery.isError && !glow
+      ? { error: glowQuery.error, retry: () => void refetchGlow() }
+      : mode === 'friends' && friendsQuery.isError && !friendsOut
+        ? { error: friendsQuery.error, retry: () => void refetchFriends() }
+        : null;
 
   return {
     camera,
     tabBarClearance,
 
-    venues,
+    slug,
+    cityName,
+    /** The city sheet's choice is stored by the sheet itself (`useHomeCity().setCity`); the map follows. */
+    pulse,
     mode,
     setMode,
     earned,
-    /** The line under the city's name; null until the first load has come back. */
-    pulse: venuesQuery.data ? pulse : null,
+    /** Friends layer: who is at which venue, and whether the user shares at all. */
+    friendsOnMap: mode === 'friends' && friendsOut?.sharing ? friendsOut.venues : undefined,
+    showFriendsOff: mode === 'friends' && friendsOut !== undefined && !friendsOut.sharing,
+    layerError,
+
+    /** The venues on the map: the city's, through the filter. */
+    venues,
+    filter,
+    setFilter,
+    filterOn: filterIsOn(filter),
     /** Set when loading venues failed, also when older venues are still on the map. */
     venuesError: venuesQuery.isError ? venuesQuery.error : null,
     retryVenues,
 
     selected,
+    /** The selected venue's party in full (poster, sold out, checkout), once loaded. */
     selectedParty,
+    selectedPartyLoading: !!selected?.partyId && partyQuery.isLoading,
     select,
     clearSelection,
     pressMap,
@@ -367,12 +556,21 @@ export function useCity() {
     /** Metres from you to the selected venue, when your position is known. */
     selectedDistance,
 
+    signs,
+    selectedSign,
+    signArea,
+    selectSign,
+    clearSign,
+
     route: walk.state,
     walkTo,
     endWalk: walk.end,
     nextTurn,
-    /** You hold a pass for a party at the venue you are walking to. */
+    /** What follows "To Monkey" on the walking sheet. */
+    routeTail,
+    /** You hold a pass for the party at the venue you are walking to. */
     passReady,
+    onRouteSheetHeight,
 
     showUser: permission === 'granted',
     onUserMove,

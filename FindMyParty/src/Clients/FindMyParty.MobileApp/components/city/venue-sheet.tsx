@@ -2,31 +2,46 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { router } from 'expo-router';
 import { BottomSheetModal, BottomSheetView } from '@gorhom/bottom-sheet';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Avatars } from '@/components/afterglow/avatars';
 import { CrowdBars } from '@/components/afterglow/crowd-bars';
 import { PressableScale } from '@/components/afterglow/motion';
 import { Poster } from '@/components/afterglow/poster';
 import { Display } from '@/components/afterglow/text';
-import { dayText, joinParts, priceText, timeText } from '@/components/finding/format';
 import { Icon } from '@/components/ui/icon';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { useParty, useVenue } from '@/hooks/queries';
+import { useSaved, useToggleSaved, useVenue } from '@/hooks/queries';
 import { crowdText } from '@/services/crowd';
 import { colors, layout, radii, spacing, typography } from '@/theme';
-import type { Party, VenueSummary } from '@/types/api';
+import type { PartyDetail, VenueSummary } from '@/types/api';
+import { useSheetPresence } from './card-motion';
+import {
+  crowdTrendLine,
+  friendsHereText,
+  joinParts,
+  partyLine,
+  passButtonLabel,
+  priceText,
+  venuePlaceLine,
+} from './city-lines';
 import { distanceText } from './directions';
 
 type Props = {
   /** The selected venue; null closes the sheet. */
   venue: VenueSummary | null;
-  /** The venue's next party from the parties list, when it is there: gives the time and the price. */
-  party: Party | null;
+  /** The venue's party in full, once loaded: its poster, whether it is sold out, and what checkout needs. */
+  party: PartyDetail | null;
+  /** The party is still being fetched (the pass button waits for it). */
+  partyLoading: boolean;
   /** Metres from you, when your position is known. */
   distance: number | null;
   /** The sheet has gone (swiped down, or closed from here). The screen clears the selection. */
   onDismiss: () => void;
   /** The walking button. */
   onWalk: (venue: VenueSummary) => void;
+  /** "Get pass for €5": the screen opens the checkout sheet over this one. */
+  onGetPass: (party: PartyDetail) => void;
   /** Height of the sheet's content in points, so the camera can keep the beam above it. */
   onHeight: (height: number) => void;
 };
@@ -35,49 +50,26 @@ type Props = {
 const HANDLE_HEIGHT = 24;
 
 /**
- * What is going on at the selected venue: its name, the crowd, its next party, and the two
- * things to do about it (take a pass, walk there). A bottom sheet that follows the finger;
- * it sizes itself to its content, so nothing clips when text is set larger.
+ * S-05: what is going on at the selected venue. Its name and where it is, a heart, how busy it is
+ * and how the night is going, its party, which friends are there, and the two things to do about
+ * it (take a pass, walk there). A bottom sheet that follows the finger and sizes itself to its
+ * content, so nothing clips when text is set larger.
  *
  * There is no dimming backdrop: the city stays lit behind it and another beam can be tapped
  * straight away.
  */
-/** How long a just-presented sheet gets to mount before it may be dismissed. */
-const PRESENT_SETTLE_MS = 150;
-
-export function VenueSheet({ venue, party, distance, onDismiss, onWalk, onHeight }: Props) {
+export function VenueSheet({ venue, party, partyLoading, distance, onDismiss, onWalk, onGetPass, onHeight }: Props) {
   const sheet = useRef<BottomSheetModal>(null);
   const insets = useSafeAreaInsets();
 
   // Keep showing the last venue while the sheet slides away, instead of an empty sheet.
-  const [last, setLast] = useState<{ venue: VenueSummary; party: Party | null } | null>(null);
+  const [last, setLast] = useState<{ venue: VenueSummary; party: PartyDetail | null } | null>(null);
   useEffect(() => {
-    if (venue) setLast({ venue, party });
+    if (venue) setLast({ venue, party: party?.id === venue.partyId ? party : null });
   }, [venue, party]);
-  const shown = venue ? { venue, party } : last;
+  const shown = venue ? { venue, party: party?.id === venue.partyId ? party : null } : last;
 
-  // @gorhom/bottom-sheet: a dismiss() on a modal that was never presented (or is still mounting)
-  // marks it as closing for good, and present() then does nothing. That is why the sheet never
-  // opened on the device: this effect dismissed it on first render. Only dismiss what is open,
-  // and give a fresh present a moment to mount first.
-  const presented = useRef(false);
-  const presentedAt = useRef(0);
-  const venueId = venue?.id ?? null;
-  useEffect(() => {
-    if (venueId) {
-      presented.current = true;
-      presentedAt.current = Date.now();
-      sheet.current?.present();
-      return;
-    }
-    if (!presented.current) return;
-    const wait = Math.max(0, PRESENT_SETTLE_MS - (Date.now() - presentedAt.current));
-    const timer = setTimeout(() => {
-      presented.current = false;
-      sheet.current?.dismiss();
-    }, wait);
-    return () => clearTimeout(timer);
-  }, [venueId]);
+  const { closed, closeNow } = useSheetPresence(sheet, venue !== null);
 
   const handleLayout = useCallback(
     (event: LayoutChangeEvent) => onHeight(event.nativeEvent.layout.height + HANDLE_HEIGHT),
@@ -86,8 +78,7 @@ export function VenueSheet({ venue, party, distance, onDismiss, onWalk, onHeight
 
   /** Close first, so the sheet is not still open when the user comes back. */
   const open = (path: `/party/${string}` | `/venue/${string}`) => {
-    presented.current = false;
-    sheet.current?.dismiss();
+    closeNow();
     router.push(path);
   };
 
@@ -97,23 +88,22 @@ export function VenueSheet({ venue, party, distance, onDismiss, onWalk, onHeight
       enableDynamicSizing
       enablePanDownToClose
       onDismiss={() => {
-        presented.current = false;
+        closed();
         onDismiss();
       }}
       handleIndicatorStyle={styles.handle}
       backgroundStyle={styles.background}
     >
-      <BottomSheetView
-        onLayout={handleLayout}
-        style={[styles.content, { paddingBottom: insets.bottom + spacing.base }]}
-      >
+      <BottomSheetView onLayout={handleLayout} style={[styles.content, { paddingBottom: insets.bottom + spacing.base }]}>
         {shown ? (
           <Content
             venue={shown.venue}
             party={shown.party}
+            partyLoading={venue ? partyLoading : false}
             distance={venue ? distance : null}
             onOpenParty={(partyId) => open(`/party/${partyId}`)}
             onOpenVenue={() => open(`/venue/${shown.venue.id}`)}
+            onGetPass={onGetPass}
             onWalk={() => onWalk(shown.venue)}
           />
         ) : null}
@@ -124,46 +114,55 @@ export function VenueSheet({ venue, party, distance, onDismiss, onWalk, onHeight
 
 type ContentProps = {
   venue: VenueSummary;
-  party: Party | null;
+  party: PartyDetail | null;
+  partyLoading: boolean;
   distance: number | null;
   onOpenParty: (partyId: string) => void;
   onOpenVenue: () => void;
+  onGetPass: (party: PartyDetail) => void;
   onWalk: () => void;
 };
 
-/** The second line of the crowd card: where the number comes from. */
-function crowdSourceText(source: string | null | undefined): string {
-  return source === 'live' ? 'Counted from scans at the door' : 'From passes taken, nobody scanned in yet';
-}
-
 /**
- * S-05, in the mock's order: the venue (name, where, how far), how busy, what is on, how to get in.
- * The venue's address and the party's line-up come from their own requests; until they arrive the
- * rows are simply shorter.
+ * In the mock's order: the venue (name, kind, area, how far) with the heart; how busy; what is on;
+ * who is there; how to get in. The venue's own page answers the crowd card's second line
+ * (`tonight`); until it arrives the line says where the range comes from.
  */
-function Content({ venue, party, distance, onOpenParty, onOpenVenue, onWalk }: ContentProps) {
+function Content({ venue, party, partyLoading, distance, onOpenParty, onOpenVenue, onGetPass, onWalk }: ContentProps) {
+  const { data: details } = useVenue(venue.id);
   const crowd = crowdText(venue.crowdLevel, venue.crowdSource);
   const crowdTone = venue.crowdSource === 'expected' ? colors.quiet : colors.crowd;
+  const place = venuePlaceLine(venue.kind ?? details?.kind, venue.area ?? details?.area, distance !== null ? distanceText(distance) : null);
   const partyId = venue.partyId;
-  const { data: details } = useVenue(venue.id);
-  const where = joinParts([details?.address, distance !== null && `${distanceText(distance)} away`]);
-  const price = party && !party.isSoldOut ? party.price : null;
+  const friends = venue.friendsHere ?? details?.friendsHere;
+  const friendsLine = friendsHereText(friends);
+  const soldOut = party?.isSoldOut ?? false;
+  const price = venue.partyPrice ?? party?.price ?? null;
+
+  const getPass = () => {
+    if (!partyId) return;
+    if (party && !party.isSoldOut) onGetPass(party);
+    else onOpenParty(partyId);
+  };
 
   return (
     <>
-      <PressableScale
-        onPress={onOpenVenue}
-        haptic={false}
-        style={styles.heading}
-        accessibilityRole="link"
-        accessibilityLabel={joinParts([venue.name, where])}
-        accessibilityHint="Opens the venue's page"
-      >
-        <Display size="md" accessibilityRole="header" style={styles.name} numberOfLines={2}>
-          {venue.name}
-        </Display>
-        {where ? <Text style={styles.where}>{where}</Text> : null}
-      </PressableScale>
+      <View style={styles.headingRow}>
+        <PressableScale
+          onPress={onOpenVenue}
+          haptic={false}
+          style={styles.heading}
+          accessibilityRole="link"
+          accessibilityLabel={joinParts([venue.name, place])}
+          accessibilityHint="Opens the venue's page"
+        >
+          <Display size="md" accessibilityRole="header" style={styles.name} numberOfLines={2}>
+            {venue.name}
+          </Display>
+          {place ? <Text style={styles.where}>{place}</Text> : null}
+        </PressableScale>
+        <SaveSquare venueId={venue.id} venueName={venue.name} />
+      </View>
 
       {crowd ? (
         <View style={[styles.crowdCard, { borderLeftColor: crowdTone }]}>
@@ -174,29 +173,38 @@ function Content({ venue, party, distance, onOpenParty, onOpenVenue, onWalk }: C
             </View>
             <CrowdBars level={venue.crowdLevel} source={venue.crowdSource} size={14} />
           </View>
-          <Text style={styles.crowdSource}>{crowdSourceText(venue.crowdSource)}</Text>
+          <Text style={styles.crowdLine}>{crowdTrendLine(details?.tonight, venue.crowdSource)}</Text>
         </View>
       ) : null}
 
       {partyId ? (
-        <PartyRow
-          key={partyId}
-          partyId={partyId}
-          title={venue.partyTitle ?? party?.title ?? 'Next party'}
-          party={party}
-          onPress={() => onOpenParty(partyId)}
-        />
+        <PartyRow venue={venue} party={party} price={price} onPress={() => onOpenParty(partyId)} />
       ) : (
         <Text style={styles.nothingOn}>No party announced here yet.</Text>
       )}
+
+      {friends && friendsLine ? (
+        <View style={styles.friends} accessible accessibilityLabel={friendsLine}>
+          <Avatars
+            initials={friends.initials}
+            more={Math.max(0, friends.count - friends.initials.length)}
+            max={2}
+            size={23}
+          />
+          <Text style={styles.friendsText} numberOfLines={1}>
+            {friendsLine}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.actions}>
         <View style={styles.primary}>
           {partyId ? (
             <PrimaryButton
-              label={party?.isSoldOut ? 'See party' : price !== null && price > 0 ? `Get pass for ${priceText(price)}` : 'Get pass'}
-              onPress={() => onOpenParty(partyId)}
-              accessibilityHint="Opens the party, where you take a pass. You pay at the door."
+              label={passButtonLabel(price, soldOut)}
+              onPress={getPass}
+              loading={!party && partyLoading}
+              accessibilityHint={soldOut ? 'Opens the party' : 'Takes a pass for this party. You pay at the door.'}
             />
           ) : (
             <PrimaryButton label="See venue" onPress={onOpenVenue} accessibilityHint="Opens the venue's page" />
@@ -216,37 +224,67 @@ function Content({ venue, party, distance, onOpenParty, onOpenVenue, onWalk }: C
   );
 }
 
+/** The heart: saves the venue to "Saved" on the account. */
+function SaveSquare({ venueId, venueName }: { venueId: string; venueName: string }) {
+  const { data: saved } = useSaved();
+  const { mutate: toggle } = useToggleSaved();
+  const on = saved?.venues.includes(venueId) ?? false;
+
+  const press = () => {
+    Haptics.selectionAsync();
+    toggle({ kind: 'venue', id: venueId, saved: !on });
+  };
+
+  return (
+    <PressableScale
+      onPress={press}
+      haptic={false}
+      style={styles.heart}
+      accessibilityRole="button"
+      accessibilityLabel={on ? `Remove ${venueName} from saved` : `Save ${venueName}`}
+      accessibilityState={{ selected: on }}
+    >
+      <Icon
+        sfSymbol={on ? 'heart.fill' : 'heart'}
+        ionicon={on ? 'heart' : 'heart-outline'}
+        size={19}
+        color={on ? colors.crowd : colors.label}
+      />
+    </PressableScale>
+  );
+}
+
 type PartyRowProps = {
-  partyId: string;
-  title: string;
-  party: Party | null;
+  venue: VenueSummary;
+  party: PartyDetail | null;
+  price: number | null;
   onPress: () => void;
 };
 
-/** "Lena K, DJ Proximus, Techno, 23:00–04:00", with the day in front when it is not tonight. */
-function partyLine(party: Party | null, performer: string | null | undefined, now: number): string {
-  if (!party) return joinParts([performer]);
-  const from = timeText(party.startsAt);
-  const to = timeText(party.endsAt);
-  const day = dayText(party, now);
-  const hours = from && to ? `${from}–${to}` : from;
-  return joinParts([performer, party.genre, day && day !== 'Tonight' ? `${day} ${hours}` : hours]);
-}
-
-/** The venue's next party: a small poster, its name, who plays and when, and the door price. */
-function PartyRow({ partyId, title, party, onPress }: PartyRowProps) {
+/** The venue's party: a small poster, its name, line-up, genre and hours, and the door price. */
+function PartyRow({ venue, party, price, onPress }: PartyRowProps) {
   // Read the clock once per opening; the line does not need to tick.
   const [now] = useState(() => Date.now());
-  const { data: detail } = useParty(partyId);
-  const line = partyLine(party, detail?.performerName, now);
-  const price = party ? (party.isSoldOut ? 'Sold out' : priceText(party.price)) : '';
+  const title = venue.partyTitle ?? party?.title ?? 'Next party';
+  const line = partyLine(
+    {
+      lineupText: venue.partyLineupText,
+      genre: venue.partyGenre ?? party?.genre,
+      startsAt: venue.partyStartsAt ?? party?.startsAt,
+      endsAt: venue.partyEndsAt ?? party?.endsAt,
+    },
+    now,
+  );
+  const soldOut = party?.isSoldOut ?? false;
+  const priceLabel = soldOut ? 'Sold out' : price !== null ? priceText(price) : '';
 
   return (
     <PressableScale
       onPress={onPress}
       style={styles.party}
       accessibilityRole="button"
-      accessibilityLabel={joinParts([title, line, price && (party?.isSoldOut ? price : `${price} at the door`)])}
+      accessibilityLabel={joinParts([title, line, priceLabel && (soldOut ? priceLabel : `${priceLabel} at the door`)])}
+      accessibilityHint="Opens the party"
     >
       <Poster imageUrl={party?.imageUrl} title={title} titleSize={11} style={styles.poster} />
       <View style={styles.partyText}>
@@ -259,11 +297,12 @@ function PartyRow({ partyId, title, party, onPress }: PartyRowProps) {
           </Text>
         ) : null}
       </View>
-      {price ? <Text style={styles.price}>{price}</Text> : null}
+      {priceLabel ? <Text style={styles.price}>{priceLabel}</Text> : null}
     </PressableScale>
   );
 }
 
+// Sizes are the mock's S-05 `.sheet` (afterglow-concept.html) times about 1.37.
 const styles = StyleSheet.create({
   background: {
     backgroundColor: colors.surface,
@@ -277,9 +316,15 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 22,
     paddingTop: spacing.xs,
-    gap: 13,
+    gap: 14,
+  },
+  headingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
   },
   heading: {
+    flex: 1,
     gap: spacing.xs,
   },
   name: {
@@ -290,6 +335,14 @@ const styles = StyleSheet.create({
     ...typography.footnote,
     color: colors.labelSecondary,
   },
+  heart: {
+    width: 41,
+    height: 41,
+    borderRadius: 12,
+    backgroundColor: colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   crowdCard: {
     backgroundColor: colors.surfaceElevated,
     borderLeftWidth: 3,
@@ -298,7 +351,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radii.card,
     borderBottomRightRadius: radii.card,
     paddingVertical: 11,
-    paddingHorizontal: 13,
+    paddingHorizontal: 14,
     gap: spacing.xs,
   },
   crowdRow: {
@@ -323,9 +376,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  crowdSource: {
+  crowdLine: {
     ...typography.footnote,
+    fontSize: 12.5,
     color: colors.labelSecondary,
+    fontVariant: ['tabular-nums'],
   },
   party: {
     flexDirection: 'row',
@@ -333,8 +388,8 @@ const styles = StyleSheet.create({
     gap: 11,
   },
   poster: {
-    width: 54,
-    height: 54,
+    width: 55,
+    height: 55,
     borderRadius: 12,
   },
   partyText: {
@@ -343,6 +398,7 @@ const styles = StyleSheet.create({
   },
   partyTitle: {
     ...typography.callout,
+    fontSize: 16.5,
     fontWeight: '600',
     color: colors.label,
   },
@@ -353,6 +409,7 @@ const styles = StyleSheet.create({
   },
   price: {
     ...typography.headline,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.label,
     fontVariant: ['tabular-nums'],
@@ -360,6 +417,16 @@ const styles = StyleSheet.create({
   nothingOn: {
     ...typography.subheadline,
     color: colors.labelSecondary,
+  },
+  friends: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  friendsText: {
+    ...typography.footnote,
+    color: colors.you,
+    flexShrink: 1,
   },
   actions: {
     flexDirection: 'row',
@@ -370,7 +437,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   walk: {
-    width: 59,
+    width: 60,
     height: layout.buttonHeight,
     borderRadius: radii.button,
     backgroundColor: colors.surfaceElevated,

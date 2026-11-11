@@ -26,8 +26,10 @@
  *     The selected venue's name sits on a white block and its building's lines turn white.
  *  6. Zoomed far out (below zoom 15, where Mapbox has few buildings) the map lays itself flat
  *     and shows discs; zoomed back in it tilts up again.
- *  7. Live / My city. My city: venues you were scanned into turn lime, the rest are dashed rings
- *     with a dim name; the line under "Podgorica" says "3 of 7 venues lit".
+ *  7. Live / My city / Friends. My city: venues you were scanned into turn lime, the rest are
+ *     dashed rings with a dim name; the line under the city says "12 of 31 venues lit. 3 more for
+ *     Explorer". Friends: cyan rings at venues, "5 friends out. Mila and 2 more at Dr. House";
+ *     with sharing off, the "switch on" card. The city's name opens the city sheet.
  *  8. Taps. A beam, its ring, its name, or anywhere on the venue's own building opens the venue
  *     sheet; empty map closes it; the back button closes it; share opens the share sheet.
  *     Standing at a venue, tapping your own dot selects it.
@@ -38,16 +40,19 @@
  * 12. Location. No system prompt on launch, only after "Use my location". Then a cyan dot;
  *     locate-me flies to it. Denied: locate-me shows the "Open Settings" banner.
  * 13. Walking. Cyan line with a white middle, the banner at the top with the next turn and the
- *     distance to it (moves on as you walk), the card with time, distance, "Show pass" when
- *     you hold one, "Share ETA", "End". Network off: "Could not get a route. Try again."
+ *     distance to it (moves on as you walk), the sheet at the bottom with time, distance, "To
+ *     Monkey, doors open, your pass is ready", "Show pass" when you hold one, "Share ETA", "End".
+ *     Network off: "Could not get a route. Try again." Also reached with `walkTo=<venueId>`.
+ * 14. A sign: tapping it opens its card; the top shows back, the area, and 2D.
  */
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { useIsFocused } from '@react-navigation/native';
-import { Share, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, Share, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
 import { router } from 'expo-router';
 import Animated from 'react-native-reanimated';
-import { GLIDE } from '@/components/city/card-motion';
+import { CityPickerSheet, type CityPickerSheetRef } from '@/components/account/city-picker-sheet';
+import { CARD_ENTER, CARD_EXIT, GLIDE } from '@/components/city/card-motion';
 import {
   BOTTOM_FADE_SHARE,
   BottomFade,
@@ -56,59 +61,114 @@ import {
   MapControls,
   MapTop,
   SelectedBar,
+  SignBar,
   TOP_FADE_SHARE,
   TopFade,
 } from '@/components/city/chrome';
+import { etaMessage, venueShareUrl } from '@/components/city/city-lines';
 import { CityMap } from '@/components/city/city-map';
-import { CITY } from '@/components/city/constants';
 import { walkingTimeText } from '@/components/city/directions';
 import { LocationCard } from '@/components/city/location-card';
 import { RouteCard } from '@/components/city/route-card';
 import { TurnBanner } from '@/components/city/turn-banner';
 import { VenueSheet } from '@/components/city/venue-sheet';
+import { CheckoutSheet, type CheckoutSheetRef } from '@/components/finding/checkout-sheet';
+import { MapFilterSheet } from '@/components/finding/map-filter-sheet';
+import { SearchSheet } from '@/components/finding/search-sheet';
+import { FriendsOffCard } from '@/components/people/friends-off-card';
+import { SignCardSheet } from '@/components/signs/sign-card-sheet';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ApiConstants } from '@/constants/api';
+import { routes } from '@/constants/routes';
 import { useCity } from '@/hooks/city/useCity';
-import { crowdText } from '@/services/crowd';
+import { useCities, useProfile } from '@/hooks/queries';
 import { errorText } from '@/services/errorText';
 import { colors, spacing } from '@/theme';
+import type { PartyDetail } from '@/types/api';
 
 // Set once. With no token the screen shows "Map unavailable" instead of a map.
 if (ApiConstants.MapboxPublicToken) {
   Mapbox.setAccessToken(ApiConstants.MapboxPublicToken);
 }
 
+/** How long the map waits for the chosen city before opening on the default one (it flies over later). */
+const HOME_WAIT_MS = 1500;
+
 export default function CityScreen() {
-  return ApiConstants.MapboxPublicToken ? <City /> : <MapUnavailable />;
+  const ready = useHomeKnown();
+  if (!ApiConstants.MapboxPublicToken) return <MapUnavailable />;
+  return ready ? <City /> : <View style={styles.root} />;
+}
+
+/**
+ * True once the chosen city is known (the account and the city list have answered, either way),
+ * or after a short wait. The camera opens on the city it is given first, so this saves a flight.
+ */
+function useHomeKnown(): boolean {
+  const { status: citiesStatus } = useCities();
+  const { status: profileStatus } = useProfile();
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setWaited(true), HOME_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  return waited || (citiesStatus !== 'pending' && profileStatus !== 'pending');
+}
+
+/** Shares a link: as a link on iOS (with a preview), inside the text elsewhere. */
+function shareLink(title: string, url: string) {
+  const content = Platform.OS === 'ios' ? { message: title, url } : { message: `${title} ${url}` };
+  Share.share(content).catch(() => {});
 }
 
 function City() {
   const city = useCity();
-  // Only the screen in front pulses: a hidden tab should not keep the map busy.
+  // Only the screen in front pulses, and the walking sheet shows only over this tab.
   const focused = useIsFocused();
-  const { route, selected, nextTurn } = city;
+  const { route, selected, nextTurn, selectedSign } = city;
   const { height } = useWindowDimensions();
+
+  const cityPicker = useRef<CityPickerSheetRef>(null);
+  const search = useRef<ComponentRef<typeof SearchSheet>>(null);
+  const filterSheet = useRef<ComponentRef<typeof MapFilterSheet>>(null);
+  const checkout = useRef<CheckoutSheetRef>(null);
 
   const shareVenue = useCallback(() => {
     if (!selected) return;
-    const crowd = crowdText(selected.crowdLevel, selected.crowdSource);
-    const message = `${selected.name}, ${CITY.name}${crowd ? `: ${crowd}` : ''}. Seen on FindMyParty.`;
-    Share.share({ message }).catch(() => {});
-  }, [selected]);
+    shareLink(`${selected.name}, ${city.cityName}`, venueShareUrl(ApiConstants.GatewayBaseUrl, selected.id));
+  }, [selected, city.cityName]);
 
   const shareEta = useCallback(() => {
     if (route.status !== 'ready') return;
-    const message = `On my way to ${route.venue.name}, about ${walkingTimeText(route.route.seconds)} on foot.`;
+    const url = venueShareUrl(ApiConstants.GatewayBaseUrl, route.venue.id);
+    const message = etaMessage(route.venue.name, walkingTimeText(route.route.seconds), url);
     Share.share({ message }).catch(() => {});
   }, [route]);
 
-  const showPass = useCallback(() => router.push('/(tabs)/pass'), []);
+  const showPass = useCallback(() => router.navigate(routes.pass), []);
+  const getPass = useCallback((_party: PartyDetail) => checkout.current?.present(), []);
 
+  /** Search: a venue is selected on the map; a party opens its venue here, or its own page. */
+  const { venues, select } = city;
+  const onSearchVenue = useCallback((venueId: string) => select(venueId), [select]);
+  const onSearchParty = useCallback(
+    (partyId: string) => {
+      const venue = venues.find((candidate) => candidate.partyId === partyId);
+      if (venue) select(venue.id);
+      else router.push(`/party/${partyId}`);
+    },
+    [venues, select],
+  );
+
+  const walking = route.status !== 'idle';
   const banners =
-    city.venuesError || city.banner ? (
+    city.venuesError || city.banner || city.layerError ? (
       <>
         {city.venuesError ? (
           <MapBanner message={errorText(city.venuesError)} action={{ label: 'Try again', onPress: city.retryVenues }} />
+        ) : null}
+        {city.layerError ? (
+          <MapBanner message={errorText(city.layerError.error)} action={{ label: 'Try again', onPress: city.layerError.retry }} />
         ) : null}
         {city.banner ? <MapBanner message={city.banner.message} action={city.banner.action} /> : null}
       </>
@@ -123,6 +183,9 @@ function City() {
         selectedId={selected?.id ?? null}
         mode={city.mode}
         earned={city.earned}
+        friends={city.friendsOnMap}
+        signs={city.signs}
+        onSelectSign={city.selectSign}
         onSelectVenue={city.select}
         onPressEmpty={city.pressMap}
         routeLine={route.status === 'ready' ? route.route.line : null}
@@ -134,49 +197,77 @@ function City() {
       {/* Only behind the tab bar, so the Mapbox wordmark above it stays clear (Mapbox's terms). */}
       <BottomFade height={Math.min(height * BOTTOM_FADE_SHARE, city.tabBarClearance)} />
 
-      {/* The top: the next turn while walking, back and share with a venue open, else the city. */}
+      {/* The top: the next turn while walking, back and share with a venue open, the sign's area
+          with a sign open, else the city. */}
       <MapTop banners={banners}>
-        {route.status !== 'idle' && nextTurn ? (
+        {walking && nextTurn ? (
           <TurnBanner title={nextTurn.title} direction={nextTurn.direction} metres={nextTurn.metres} />
         ) : selected ? (
           <SelectedBar venueName={selected.name} onBack={city.clearSelection} onShare={shareVenue} />
+        ) : selectedSign ? (
+          <SignBar area={city.signArea} flat={city.camera.flat} onBack={city.clearSign} onToggleFlat={city.camera.toggleFlat} />
         ) : (
-          <CityHeading pulse={city.pulse} mode={city.mode} onMode={city.setMode} />
+          <CityHeading
+            cityName={city.cityName}
+            pulse={city.pulse}
+            mode={city.mode}
+            onMode={city.setMode}
+            onPickCity={() => cityPicker.current?.present()}
+            onSearch={() => search.current?.present()}
+            onFilter={() => filterSheet.current?.present()}
+            filterOn={city.filterOn}
+          />
         )}
       </MapTop>
 
-      {/* Above the tab bar: the two controls, and under them whichever card is up. */}
-      <View pointerEvents="box-none" style={[styles.bottom, { bottom: city.tabBarClearance }]}>
-        <Animated.View layout={GLIDE} style={styles.controls}>
-          <MapControls
-            flat={city.camera.flat}
-            onToggleFlat={city.camera.toggleFlat}
-            onLocate={city.locate}
-            locating={city.locating}
-          />
-        </Animated.View>
-        {route.status !== 'idle' ? (
-          <RouteCard
-            venueName={route.venue.name}
-            route={route.status === 'ready' ? route.route : null}
-            passReady={city.passReady}
-            onEnd={city.endWalk}
-            onShowPass={showPass}
-            onShareEta={shareEta}
-          />
-        ) : city.showLocationCard ? (
-          <LocationCard onAllow={city.allowLocation} onNotNow={city.notNow} asking={city.asking} />
-        ) : null}
-      </View>
+      {/* Above the tab bar: the two controls, and under them whichever card is up. While walking the
+          walking sheet covers the bottom, as on the mock. */}
+      {walking ? null : (
+        <View pointerEvents="box-none" style={[styles.bottom, { bottom: city.tabBarClearance }]}>
+          <Animated.View layout={GLIDE} style={styles.controls}>
+            <MapControls
+              flat={city.camera.flat}
+              onToggleFlat={city.camera.toggleFlat}
+              onLocate={city.locate}
+              locating={city.locating}
+            />
+          </Animated.View>
+          {city.showLocationCard ? (
+            <LocationCard onAllow={city.allowLocation} onNotNow={city.notNow} asking={city.asking} />
+          ) : city.showFriendsOff ? (
+            <Animated.View entering={CARD_ENTER} exiting={CARD_EXIT}>
+              <FriendsOffCard />
+            </Animated.View>
+          ) : null}
+        </View>
+      )}
 
       <VenueSheet
         venue={selected}
         party={city.selectedParty}
+        partyLoading={city.selectedPartyLoading}
         distance={city.selectedDistance}
         onDismiss={city.clearSelection}
         onWalk={city.walkTo}
+        onGetPass={getPass}
         onHeight={city.onSheetHeight}
       />
+      <RouteCard
+        open={walking && focused}
+        venueName={route.status === 'idle' ? '' : route.venue.name}
+        route={route.status === 'ready' ? route.route : null}
+        tail={city.routeTail}
+        passReady={city.passReady}
+        onEnd={city.endWalk}
+        onShowPass={showPass}
+        onShareEta={shareEta}
+        onHeight={city.onRouteSheetHeight}
+      />
+      <SignCardSheet sign={selectedSign} onDismiss={city.clearSign} />
+      {city.selectedParty ? <CheckoutSheet ref={checkout} party={city.selectedParty} now={Date.now()} /> : null}
+      <CityPickerSheet ref={cityPicker} />
+      <SearchSheet ref={search} city={city.slug} onVenue={onSearchVenue} onParty={onSearchParty} />
+      <MapFilterSheet ref={filterSheet} value={city.filter} onChange={city.setFilter} />
     </View>
   );
 }

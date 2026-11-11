@@ -5,9 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '@/components/afterglow/motion';
 import { Display } from '@/components/afterglow/text';
 import { Icon } from '@/components/ui/icon';
-import type { Pulse } from '@/hooks/city/useCity';
 import { colors, display, layout, radii, spacing, typography } from '@/theme';
-import { CITY } from './constants';
+import type { Pulse } from './city-lines';
 import type { CityMode } from './geojson';
 
 // Sizes are the mock's (design-proposals/afterglow-concept.html, `.maptop`, `.city`, `.pulse`,
@@ -33,7 +32,7 @@ const BOTTOM_FADE = [withAlpha(colors.bg, 0), withAlpha(colors.bg, 0.9)] as cons
 export const BOTTOM_FADE_SHARE = 0.28;
 
 const SQUARE = 43;
-const ROUND = 40;
+const ROUND = 41;
 const TEXT_SHADOW = {
   textShadowColor: withAlpha(colors.bg, 0.9),
   textShadowOffset: { width: 0, height: 1 },
@@ -82,48 +81,86 @@ export function MapTop({ children, banners }: TopProps) {
 }
 
 type HeadingProps = {
-  /** The line under the name; null while the first load is running (it is left out). */
+  /** The chosen city's name ("Podgorica"). */
+  cityName: string;
+  /** The line under the name; null while it is not known yet (it is left out). */
   pulse: Pulse | null;
   mode: CityMode;
   onMode: (mode: CityMode) => void;
+  /** The name and its chevron open the city sheet. */
+  onPickCity: () => void;
+  onSearch: () => void;
+  onFilter: () => void;
+  /** A filter is on: the filter square turns white. */
+  filterOn: boolean;
 };
 
+/** The colour of the bold part of the pulse line, and of the chosen layer's underline. */
+const TONE: Record<Pulse['tone'], string> = { live: colors.label, earned: colors.earned, friends: colors.you };
+
 /**
- * S-04: "Podgorica" in Coolvetica with a small chevron, the city's pulse under it, and the
- * Live / My city switch as two words with an underline under the chosen one.
+ * S-04, S-08, S-09: the city's name in Coolvetica with a chevron (the city switch), the city's
+ * pulse under it, the search and filter squares on the right, and under them the Live / My city /
+ * Friends switch as three words with an underline under the chosen one (white, lime, cyan).
  */
-export function CityHeading({ pulse, mode, onMode }: HeadingProps) {
+export function CityHeading({ cityName, pulse, mode, onMode, onPickCity, onSearch, onFilter, filterOn }: HeadingProps) {
   return (
     <View pointerEvents="box-none" style={styles.heading}>
-      <View pointerEvents="none">
-        <View style={styles.cityRow}>
-          <Display size="lg" accessibilityRole="header" style={styles.cityName}>
-            {CITY.name}
-          </Display>
-          <View style={styles.chevron}>
-            <Icon sfSymbol="chevron.down" ionicon="chevron-down" size={15} color={colors.label} />
-          </View>
+      <View pointerEvents="box-none" style={styles.headingRow}>
+        <View pointerEvents="box-none" style={styles.headingText}>
+          <Pressable
+            onPress={onPickCity}
+            hitSlop={layout.hitSlop}
+            accessibilityRole="button"
+            accessibilityLabel={`${cityName}, change city`}
+            style={({ pressed }) => [styles.cityRow, pressed && styles.pressedLink]}
+          >
+            <Display size="lg" accessibilityRole="header" style={styles.cityName} numberOfLines={1}>
+              {cityName}
+            </Display>
+            <View style={styles.chevron}>
+              <Icon sfSymbol="chevron.down" ionicon="chevron-down" size={15} color={colors.label} />
+            </View>
+          </Pressable>
+          {pulse ? (
+            <Text style={styles.pulse} pointerEvents="none">
+              {pulse.strong ? <Text style={[styles.pulseStrong, { color: TONE[pulse.tone] }]}>{pulse.strong}</Text> : null}
+              {pulse.rest}
+            </Text>
+          ) : null}
         </View>
-        {pulse ? (
-          <Text style={styles.pulse}>
-            {pulse.strong ? (
-              <Text style={[styles.pulseStrong, pulse.tone === 'earned' && styles.pulseEarned]}>{pulse.strong}</Text>
-            ) : null}
-            {pulse.rest}
-          </Text>
-        ) : null}
+        <View style={styles.squares}>
+          <PressableScale onPress={onSearch} style={styles.square} accessibilityRole="button" accessibilityLabel="Search venues and parties">
+            <Icon sfSymbol="magnifyingglass" ionicon="search" size={18} color={colors.label} />
+          </PressableScale>
+          <PressableScale
+            onPress={onFilter}
+            style={[styles.square, filterOn && styles.squareOn]}
+            accessibilityRole="button"
+            accessibilityLabel="Filter the map"
+            accessibilityState={{ selected: filterOn }}
+          >
+            <Icon
+              sfSymbol="slider.horizontal.3"
+              ionicon="options-outline"
+              size={18}
+              color={filterOn ? colors.ink : colors.label}
+            />
+          </PressableScale>
+        </View>
       </View>
       <View style={styles.layers} accessibilityRole="tablist">
-        <LayerTab label="Live" on={mode === 'live'} onPress={() => onMode('live')} />
-        <LayerTab label="My city" on={mode === 'mine'} earned onPress={() => onMode('mine')} />
+        <LayerTab label="Live" on={mode === 'live'} tone="live" onPress={() => onMode('live')} />
+        <LayerTab label="My city" on={mode === 'mine'} tone="earned" onPress={() => onMode('mine')} />
+        <LayerTab label="Friends" on={mode === 'friends'} tone="friends" onPress={() => onMode('friends')} />
       </View>
     </View>
   );
 }
 
-type LayerTabProps = { label: string; on: boolean; earned?: boolean; onPress: () => void };
+type LayerTabProps = { label: string; on: boolean; tone: Pulse['tone']; onPress: () => void };
 
-function LayerTab({ label, on, earned, onPress }: LayerTabProps) {
+function LayerTab({ label, on, tone, onPress }: LayerTabProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -131,7 +168,7 @@ function LayerTab({ label, on, earned, onPress }: LayerTabProps) {
       accessibilityRole="tab"
       accessibilityState={{ selected: on }}
       accessibilityLabel={label}
-      style={[styles.layer, on && { borderBottomColor: earned ? colors.earned : colors.label }]}
+      style={[styles.layer, on && { borderBottomColor: TONE[tone] }]}
     >
       <Text style={[styles.layerLabel, on && styles.layerLabelOn]} allowFontScaling={false}>
         {label}
@@ -156,6 +193,42 @@ export function SelectedBar({ onBack, onShare, venueName }: SelectedBarProps) {
         accessibilityLabel={`Share ${venueName}`}
       >
         <Icon sfSymbol="square.and.arrow.up" ionicon="share-outline" size={19} color={colors.label} />
+      </PressableScale>
+    </View>
+  );
+}
+
+type SignBarProps = {
+  /** Where the sign is: "Stara Varoš". */
+  area: string;
+  flat: boolean;
+  onBack: () => void;
+  onToggleFlat: () => void;
+};
+
+/** S-19: with a sign's card open, back, the area as a block in the middle, and 2D/3D. */
+export function SignBar({ area, flat, onBack, onToggleFlat }: SignBarProps) {
+  return (
+    <View pointerEvents="box-none" style={styles.selectedBar}>
+      <PressableScale onPress={onBack} style={styles.round} accessibilityRole="button" accessibilityLabel="Back to the city">
+        <Icon sfSymbol="chevron.left" ionicon="chevron-back" size={20} color={colors.label} />
+      </PressableScale>
+      {area ? (
+        <View style={styles.areaBlock} accessibilityRole="text">
+          <Text style={styles.areaLabel} numberOfLines={1}>
+            {area}
+          </Text>
+        </View>
+      ) : null}
+      <PressableScale
+        onPress={onToggleFlat}
+        style={styles.round}
+        accessibilityRole="button"
+        accessibilityLabel={flat ? 'Switch to 3D view' : 'Switch to 2D view'}
+      >
+        <Text style={styles.squareLabel} allowFontScaling={false}>
+          {flat ? '3D' : '2D'}
+        </Text>
       </PressableScale>
     </View>
   );
@@ -252,6 +325,19 @@ const styles = StyleSheet.create({
   heading: {
     gap: spacing.md,
   },
+  headingRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  headingText: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  squares: {
+    flexDirection: 'row',
+    gap: 8,
+  },
   cityRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -278,10 +364,6 @@ const styles = StyleSheet.create({
   },
   pulseStrong: {
     fontWeight: '600',
-    color: colors.label,
-  },
-  pulseEarned: {
-    color: colors.earned,
   },
   layers: {
     flexDirection: 'row',
@@ -352,6 +434,22 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  squareOn: {
+    backgroundColor: colors.label,
+  },
+  areaBlock: {
+    height: ROUND,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 15,
+    justifyContent: 'center',
+    flexShrink: 1,
+  },
+  areaLabel: {
+    ...typography.footnote,
+    fontWeight: '600',
+    color: colors.label,
   },
   squareLabel: {
     ...typography.footnote,
