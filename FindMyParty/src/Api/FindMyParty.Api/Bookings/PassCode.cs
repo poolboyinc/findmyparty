@@ -11,7 +11,9 @@ namespace FindMyParty.Api.Bookings;
 public static class PassCode
 {
     public const int StepSeconds = 30;
-    private const string Prefix = "fmp1";
+    public const string BookingPrefix = "fmp1";
+    /// <summary>A guest pass: same code scheme, its own id and secret.</summary>
+    public const string GuestPrefix = "fmpg1";
 
     /// <summary>The half-minute window a moment falls in.</summary>
     public static long StepAt(DateTime utc) =>
@@ -43,14 +45,25 @@ public static class PassCode
     public static string NewSecret() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
 
     /// <summary>The text encoded in the QR: "fmp1.{booking id}.{code}".</summary>
-    public static string Format(Guid bookingId, string code) => $"{Prefix}.{bookingId:N}.{code}";
+    public static string Format(Guid bookingId, string code) => $"{BookingPrefix}.{bookingId:N}.{code}";
 
-    public static bool TryParse(string? text, out Guid bookingId, out string code)
+    /// <summary>A guest pass's QR: "fmpg1.{guest pass id}.{code}".</summary>
+    public static string FormatGuest(Guid guestPassId, string code) => $"{GuestPrefix}.{guestPassId:N}.{code}";
+
+    /// <summary>Reads a booking's own QR only.</summary>
+    public static bool TryParse(string? text, out Guid bookingId, out string code) =>
+        TryParse(text, out var guest, out bookingId, out code) && !guest;
+
+    /// <summary>Reads a booking's QR or a guest pass's. `guest` says which; `id` is the booking or guest pass id.</summary>
+    public static bool TryParse(string? text, out bool guest, out Guid id, out string code)
     {
-        bookingId = default;
+        guest = false;
+        id = default;
         code = "";
-        var parts = text?.Split('.');
-        if (parts is not [Prefix, var id, var c] || !Guid.TryParseExact(id, "N", out bookingId)) return false;
+        var parts = text?.Trim().Split('.');
+        if (parts is not [var prefix, var raw, var c] || !Guid.TryParseExact(raw, "N", out id)) return false;
+        if (prefix == GuestPrefix) guest = true;
+        else if (prefix != BookingPrefix) return false;
         if (c.Length != 8 || !c.All(Uri.IsHexDigit)) return false;
         code = c.ToLowerInvariant();
         return true;
