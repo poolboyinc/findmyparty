@@ -1,8 +1,10 @@
 // The light pictures, by the names the map layers use (components/city/sprites.ts).
 // Written by tools/city-preview/make-sprites.mjs: do not edit by hand.
 
-import { LABEL_BOX, LABEL_BOX_IMAGE, SPRITE } from './constants';
+import { LABEL_BOX, LABEL_BOX_IMAGE } from './constants';
 
+// Each file is named `<name>@3x.png`: three pixels per point. The scale has to come from the file
+// name: one passed to the map's `<Images>` is ignored for bundled files in a release build.
 const FILES = {
   'ad-tag': require('@/assets/images/city/ad-tag.png'),
   'beam-0-expected': require('@/assets/images/city/beam-0-expected.png'),
@@ -43,12 +45,12 @@ const FILES = {
   'ring-selected': require('@/assets/images/city/ring-selected.png'),
 } as const;
 
-/** Ready for the map's `<Images>`: each picture with its pixels-per-point. */
+/** Ready for the map's `<Images>`. */
 export const SPRITE_IMAGES = {
-  ...Object.fromEntries(Object.entries(FILES).map(([name, image]) => [name, { image, scale: SPRITE.pixelRatio }])),
+  ...FILES,
   [LABEL_BOX_IMAGE]: {
     image: require('@/assets/images/city/label-box.png'),
-    scale: LABEL_BOX.pixelRatio,
+    // In pixels of the file: with no `scale` given here the map takes them as they are.
     stretchX: LABEL_BOX.stretch,
     stretchY: LABEL_BOX.stretch,
   },

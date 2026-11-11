@@ -118,25 +118,30 @@ export function cityLayers(): LayerSpec[] {
 }
 
 /**
- * Every venue as light, drawn by the map itself (no React view per venue). Three groups, each on
+ * Every venue as light, drawn by the map itself (no React view per venue). Four groups, each on
  * its own source, bottom to top:
- *   ground  the pool of light under a lit venue; in 2D, the discs;
+ *   glow    the pool of light under a lit venue (on its own source so it cannot be tapped: it is wide);
+ *   ground  in 2D, the discs;
  *   shapes  the bright line round the roof of the venue's building and the lines up its corners;
  *   lights  the ring on the roof, the beam standing in it, then names with their crowd, the selected block.
+ *
+ * Every layer is always there and is switched with `visibility`: the map puts a layer that is
+ * mounted later on top of everything, whatever its place in this list.
  */
 export function venueLayers(
   flat: boolean,
+  /** `false`: names are hidden (the welcome backdrop; the Friends layer, whose own marks carry names). */
   labels: boolean,
   /** Friends layer: beams and rings at part strength. */
   dim = false,
-): { ground: LayerSpec[]; shapes: LayerSpec[]; lights: LayerSpec[] } {
+): { glow: LayerSpec[]; ground: LayerSpec[]; shapes: LayerSpec[]; lights: LayerSpec[] } {
   const ground = { source: SOURCE.venuePoints } as const;
   const shapes = { source: SOURCE.venueShapes } as const;
   const lights = { source: SOURCE.venueLights } as const;
   const lit = litBuildingStyle(flat);
   return {
+    glow: [{ type: 'circle', id: LAYER.groundGlow, source: SOURCE.venueGlow, style: groundGlowStyle(flat) }],
     ground: [
-      { type: 'circle', id: LAYER.groundGlow, ...ground, style: groundGlowStyle(flat) },
       { type: 'circle', id: LAYER.disc, ...ground, style: discStyle(flat) },
       { type: 'circle', id: LAYER.discDot, ...ground, style: discDotStyle(flat) },
       { type: 'circle', id: LAYER.discRing, ...ground, filter: FILTER.selected, style: discRingStyle(flat) },
@@ -148,12 +153,8 @@ export function venueLayers(
     lights: [
       { type: 'symbol', id: LAYER.roofRing, ...lights, style: ringStyle(flat, dim) },
       { type: 'symbol', id: LAYER.beam, ...lights, filter: FILTER.hasBeam, style: beamStyle(flat, dim) },
-      ...(labels
-        ? ([
-            { type: 'symbol', id: LAYER.labelNames, ...lights, filter: FILTER.names, style: nameStyle() },
-            { type: 'symbol', id: LAYER.labelSelected, ...lights, filter: FILTER.selected, style: selectedLabelStyle() },
-          ] satisfies LayerSpec[])
-        : []),
+      { type: 'symbol', id: LAYER.labelNames, ...lights, filter: FILTER.names, style: nameStyle(!labels) },
+      { type: 'symbol', id: LAYER.labelSelected, ...lights, filter: FILTER.selected, style: selectedLabelStyle(!labels) },
     ],
   };
 }

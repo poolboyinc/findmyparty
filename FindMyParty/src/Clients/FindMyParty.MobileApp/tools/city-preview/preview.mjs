@@ -136,16 +136,15 @@ const base = `http://127.0.0.1:${server.address().port}`;
 const kebab = (name) => name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
 const fog = C.SWITCH.atmosphere ? Object.fromEntries(Object.entries(ATMOSPHERE_STYLE).map(([k, v]) => [kebab(k), v])) : null;
 const images = [
-  { name: C.FACADE_IMAGE, url: `${base}/images/city-facade.png`, pixelRatio: C.FACADE_IMAGE_SCALE },
+  { name: C.FACADE_IMAGE, url: `${base}/images/city-facade@2x.png`, pixelRatio: C.FACADE_IMAGE_SCALE },
   {
     name: C.LABEL_BOX_IMAGE,
-    url: `${base}/images/city/label-box.png`,
+    url: `${base}/images/city/label-box@3x.png`,
     pixelRatio: C.LABEL_BOX.pixelRatio,
-    // The app gives the stretch in points; Mapbox GL JS wants pixels.
-    stretchX: C.LABEL_BOX.stretch.map((pair) => pair.map((v) => v * C.LABEL_BOX.pixelRatio)),
-    stretchY: C.LABEL_BOX.stretch.map((pair) => pair.map((v) => v * C.LABEL_BOX.pixelRatio)),
+    stretchX: C.LABEL_BOX.stretch,
+    stretchY: C.LABEL_BOX.stretch,
   },
-  ...SPRITE_NAMES.map((name) => ({ name, url: `${base}/images/city/${name}.png`, pixelRatio: C.SPRITE.pixelRatio })),
+  ...SPRITE_NAMES.map((name) => ({ name, url: `${base}/images/city/${name}@3x.png`, pixelRatio: C.SPRITE.pixelRatio })),
 ];
 
 page = await openPage();
@@ -167,6 +166,7 @@ try {
     const sources = () => {
       const points = venuePoints(venues, drawing());
       return {
+        [C.SOURCE.venueGlow]: points,
         [C.SOURCE.venuePoints]: points,
         [C.SOURCE.venueShapes]: venueShapes(venues, drawing()),
         [C.SOURCE.venueLights]: points,
@@ -190,6 +190,7 @@ try {
     const signData = signFeatures(shownSigns, C.BUILDINGS.stretch);
     const layers = [
       ...cityLayers(),
+      ...groups.glow,
       ...groups.ground,
       ...groups.shapes,
       ...signGroups.slabs,

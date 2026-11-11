@@ -95,6 +95,9 @@ export const VenueLayers = memo(function VenueLayers({
 
   return (
     <>
+      <ShapeSource id={SOURCE.venueGlow} shape={points}>
+        <SpecLayers specs={layers.glow} />
+      </ShapeSource>
       <ShapeSource id={SOURCE.venuePoints} shape={points} {...press}>
         <SpecLayers specs={layers.ground} />
       </ShapeSource>

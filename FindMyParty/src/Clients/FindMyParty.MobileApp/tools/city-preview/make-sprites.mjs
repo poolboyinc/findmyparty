@@ -206,7 +206,7 @@ try {
   const sizes = {};
   for (const sprite of sprites) {
     const result = await page.run(`(${draw.toString()})(${JSON.stringify(sprite)})`);
-    writeFileSync(join(out, `${sprite.name}.png`), Buffer.from(result.url.split(',')[1], 'base64'));
+    writeFileSync(join(out, `${sprite.name}@3x.png`), Buffer.from(result.url.split(',')[1], 'base64'));
     sizes[sprite.name] = { width: result.width, height: result.height, length: result.length, halo: result.halo };
   }
   console.log(JSON.stringify(sizes, null, 1));
@@ -218,18 +218,20 @@ try {
     `// The light pictures, by the names the map layers use (components/city/sprites.ts).
 // Written by tools/city-preview/make-sprites.mjs: do not edit by hand.
 
-import { LABEL_BOX, LABEL_BOX_IMAGE, SPRITE } from './constants';
+import { LABEL_BOX, LABEL_BOX_IMAGE } from './constants';
 
+// Each file is named \`<name>@3x.png\`: three pixels per point. The scale has to come from the file
+// name: one passed to the map's \`<Images>\` is ignored for bundled files in a release build.
 const FILES = {
 ${names.map((name) => `  '${name}': require('@/assets/images/city/${name}.png'),`).join('\n')}
 } as const;
 
-/** Ready for the map's \`<Images>\`: each picture with its pixels-per-point. */
+/** Ready for the map's \`<Images>\`. */
 export const SPRITE_IMAGES = {
-  ...Object.fromEntries(Object.entries(FILES).map(([name, image]) => [name, { image, scale: SPRITE.pixelRatio }])),
+  ...FILES,
   [LABEL_BOX_IMAGE]: {
     image: require('@/assets/images/city/label-box.png'),
-    scale: LABEL_BOX.pixelRatio,
+    // In pixels of the file: with no \`scale\` given here the map takes them as they are.
     stretchX: LABEL_BOX.stretch,
     stretchY: LABEL_BOX.stretch,
   },

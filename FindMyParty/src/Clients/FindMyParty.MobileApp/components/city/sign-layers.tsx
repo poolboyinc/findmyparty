@@ -16,6 +16,8 @@ type Props = {
 };
 
 const LAYERS = signLayers();
+/** The server draws holograms at three pixels per point. */
+const HOLOGRAM_PIXEL_RATIO = 3;
 
 /**
  * Signs in the city (S-19): a panel on a hand-picked wall, a venue's own sign, a hologram over a
@@ -30,11 +32,12 @@ export const SignLayers = memo(function SignLayers({ signs, onSelect }: Props) {
   // Each sign's picture and panel, under the names the features carry.
   const { pictures, models } = useMemo(() => {
     const base = ApiConstants.GatewayBaseUrl;
-    const holograms: Record<string, string> = {};
+    // An object with `url`, not a bare address: on iOS the map ignores a plain string here.
+    const holograms: Record<string, { url: string; scale: number }> = {};
     const panels: Record<string, string> = {};
     for (const sign of signs) {
       const name = signImageName(sign);
-      if (sign.format === 'hologram') holograms[name] = signArtUrl(base, sign, 'hologram');
+      if (sign.format === 'hologram') holograms[name] = { url: signArtUrl(base, sign, 'hologram'), scale: HOLOGRAM_PIXEL_RATIO };
       else panels[name] = signArtUrl(base, sign, 'panel');
     }
     return { pictures: holograms, models: panels };
@@ -49,11 +52,12 @@ export const SignLayers = memo(function SignLayers({ signs, onSelect }: Props) {
   );
   const press = onSelect ? { onPress: handlePress, hitbox: TAP_HITBOX } : {};
 
-  if (signs.length === 0) return null;
+  // Always mounted, even with no signs: a layer the map gets later lands on top of everything.
   return (
     <>
       <Images images={pictures} />
-      <Models models={models} />
+      {/* The map registers 3D models only when this mounts, so a new set of panels remounts it. */}
+      <Models key={Object.keys(models).sort().join('|')} models={models} />
       <ShapeSource id={SOURCE.signSlabs} shape={features.slabs} {...press}>
         <SpecLayers specs={LAYERS.slabs} />
       </ShapeSource>

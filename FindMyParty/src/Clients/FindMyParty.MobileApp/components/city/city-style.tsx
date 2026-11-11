@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Atmosphere, Images, Light } from '@rnmapbox/maps';
 import { SPRITE_IMAGES } from './city-images';
-import { FACADE_IMAGE, FACADE_IMAGE_SCALE, SWITCH } from './constants';
+import { FACADE_IMAGE, SWITCH } from './constants';
 import { ATMOSPHERE_STYLE, LIGHT_STYLE } from './layer-styles';
 import { cityLayers } from './layers';
 import { SpecLayers } from './spec-layer';
@@ -10,7 +10,8 @@ const FACADE = require('@/assets/images/city-facade.png');
 
 /** Images the map's layers use: the facade with lit windows, the selected name's white block, the lights. */
 const IMAGES = {
-  [FACADE_IMAGE]: { image: FACADE, scale: FACADE_IMAGE_SCALE },
+  // Its pixels per point come from the file name (@2x), which also holds in a release build.
+  [FACADE_IMAGE]: FACADE,
   ...SPRITE_IMAGES,
 };
 

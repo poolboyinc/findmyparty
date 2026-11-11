@@ -26,11 +26,12 @@ export const SWITCH = {
   // ("Unexpeted value for color ... retuning red" on the first device test).
   light: false as boolean,
   /**
-   * Beams and their names grow a little as the map zooms in and shrink as it zooms out
-   * (SPRITE.sizeByZoom). `false` keeps them one size at every zoom; flip it if names drift away
-   * from the tops of their beams on a device.
+   * `true`: beams grow a little as the map zooms in and shrink as it zooms out (SPRITE.sizeByZoom).
+   * Off, because the map moves a name only at whole zoom levels while it resizes a beam all the
+   * time, so between whole levels the name would hang up to 30 points off the tip of its beam.
+   * With one size at every zoom the name sits exactly on the tip.
    */
-  beamsScaleWithZoom: true as boolean,
+  beamsScaleWithZoom: false as boolean,
   /** The camera drop on the first open of the day. */
   cameraDrop: true as boolean,
 } as const;
@@ -91,18 +92,22 @@ export const PALETTE = {
   light: '#d9ceff',
 } as const;
 
-/** The facade image, registered under this name; 60×56 px drawn at 2× (30×28 pt). */
+/**
+ * The facade image, registered under this name; 60×56 px drawn at 2× (30×28 pt). Its pixels per
+ * point come from the file's name (`city-facade@2x.png`), as for every picture the map uses:
+ * a `scale` given to the map's `<Images>` is ignored for bundled files in a release build.
+ */
 export const FACADE_IMAGE = 'city-facade';
 export const FACADE_IMAGE_SCALE = 2;
 /**
- * The white block behind the selected venue's name (assets/images/city/label-box.png): 24 px square
+ * The white block behind the selected venue's name (assets/images/city/label-box@3x.png): 24 px square
  * at 3×, with rounded corners. Only its middle stretches, so the corners stay crisp.
  */
 export const LABEL_BOX_IMAGE = 'city-label-box';
 export const LABEL_BOX = {
   pixelRatio: 3,
-  /** Points of the image (pixels ÷ 3), from and to, that may stretch: the same sideways and upwards. */
-  stretch: [[3, 5]] as [number, number][],
+  /** Pixels of the image, from and to, that may stretch: the same sideways and upwards. */
+  stretch: [[9, 15]] as [number, number][],
 } as const;
 
 export const BUILDINGS = {
@@ -208,7 +213,7 @@ export const FRAME = {
 export const DROP_DAY_KEY = '@findmyparty/city-drop-day';
 
 // ── Beams ───────────────────────────────────────────────────────────────────
-// A beam is a picture of light (assets/images/city/beam-*.png, drawn by
+// A beam is a picture of light (assets/images/city/beam-*@3x.png, drawn by
 // tools/city-preview/make-sprites.mjs exactly as the mock draws its beams) that stands upright on
 // the venue's roof and always faces the camera. Its size is in points on the screen, not metres,
 // so zooming in makes the building bigger and leaves the beam slim.
@@ -282,7 +287,9 @@ export const LABEL = {
 
 export const SOURCE = {
   route: 'city-route',
-  /** One point per venue: what lies on the ground (the pool of light, the 2D discs). */
+  /** One point per venue: the pool of light on the ground. Not tappable: the pool is wide. */
+  venueGlow: 'city-venue-glow',
+  /** The same points for the 2D discs. */
   venuePoints: 'city-venue-points',
   /** The lit roof edge and corner lines of each venue's building. */
   venueShapes: 'city-venue-shapes',

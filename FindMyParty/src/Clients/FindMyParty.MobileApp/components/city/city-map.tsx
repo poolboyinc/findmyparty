@@ -153,7 +153,7 @@ export const CityMap = memo(function CityMap({
       <Camera ref={camera.ref} defaultSettings={camera.initial} />
       <CityStyle />
       <RouteLayer line={routeLine} />
-      {camera.flat ? null : <SignLayers signs={shownSigns} onSelect={onSelectSign} />}
+      <SignLayers signs={camera.flat ? NO_SIGNS : shownSigns} onSelect={onSelectSign} />
       <VenueLayers
         venues={venues}
         selectedId={selectedId}

@@ -415,8 +415,10 @@ function perZoom(part: 'name' | 'count' | 'block'): Expr {
  * venue's colour. They are one label: where two venues' labels would overlap, the busier venue
  * keeps its label whole and the other shows only its beam until you zoom in. A ghost's name is dim.
  */
-export function nameStyle(): SymbolLayerStyleProps {
+export function nameStyle(hidden = false): SymbolLayerStyleProps {
   return {
+    // Hidden, not unmounted: a layer mounted later would land on top of everything.
+    visibility: hidden ? 'none' : 'visible',
     symbolZOffset: ON_THE_ROOF,
     textField: ['get', 'name'],
     textFont: MAP_FONT,
@@ -440,8 +442,9 @@ export function nameStyle(): SymbolLayerStyleProps {
 }
 
 /** The selected venue: dark type on a white block, name and crowd on two lines (S-05). Always shown. */
-export function selectedLabelStyle(): SymbolLayerStyleProps {
+export function selectedLabelStyle(hidden = false): SymbolLayerStyleProps {
   return {
+    visibility: hidden ? 'none' : 'visible',
     symbolZOffset: ON_THE_ROOF,
     textField: ['get', 'text'],
     textFont: MAP_FONT,
