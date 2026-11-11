@@ -3,10 +3,13 @@ import { Block } from '@/components/afterglow/block';
 import { CrowdBars } from '@/components/afterglow/crowd-bars';
 import { PressableScale } from '@/components/afterglow/motion';
 import { Poster } from '@/components/afterglow/poster';
+import { SponsoredTag } from '@/components/afterglow/sponsored-tag';
 import { Icon } from '@/components/ui/icon';
 import { colors, layout, radii, spacing, typography } from '@/theme';
 import type { Party } from '@/types/api';
 import { cardLine, isOnNow, joinParts, liveLabel, onNowText, priceText, rowLine, type PartyListing } from './format';
+import { FriendsLine } from './friends-line';
+import { friendsLineText } from './friends-text';
 
 const CARD_POSTER_HEIGHT = 160;
 const CARD_SIGN = 46;
@@ -21,13 +24,16 @@ type CardProps = {
   onPress: () => void;
   /** The genre is one the user picked as their sound. */
   match?: boolean;
-  /** With these the poster carries a heart in its corner. */
-  favorite?: boolean;
-  onToggleFavorite?: () => void;
+  /** With these the poster carries a heart in its corner (`useSavedItems()`). */
+  saved?: boolean;
+  onToggleSaved?: () => void;
 };
 
-/** A party that is glowing now: its poster with the live crowd in the corner, then title, bars and one line. */
-export function PartyCard({ party, onPress, match = false, favorite = false, onToggleFavorite }: CardProps) {
+/**
+ * A party that is glowing now: its poster with the live crowd in the corner, then title, bars and one line,
+ * and the friends who are there. A paid slot keeps its place by heat and is tagged after the title.
+ */
+export function PartyCard({ party, onPress, match = false, saved = false, onToggleSaved }: CardProps) {
   const line = cardLine(party);
 
   return (
@@ -37,9 +43,11 @@ export function PartyCard({ party, onPress, match = false, favorite = false, onT
       accessibilityRole="button"
       accessibilityLabel={joinParts([
         party.title,
+        party.sponsored && 'Sponsored',
         match && 'matches your sound',
         liveLabel(party.crowdLevel),
         line,
+        friendsLineText(party.friendsHere),
         party.isSoldOut && 'Sold out',
       ])}
     >
@@ -55,20 +63,20 @@ export function PartyCard({ party, onPress, match = false, favorite = false, onT
           <Block tone="crowd" label={liveLabel(party.crowdLevel)} />
           {party.isSoldOut ? <Block tone="light" label="Sold out" /> : null}
         </View>
-        {onToggleFavorite ? (
+        {onToggleSaved ? (
           <PressableScale
-            onPress={onToggleFavorite}
+            onPress={onToggleSaved}
             scaleTo={0.9}
             hitSlop={layout.hitSlop}
             style={styles.heart}
             accessibilityRole="button"
-            accessibilityLabel={favorite ? 'Remove from favourites' : 'Add to favourites'}
-            accessibilityState={{ selected: favorite }}
+            accessibilityLabel={saved ? `Remove ${party.title} from saved` : `Save ${party.title}`}
+            accessibilityState={{ selected: saved }}
           >
             <View style={styles.heartFill} />
             <Icon
-              sfSymbol={favorite ? 'heart.fill' : 'heart'}
-              ionicon={favorite ? 'heart' : 'heart-outline'}
+              sfSymbol={saved ? 'heart.fill' : 'heart'}
+              ionicon={saved ? 'heart' : 'heart-outline'}
               size={16}
               color={colors.label}
             />
@@ -80,12 +88,19 @@ export function PartyCard({ party, onPress, match = false, favorite = false, onT
           <Text style={styles.cardTitle} numberOfLines={2}>
             {party.title}
             {match ? <Text style={styles.match}> {MATCH}</Text> : null}
+            {party.sponsored ? (
+              <>
+                {'  '}
+                <SponsoredTag style={styles.cardSponsored} />
+              </>
+            ) : null}
           </Text>
           <CrowdBars level={party.crowdLevel} source={party.crowdSource} size={14} />
         </View>
         <Text style={styles.cardLine} numberOfLines={2}>
           {line}
         </Text>
+        <FriendsLine friends={party.friendsHere} style={styles.friends} />
       </View>
     </PressableScale>
   );
@@ -115,6 +130,7 @@ export function PartyRow({ party, now, onPress, match = false, style }: RowProps
       accessibilityRole="button"
       accessibilityLabel={joinParts([
         party.title,
+        party.sponsored && 'Sponsored',
         match && 'matches your sound',
         line,
         onNow && onNowText(party),
@@ -132,6 +148,12 @@ export function PartyRow({ party, now, onPress, match = false, style }: RowProps
         <Text style={styles.rowTitle} numberOfLines={1}>
           {party.title}
           {match ? <Text style={styles.match}> {MATCH}</Text> : null}
+          {party.sponsored ? (
+            <>
+              {'  '}
+              <SponsoredTag />
+            </>
+          ) : null}
         </Text>
         <Text style={styles.rowLine} numberOfLines={2}>
           {line}
@@ -213,6 +235,12 @@ const styles = StyleSheet.create({
   },
   match: {
     color: colors.quiet,
+  },
+  cardSponsored: {
+    fontSize: 14,
+  },
+  friends: {
+    marginTop: spacing.xs + 2,
   },
   row: {
     flexDirection: 'row',

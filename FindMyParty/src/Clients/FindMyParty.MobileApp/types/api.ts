@@ -68,7 +68,7 @@ export interface VenueSummary {
 }
 export interface VenueHour { at: string; level: number; kind: 'past' | 'now' | 'usual' }
 export interface VenueTonight { hours: VenueHour[]; trend: 'filling' | 'steady' | 'thinning' | null; usualPeakAt: string | null }
-export interface VenuePerk { perkKey: string; kind: PerkKind; title: string; subtitle: string; sponsored: boolean }
+export interface VenuePerk { perkKey: string; kind: PerkKind; title: string; subtitle: string; sponsored: boolean; perkId: string | null }   // perkId: the sponsored perk, for /perk/{id}
 export interface Venue {
   id: string; name: string; address: string; latitude: number; longitude: number;
   workingHoursOpen: string | null; workingHoursClose: string | null; workingDays: string | null;

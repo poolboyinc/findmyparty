@@ -1,6 +1,6 @@
 // What the Tonight feed shows and in which section. Pure (no React Native imports), so it runs in plain Node.
 import { crowdBars } from '../../services/crowd.ts';
-import type { Party } from '../../types/api.ts';
+import type { City, Party } from '../../types/api.ts';
 import { isOver, nightEnd } from './format.ts';
 
 /** The chips on Tonight, in order. Tapping the chip that is on turns it off, which shows everything ('All'). */
@@ -61,6 +61,31 @@ export function matchesFilter(party: Party, filter: Filter, now: number, taste: 
   }
 }
 
+/**
+ * The city's name for "Fri 13 Nov, Podgorica": the server's name once the cities have loaded, before that the
+ * slug written as a name ("herceg-novi" → "Herceg Novi").
+ */
+export function cityName(slug: string, city: Pick<City, 'slug' | 'name'> | null | undefined): string {
+  if (city && city.slug === slug && city.name.trim()) return city.name;
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/**
+ * A paid slot is an ordinary row: it is moved to the second row of its section (or the first, when it is the
+ * only row). With two, they take the second and third rows in their own order. The rest keep their order.
+ */
+export function placeSponsored<T extends Pick<Party, 'sponsored'>>(rows: readonly T[]): T[] {
+  const paid = rows.filter((row) => row.sponsored === true);
+  if (paid.length === 0) return [...rows];
+  const rest = rows.filter((row) => row.sponsored !== true);
+  if (rest.length === 0) return paid;
+  return [rest[0], ...paid, ...rest.slice(1)];
+}
+
 export interface Feed {
   /** On now with guests scanned in, busiest first. */
   glowing: Party[];
@@ -86,6 +111,7 @@ export function splitFeed(parties: readonly Party[], now: number): Feed {
     else comingUp.push(party);
   }
 
+  // A glowing party stays where its heat puts it, sponsored or not; elsewhere a paid slot is the second row.
   glowing.sort((a, b) => crowdBars(b.crowdLevel) - crowdBars(a.crowdLevel));
-  return { glowing, later: [...onNow, ...later], comingUp };
+  return { glowing, later: placeSponsored([...onNow, ...later]), comingUp: placeSponsored(comingUp) };
 }

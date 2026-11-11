@@ -7,7 +7,7 @@ export type PartyListing = Pick<
   Party,
   'id' | 'title' | 'price' | 'startsAt' | 'endsAt' | 'isSoldOut' | 'imageUrl' | 'genre' | 'venueName'
 > &
-  Partial<Pick<Party, 'crowdLevel' | 'crowdSource'>>;
+  Partial<Pick<Party, 'crowdLevel' | 'crowdSource' | 'sponsored'>>;
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;

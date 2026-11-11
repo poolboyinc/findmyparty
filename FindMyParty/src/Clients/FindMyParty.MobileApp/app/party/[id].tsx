@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Share, StatusBar, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StatusBar, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Block } from '@/components/afterglow/block';
@@ -7,15 +7,18 @@ import { CrowdBars } from '@/components/afterglow/crowd-bars';
 import { Failed, Loading } from '@/components/afterglow/state';
 import { Display } from '@/components/afterglow/text';
 import { CheckoutSheet, type CheckoutSheetRef } from '@/components/finding/checkout-sheet';
-import { dayText, isOnNow, isOver, joinParts, liveLabel, priceText, timeRangeText, timeText } from '@/components/finding/format';
+import { dayText, isOver, joinParts, liveLabel, priceText, timeRangeText } from '@/components/finding/format';
 import { BackOnlyScreen, HeroScroll, SquareControl } from '@/components/finding/hero';
 import { InfoCard, InfoRow, LineUpRow } from '@/components/finding/info-rows';
+import { lineUp } from '@/components/finding/lineup';
 import { openInMaps, useAreaLabel, useDistanceText } from '@/components/finding/place';
+import { shareLink } from '@/components/finding/share';
 import { useNow } from '@/components/finding/use-now';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { SectionHeader } from '@/components/ui/section-header';
-import { useFavorites } from '@/hooks/useFavorites';
-import { useParties, useParty } from '@/hooks/queries';
+import { routes } from '@/constants/routes';
+import { useParty } from '@/hooks/queries';
+import { useSavedItems } from '@/hooks/useSaved';
 import { guestLimit } from '@/services/bookingAttempt';
 import { crowdText } from '@/services/crowd';
 import { colors, layout, radii, spacing, typography } from '@/theme';
@@ -33,11 +36,11 @@ export default function PartyScreen() {
   const { height: windowHeight } = useWindowDimensions();
   const now = useNow();
   const { data: party, error, isPending, refetch } = useParty(id);
-  // The feed's entry for this party carries the crowd; the party itself does not.
-  const listing = useParties().data?.find((p) => p.id === id);
-  const area = useAreaLabel(party?.latitude, party?.longitude);
+  // The server names the area; the phone's geocoder only fills in for a party without a venue area.
+  const needsArea = !!party && !party.venueArea;
+  const area = useAreaLabel(needsArea ? party.latitude : undefined, needsArea ? party.longitude : undefined);
   const distance = useDistanceText(party?.latitude, party?.longitude);
-  const { isFavorite, toggle: toggleFavorite, loaded: favoritesLoaded } = useFavorites();
+  const { isSaved, toggle: toggleSaved } = useSavedItems();
   const sheetRef = useRef<CheckoutSheetRef>(null);
 
   if (isPending) {
@@ -58,22 +61,23 @@ export default function PartyScreen() {
   const over = isOver(party, now);
   const soldOut = party.isSoldOut || guestLimit(party.remainingCapacity) < 1;
   const free = !(party.price > 0);
-  const favorite = favoritesLoaded && isFavorite(party.id);
-  const crowd = crowdText(listing?.crowdLevel, listing?.crowdSource);
-  const live = !!crowd && listing?.crowdSource === 'live';
+  const saved = isSaved('party', party.id);
+  const crowd = crowdText(party.crowdLevel, party.crowdSource);
+  const live = !!crowd && party.crowdSource === 'live';
   const barHeight = spacing.base + layout.buttonHeight + spacing.base + insets.bottom;
-  const place = area ?? party.venueName;
+  const place = party.venueArea ?? area ?? party.venueName;
+  const placeText = joinParts([place, distance]);
   const when = joinParts([dayText(party, now), timeRangeText(party), over && 'ended']);
+  const acts = lineUp(party, now);
+  const age = party.ageLimit ? `${party.ageLimit}+` : null;
 
-  const share = async () => {
-    try {
-      await Share.share({
-        title: party.title,
-        message: `${party.title} on FindMyParty: https://findmyparty.app/p/${party.id}`,
-      });
-    } catch {
-      // Dismissed, or nothing to share with. Nothing to do.
-    }
+  const share = () =>
+    shareLink(party.title, joinParts([party.title, party.venueName && `at ${party.venueName}`]) + ' on FindMyParty:', `/p/${party.id}`);
+
+  // The walk on the City tab when the party has a venue; Apple Maps for a party with only coordinates.
+  const goThere = () => {
+    if (party.venueId) router.navigate(routes.walkTo(party.venueId));
+    else openInMaps(party.latitude, party.longitude, party.venueName ?? party.title);
   };
 
   return (
@@ -98,28 +102,33 @@ export default function PartyScreen() {
               accessibilityLabel="Share party"
             />
             <SquareControl
-              sfSymbol={favorite ? 'heart.fill' : 'heart'}
-              ionicon={favorite ? 'heart' : 'heart-outline'}
-              onPress={() => toggleFavorite(party.id)}
-              accessibilityLabel={favorite ? 'Remove from favourites' : 'Add to favourites'}
-              selected={favorite}
+              sfSymbol={saved ? 'heart.fill' : 'heart'}
+              ionicon={saved ? 'heart' : 'heart-outline'}
+              onPress={() => toggleSaved('party', party.id)}
+              accessibilityLabel={saved ? `Remove ${party.title} from saved` : `Save ${party.title}`}
+              selected={saved}
             />
           </>
         }
       >
         <View style={styles.content}>
-          {crowd || party.genre ? (
+          {crowd || party.genre || age ? (
             <View style={styles.blocks}>
-              {live ? <Block tone="crowd" label={liveLabel(listing?.crowdLevel)} /> : null}
+              {live ? <Block tone="crowd" label={liveLabel(party.crowdLevel)} /> : null}
               {crowd && !live ? (
                 <View style={styles.expected}>
-                  <CrowdBars level={listing?.crowdLevel} source={listing?.crowdSource} />
+                  <CrowdBars level={party.crowdLevel} source={party.crowdSource} />
                   <Text style={styles.expectedText}>{crowd}</Text>
                 </View>
               ) : null}
               {party.genre ? (
                 <View style={styles.chip}>
                   <Text style={styles.chipText}>{party.genre}</Text>
+                </View>
+              ) : null}
+              {age ? (
+                <View style={styles.chip} accessible accessibilityLabel={`${party.ageLimit} and over`}>
+                  <Text style={styles.chipText}>{age}</Text>
                 </View>
               ) : null}
             </View>
@@ -151,18 +160,15 @@ export default function PartyScreen() {
             )}
           </Text>
 
-          {party.performerName ? (
+          {acts.length > 0 ? (
             <>
               <View style={styles.sectionHeader}>
                 <SectionHeader title="Line-up" />
               </View>
               <InfoCard>
-                <LineUpRow
-                  time={timeText(party.startsAt)}
-                  playing={isOnNow(party, now)}
-                  name={party.performerName}
-                  role={party.performerType}
-                />
+                {acts.map((act) => (
+                  <LineUpRow key={act.key} time={act.time} playing={act.playing} name={act.name} role={act.role} />
+                ))}
               </InfoCard>
             </>
           ) : null}
@@ -174,9 +180,9 @@ export default function PartyScreen() {
             <InfoRow
               sfSymbol="mappin.and.ellipse"
               ionicon="location-outline"
-              text={joinParts([place, distance]) || 'Open in Maps'}
-              onPress={() => openInMaps(party.latitude, party.longitude, party.venueName ?? party.title)}
-              accessibilityLabel={`${joinParts([place, distance]) || 'The place'}, open in Maps`}
+              text={placeText || (party.venueId ? 'Walk there' : 'Open in Maps')}
+              onPress={goThere}
+              accessibilityLabel={`${placeText || 'The place'}, ${party.venueId ? 'walk there' : 'open in Maps'}`}
             />
             <InfoRow
               sfSymbol="ticket"
@@ -184,6 +190,7 @@ export default function PartyScreen() {
               text={free ? 'Free entry' : `${priceText(party.price)}, pay at the door`}
             />
             {soldOut ? <InfoRow sfSymbol="person.2" ionicon="people-outline" text="Sold out" /> : null}
+            {party.perk ? <InfoRow sfSymbol="bolt" ionicon="flash-outline" text={party.perk.title} tone="earned" /> : null}
           </InfoCard>
 
           {party.description ? <Text style={styles.description}>{party.description}</Text> : null}

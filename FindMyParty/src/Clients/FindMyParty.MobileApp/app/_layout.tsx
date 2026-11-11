@@ -120,8 +120,6 @@ export default function RootLayout() {
             <Stack.Screen name="party/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="venue/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="my-bookings" options={{ headerShown: false, animation: 'slide_from_right' }} />
-            {/* `favorites` goes when package M2 replaces app/favorites.tsx with app/saved.tsx. */}
-            <Stack.Screen name="favorites" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="saved" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="settings" options={{ headerShown: false, animation: 'slide_from_right' }} />
             <Stack.Screen name="edit-profile" options={{ headerShown: false, animation: 'slide_from_right' }} />

@@ -29,16 +29,19 @@ type RowProps = {
   onPress?: () => void;
   /** Read out instead of `text` when the row is a control. */
   accessibilityLabel?: string;
+  /** `earned`: a perk the guest holds, icon and words in lime. */
+  tone?: 'plain' | 'earned';
 };
 
-/** One fact with an icon: a place, a price. */
-export function InfoRow({ sfSymbol, ionicon, text, onPress, accessibilityLabel }: RowProps) {
+/** One fact with an icon: a place, a price, a perk. */
+export function InfoRow({ sfSymbol, ionicon, text, onPress, accessibilityLabel, tone = 'plain' }: RowProps) {
+  const earned = tone === 'earned';
   const body = (
     <>
       <View style={styles.icon}>
-        <Icon sfSymbol={sfSymbol} ionicon={ionicon} size={19} color={colors.labelSecondary} />
+        <Icon sfSymbol={sfSymbol} ionicon={ionicon} size={19} color={earned ? colors.earned : colors.labelSecondary} />
       </View>
-      <Text style={styles.text}>{text}</Text>
+      <Text style={[styles.text, earned && styles.earned]}>{text}</Text>
       {onPress ? <Icon sfSymbol="chevron.right" ionicon="chevron-forward" size={13} color={colors.labelTertiary} /> : null}
     </>
   );
@@ -111,6 +114,9 @@ const styles = StyleSheet.create({
     ...typography.subheadline,
     color: colors.label,
     flex: 1,
+  },
+  earned: {
+    color: colors.earned,
   },
   setTime: {
     ...typography.footnote,

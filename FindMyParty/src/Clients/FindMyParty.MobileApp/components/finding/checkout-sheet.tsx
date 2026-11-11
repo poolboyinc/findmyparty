@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
   BottomSheetBackdrop,
@@ -15,41 +15,74 @@ import { PressableScale } from '@/components/afterglow/motion';
 import { Display } from '@/components/afterglow/text';
 import { Icon } from '@/components/ui/icon';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { useCreateBooking } from '@/hooks/queries';
+import { routes } from '@/constants/routes';
+import { useBookingQuote, useCreateBooking } from '@/hooks/queries';
 import { ApiError } from '@/services/api';
 import { MAX_GUESTS_PER_BOOKING, guestLimit, nextAttempt, type BookingAttempt } from '@/services/bookingAttempt';
 import { errorText } from '@/services/errorText';
+import { askForPush } from '@/services/push';
 import { colors, layout, radii, spacing, typography } from '@/theme';
-import type { PartyDetail } from '@/types/api';
-import { dayText, joinParts, priceText, timeText } from './format';
+import type { BookingQuote, PartyDetail } from '@/types/api';
+import { checkoutLines, estimateHeldUntil } from './checkout';
+import { dateText, isOver, joinParts, timeText } from './format';
+import { useNow } from './use-now';
 
 export type CheckoutSheetRef = {
   present: () => void;
+  dismiss: () => void;
 };
 
 type Props = {
   party: PartyDetail;
-  /** From `useNow()`: decides the day word in the summary line. */
-  now: number;
+  /** From the screen's `useNow()`. Without it the sheet keeps its own clock. */
+  now?: number;
 };
 
+function isSignedOut(error: unknown): boolean {
+  return error instanceof ApiError && error.kind === 'signed_out';
+}
+
 /**
- * Taking a pass: how many guests, what it comes to at the door, confirm. Plain on purpose.
- * A failed booking stays in the sheet with its reason; a booking that went through lands on the Pass tab.
+ * Taking a pass (S-13): how many guests, what the server says it comes to at the door (with the guest's perk),
+ * how to pay (at the door; "Pay now" is drawn greyed out and cannot be chosen), until when the spot is held,
+ * confirm. Plain on purpose. A failed booking stays in the sheet with its reason; one that went through lands
+ * on the Pass tab. Mounted by the party page and by the map's venue sheet.
  */
-export const CheckoutSheet = forwardRef<CheckoutSheetRef, Props>(function CheckoutSheet({ party, now }, ref) {
+export const CheckoutSheet = forwardRef<CheckoutSheetRef, Props>(function CheckoutSheet({ party, now: screenNow }, ref) {
   const insets = useSafeAreaInsets();
+  const ownNow = useNow();
+  const now = screenNow ?? ownNow;
   const sheetRef = useRef<BottomSheetModal>(null);
   // Kept across retries so a booking that timed out but reached the server is not made twice.
   const attemptRef = useRef<BookingAttempt | null>(null);
+  // The last quote, so the perk row keeps its place while the next guest count is asked for.
+  const [lastQuoteAny, setLastQuote] = useState<BookingQuote | null>(null);
   const [count, setCount] = useState(1);
   const { mutate, reset, isPending, error } = useCreateBooking();
 
-  const limit = guestLimit(party.remainingCapacity);
-  const guests = Math.max(1, Math.min(count, limit));
-  const free = !(party.price > 0);
-  const total = Math.round(guests * party.price * 100) / 100;
-  const signedOut = error instanceof ApiError && error.kind === 'signed_out';
+  const spots = guestLimit(party.remainingCapacity);
+  const bookable = spots >= 1 && !isOver(party, now);
+  const lastQuote = lastQuoteAny?.partyId === party.id ? lastQuoteAny : null;
+  const limit = Math.min(spots, lastQuote?.maxGuests ?? spots);
+  const guests = Math.max(1, Math.min(count, Math.max(1, limit)));
+
+  // Asked for as soon as the page is open, so the sheet shows the server's numbers when it comes up.
+  const quote = useBookingQuote(bookable ? party.id : undefined, guests);
+  useEffect(() => {
+    if (quote.data) setLastQuote(quote.data);
+  }, [quote.data]);
+  const loadingQuote = bookable && !quote.data && !quote.error;
+  const quoteFailed = !quote.data && !!quote.error;
+
+  const lines = checkoutLines(quote.data, {
+    guests,
+    price: party.price,
+    perkTitle: lastQuote?.perk?.title ?? (lastQuote ? null : party.perk?.title ?? null),
+  });
+  const heldUntil = quote.data ? Date.parse(quote.data.heldUntil) : estimateHeldUntil(party, now);
+  const heldText = heldUntil === null || Number.isNaN(heldUntil) ? '' : timeText(heldUntil);
+  const signedOut = isSignedOut(error) || isSignedOut(quote.error);
+  const shownError = error ?? (quoteFailed ? quote.error : null);
 
   useImperativeHandle(
     ref,
@@ -59,6 +92,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetRef, Props>(function Checko
         reset();
         sheetRef.current?.present();
       },
+      dismiss: () => sheetRef.current?.dismiss(),
     }),
     [reset],
   );
@@ -83,9 +117,11 @@ export const CheckoutSheet = forwardRef<CheckoutSheetRef, Props>(function Checko
           attemptRef.current = null;
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           sheetRef.current?.dismiss();
+          // A pass taken is the moment a push means something ("your spot is held until 00:30"). Asks once.
+          void askForPush();
           // Back to the tabs that are already open, on the Pass tab. `replace` would put a second
           // copy of the tabs (and of the map) on top of the first.
-          router.dismissTo('/(tabs)/pass');
+          router.dismissTo(routes.pass);
         },
         onError: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -120,7 +156,7 @@ export const CheckoutSheet = forwardRef<CheckoutSheetRef, Props>(function Checko
             Your pass
           </Display>
           <Text style={styles.secondary}>
-            {joinParts([party.title, party.venueName, dayText(party, now), timeText(party.startsAt)])}
+            {joinParts([party.title, party.venueName, dateText(party.startsAt), timeText(party.startsAt)])}
           </Text>
         </View>
 
@@ -154,31 +190,65 @@ export const CheckoutSheet = forwardRef<CheckoutSheetRef, Props>(function Checko
           </View>
         </View>
 
-        <View style={styles.block}>
-          {free ? (
-            <View style={styles.sumRow}>
-              <Text style={styles.strong}>Free entry</Text>
-            </View>
-          ) : (
-            <>
+        {/* While the quote is on its way the rows show the party's own price, dimmed, so nothing jumps. */}
+        <View style={styles.block} accessibilityState={{ busy: loadingQuote }}>
+          <View style={loadingQuote && styles.waiting}>
+            {lines.free && !lines.perk ? (
               <View style={styles.sumRow}>
-                <Text style={styles.body}>
-                  Entry, {guests} × {priceText(party.price)}
-                </Text>
-                <Text style={styles.amount}>{priceText(total)}</Text>
+                <Text style={styles.totalLabel}>Free entry</Text>
               </View>
-              <View style={styles.line} />
-              <View style={styles.sumRow}>
-                <Text style={styles.totalLabel}>To pay at the door</Text>
-                <Text style={styles.totalAmount}>{priceText(total)}</Text>
-              </View>
-            </>
-          )}
+            ) : (
+              <>
+                <View style={styles.sumRow}>
+                  <Text style={styles.body}>{lines.entry}</Text>
+                  <Text style={styles.amount}>{lines.subtotal}</Text>
+                </View>
+                {lines.perk ? (
+                  <>
+                    <View style={styles.line} />
+                    <View style={styles.sumRow} accessible accessibilityLabel={joinParts([lines.perk.title, lines.perk.amount])}>
+                      <Icon sfSymbol="bolt" ionicon="flash-outline" size={19} color={colors.earned} />
+                      <Text style={[styles.body, styles.perkText]}>{lines.perk.title}</Text>
+                      <Text style={[styles.amount, styles.perkAmount]}>{lines.perk.amount}</Text>
+                    </View>
+                  </>
+                ) : null}
+                <View style={styles.line} />
+                <View style={styles.sumRow}>
+                  <Text style={styles.totalLabel}>To pay at the door</Text>
+                  <Text style={styles.totalAmount}>{lines.total}</Text>
+                </View>
+              </>
+            )}
+          </View>
         </View>
 
-        <Text style={styles.small}>
-          {free ? 'Nothing to pay.' : 'You pay at the door.'} Your pass appears in the Pass tab.
-        </Text>
+        <View style={styles.block} accessibilityRole="radiogroup" accessibilityLabel="How to pay">
+          <View style={styles.payRow} accessible accessibilityRole="radio" accessibilityState={{ checked: true }} accessibilityLabel="Pay at the door">
+            <View style={styles.radioOn} />
+            <Text style={styles.payOn}>Pay at the door</Text>
+          </View>
+          <View style={styles.line} />
+          {/* Drawn as on the mock and inert: there is no payment in the app yet. */}
+          <View
+            style={styles.payRow}
+            accessible
+            accessibilityRole="radio"
+            accessibilityState={{ checked: false, disabled: true }}
+            accessibilityLabel="Pay now, Apple Pay. Later."
+          >
+            <View style={styles.radioOff} />
+            <Text style={styles.payOff}>Pay now, Apple Pay</Text>
+            <Text style={styles.later}>Later</Text>
+          </View>
+        </View>
+
+        {heldText ? (
+          <Text style={styles.small}>
+            Your spot is held until <Text style={styles.held}>{heldText}</Text>. If you are not scanned in by then, it goes
+            back to the door.
+          </Text>
+        ) : null}
 
         {signedOut ? (
           <>
@@ -187,16 +257,22 @@ export const CheckoutSheet = forwardRef<CheckoutSheetRef, Props>(function Checko
           </>
         ) : (
           <>
-            {error ? (
+            {shownError ? (
               <Text style={styles.error} accessibilityRole="alert">
-                {errorText(error)}
+                {errorText(shownError)}
+                {quoteFailed && !error ? (
+                  <Text style={styles.retry} onPress={() => quote.refetch()} accessibilityRole="button">
+                    {' '}
+                    Try again
+                  </Text>
+                ) : null}
               </Text>
             ) : null}
             <PrimaryButton
               label="Confirm pass"
               onPress={confirm}
               loading={isPending}
-              disabled={limit < 1}
+              disabled={!bookable || quoteFailed}
               accessibilityHint="Takes the pass. You pay at the door."
             />
           </>
@@ -233,6 +309,8 @@ function StepButton({ sfSymbol, ionicon, label, disabled, onPress }: StepButtonP
 }
 
 const STEP = 40;
+const RADIO = 20;
+const SUM_ROW = 48;
 
 const styles = StyleSheet.create({
   background: {
@@ -256,6 +334,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceElevated,
     borderRadius: radii.card,
     paddingHorizontal: spacing.base,
+  },
+  waiting: {
+    opacity: 0.5,
   },
   guests: {
     flexDirection: 'row',
@@ -301,7 +382,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.md,
-    paddingVertical: spacing.md + 2,
+    minHeight: SUM_ROW,
+    paddingVertical: spacing.md,
   },
   line: {
     height: StyleSheet.hairlineWidth,
@@ -310,7 +392,10 @@ const styles = StyleSheet.create({
   body: {
     ...typography.subheadline,
     color: colors.label,
-    flexShrink: 1,
+    flex: 1,
+  },
+  perkText: {
+    color: colors.earned,
   },
   strong: {
     ...typography.headline,
@@ -323,6 +408,9 @@ const styles = StyleSheet.create({
     color: colors.label,
     fontVariant: ['tabular-nums'],
   },
+  perkAmount: {
+    color: colors.earned,
+  },
   totalLabel: {
     ...typography.headline,
     fontWeight: '700',
@@ -334,6 +422,47 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.label,
     fontVariant: ['tabular-nums'],
+  },
+  payRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    minHeight: SUM_ROW,
+    paddingVertical: spacing.md,
+  },
+  radioOn: {
+    width: RADIO,
+    height: RADIO,
+    borderRadius: RADIO / 2,
+    borderWidth: 6,
+    borderColor: colors.tint,
+  },
+  radioOff: {
+    width: RADIO,
+    height: RADIO,
+    borderRadius: RADIO / 2,
+    borderWidth: 1.5,
+    borderColor: colors.labelTertiary,
+  },
+  payOn: {
+    ...typography.subheadline,
+    fontWeight: '700',
+    color: colors.label,
+    flex: 1,
+  },
+  payOff: {
+    ...typography.subheadline,
+    color: colors.labelTertiary,
+    flex: 1,
+  },
+  later: {
+    ...typography.caption1,
+    fontWeight: '600',
+    color: colors.labelTertiary,
+  },
+  held: {
+    fontWeight: '700',
+    color: colors.label,
   },
   secondary: {
     ...typography.subheadline,
@@ -348,4 +477,9 @@ const styles = StyleSheet.create({
     ...typography.subheadline,
     color: colors.danger,
   },
+  retry: {
+    fontWeight: '600',
+    color: colors.tint,
+  },
 });
+

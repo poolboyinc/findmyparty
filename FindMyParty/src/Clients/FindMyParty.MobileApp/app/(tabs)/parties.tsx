@@ -7,21 +7,27 @@ import { router } from 'expo-router';
 import { PressableScale } from '@/components/afterglow/motion';
 import { Empty, Failed, Loading } from '@/components/afterglow/state';
 import { Display } from '@/components/afterglow/text';
-import { DEFAULT_FILTER, FILTERS, matchesFilter, matchesSearch, matchesTaste, splitFeed, type Filter } from '@/components/finding/feed';
+import {
+  DEFAULT_FILTER,
+  FILTERS,
+  cityName,
+  matchesFilter,
+  matchesSearch,
+  matchesTaste,
+  splitFeed,
+  type Filter,
+} from '@/components/finding/feed';
 import { dateText } from '@/components/finding/format';
 import { PartyCard, PartyRow } from '@/components/finding/party-card';
 import { useNow } from '@/components/finding/use-now';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { Icon } from '@/components/ui/icon';
 import { SectionHeader } from '@/components/ui/section-header';
-import { useParties } from '@/hooks/queries';
-import { useFavorites } from '@/hooks/useFavorites';
-import { useTaste } from '@/services/taste';
+import { useParties, useProfile } from '@/hooks/queries';
+import { useHomeCity } from '@/hooks/useHomeCity';
+import { useSavedItems } from '@/hooks/useSaved';
 import { colors, layout, radii, spacing, typography } from '@/theme';
 import type { Party } from '@/types/api';
-
-// Every venue is in Podgorica for now, so the city is a word, not a choice.
-const CITY = 'Podgorica';
 
 // Rows glide to their new place when a filter, a search or a refresh changes the list.
 const glide = LinearTransition.springify();
@@ -33,9 +39,11 @@ function openParty(id: string) {
 export default function TonightScreen() {
   const insets = useSafeAreaInsets();
   const now = useNow();
-  const { data, error, isPending, refetch } = useParties();
-  const { taste } = useTaste();
-  const { isFavorite, toggle: toggleFavorite, loaded: favoritesLoaded } = useFavorites();
+  const { slug, city } = useHomeCity();
+  const { data, error, isPending, refetch } = useParties(slug);
+  // ✦ and "For you" follow the sound saved on the account.
+  const taste = useProfile().data?.taste ?? NO_TASTE;
+  const { isSaved, toggle: toggleSaved } = useSavedItems();
   const [chosen, setChosen] = useState<Filter>(DEFAULT_FILTER);
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -116,12 +124,13 @@ export default function TonightScreen() {
               Tonight
             </Display>
             <Text style={styles.sub}>
-              {dateText(now)}, {CITY}
+              {dateText(now)}, {cityName(slug, city)}
             </Text>
           </View>
           <PressableScale
             onPress={toggleSearch}
             scaleTo={0.92}
+            hitSlop={layout.hitSlop}
             style={styles.searchButton}
             accessibilityRole="button"
             accessibilityLabel={searching ? 'Close search' : 'Search parties'}
@@ -211,8 +220,8 @@ export default function TonightScreen() {
                   party={party}
                   match={isMatch(party)}
                   onPress={() => openParty(party.id)}
-                  favorite={favoritesLoaded && isFavorite(party.id)}
-                  onToggleFavorite={() => toggleFavorite(party.id)}
+                  saved={isSaved('party', party.id)}
+                  onToggleSaved={() => toggleSaved('party', party.id)}
                 />
               </Animated.View>
             ))}
@@ -237,6 +246,7 @@ export default function TonightScreen() {
   );
 }
 
+const NO_TASTE: string[] = [];
 const SEARCH_BUTTON = 40;
 
 const styles = StyleSheet.create({
