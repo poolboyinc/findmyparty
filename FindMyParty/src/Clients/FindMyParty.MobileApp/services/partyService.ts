@@ -1,13 +1,8 @@
-import { authService, fetchWithTimeout } from './authService';
+import { fetchWithTimeout } from './authService';
+import { api } from './apiClient';
 import { ApiConstants } from '../constants/api';
-import type {
-  CreatePartyRequest,
-  HostPartyResponse,
-  PartyAvailability,
-  PartyDetail,
-  PartyMapItem,
-  UpdatePartyRequest,
-} from '../types/parties';
+import type { HostParty, PartyInput } from '../types/api';
+import type { PartyAvailability, PartyDetail, PartyMapItem } from '../types/parties';
 
 export const partyService = {
   // ── Public ────────────────────────────────────────────────────────────────
@@ -54,140 +49,43 @@ export const partyService = {
   },
 
   // ── Host ──────────────────────────────────────────────────────────────────
+  // Through the API client, so a refusal arrives as an `ApiError` with its code (`acts_invalid`,
+  // `storage_off`, ...) and the screen can say why with `errorText`.
 
-  async getMyParties(): Promise<HostPartyResponse[]> {
-    try {
-      const token = await authService.getToken();
-      if (!token) return [];
-
-      const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/mine`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) return [];
-      // Normalize numeric fields at the data boundary so every host screen
-      // inherits safe numbers — a missing ticketsSold/revenue would otherwise
-      // surface as NaN in aggregations and "NaN" in the UI.
-      const data: HostPartyResponse[] = await response.json();
-      return data.map((p) => ({
-        ...p,
-        ticketsSold: Number(p.ticketsSold) || 0,
-        revenue: Number(p.revenue) || 0,
-      }));
-    } catch {
-      // See getParties: silent failure, host dashboard renders empty list.
-      return [];
-    }
+  async getMyParties(): Promise<HostParty[]> {
+    return api.request<HostParty[]>('/api/parties/mine');
   },
 
-  async createParty(request: CreatePartyRequest): Promise<string | null> {
-    const token = await authService.getToken();
-    if (!token) return null;
-
-    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) return null;
-
-    // Prefer body (reliable), fall back to Location header
-    const data = await response.json().catch(() => null);
-    if (data?.id) return data.id;
-
-    const location = response.headers.get('Location');
-    if (location) {
-      // Extract GUID from path like /api/parties/{id}
-      const match = location.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-      if (match) return match[0];
-    }
-
-    return null;
+  /** Makes a draft. Returns its id. */
+  async createParty(input: PartyInput): Promise<string> {
+    const created = await api.request<{ id: string }>('/api/parties', { method: 'POST', body: input });
+    return created.id;
   },
 
-  async publishParty(partyId: string): Promise<boolean> {
-    const token = await authService.getToken();
-    if (!token) return false;
-
-    const response = await fetchWithTimeout(
-      `${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/publish`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
-    return response.ok;
+  /** Changes a draft (the server refuses a published party; its line-up goes through `useSetActs`). */
+  async updateParty(partyId: string, input: PartyInput): Promise<void> {
+    await api.request<void>(`/api/parties/${partyId}`, { method: 'PATCH', body: input });
   },
 
-  async updateParty(partyId: string, request: UpdatePartyRequest): Promise<boolean> {
-    const token = await authService.getToken();
-    if (!token) return false;
-
-    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(request),
-    });
-    return response.ok;
+  async publishParty(partyId: string): Promise<void> {
+    await api.request<void>(`/api/parties/${partyId}/publish`, { method: 'POST' });
   },
 
-  async cancelParty(partyId: string): Promise<boolean> {
-    try {
-      const token = await authService.getToken();
-      if (!token) return false;
-
-      const response = await fetchWithTimeout(
-        `${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/cancel`,
-        {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      return response.ok;
-    } catch {
-      // Network/timeout — return false so the caller surfaces a failure notice
-      // (a throw would otherwise skip the caller's error handling entirely).
-      return false;
-    }
+  async cancelParty(partyId: string): Promise<void> {
+    await api.request<void>(`/api/parties/${partyId}/cancel`, { method: 'POST' });
   },
 
+  async deleteParty(partyId: string): Promise<void> {
+    await api.request<void>(`/api/parties/${partyId}`, { method: 'DELETE' });
+  },
+
+  /** Uploads the cover from a local image URI. Fails with `storage_off` until storage is set up. */
   async uploadPartyImage(partyId: string, imageUri: string): Promise<string | null> {
-    const token = await authService.getToken();
-    if (!token) return null;
-
-    const formData = new FormData();
-    // Server validates and re-encodes to JPEG regardless of what we send here.
-    // Use a fixed content type — never derive it from the client filename.
-    formData.append('file', { uri: imageUri, name: 'upload.jpg', type: 'image/jpeg' } as any);
-
-    const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}/image`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    return data.imageUrl ?? null;
-  },
-
-  async deleteParty(partyId: string): Promise<boolean> {
-    try {
-      const token = await authService.getToken();
-      if (!token) return false;
-
-      const response = await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/parties/${partyId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return response.ok;
-    } catch {
-      // Network/timeout — return false so the caller surfaces a failure notice.
-      return false;
-    }
+    const form = new FormData();
+    // React Native's FormData takes a `{ uri, name, type }` file reference. The server re-encodes it,
+    // so the type is fixed rather than taken from the file name.
+    form.append('file', { uri: imageUri, name: 'upload.jpg', type: 'image/jpeg' } as unknown as Blob);
+    const data = await api.request<{ imageUrl?: string }>(`/api/parties/${partyId}/image`, { method: 'POST', body: form });
+    return data?.imageUrl ?? null;
   },
 };

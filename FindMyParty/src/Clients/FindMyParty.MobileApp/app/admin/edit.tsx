@@ -1,160 +1,155 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { AdminScreen } from '@/components/admin/admin-screen';
+import { LineupEditor } from '@/components/admin/lineup-editor';
 import { ModalFormHeader } from '@/components/admin/modal-form-header';
-import { PartyFormFields, usePartyForm } from '@/components/admin/party-form';
-import { EmptyState } from '@/components/ui/empty-state';
-import { keys } from '@/hooks/queries';
-import { partyService } from '@/services/partyService';
-import { takeEditDraft } from '@/hooks/useEditPartyDraft';
+import { PartyFormFields } from '@/components/admin/party-form';
+import { checkDraft, draftFromParty, toActs, toPartyInput, type ActDraft } from '@/components/admin/party-input';
+import { usePartyForm } from '@/components/admin/use-party-form';
+import { Empty, Failed, Loading } from '@/components/afterglow/state';
+import { Display } from '@/components/afterglow/text';
+import { dayAndTime } from '@/components/host/format';
 import { resolveMediaUrl } from '@/constants/api';
-import type { HostParty } from '@/types/api';
-import type { UpdatePartyRequest } from '@/types/parties';
+import { keys, useHostParties, useSetActs } from '@/hooks/queries';
+import { errorText } from '@/services/errorText';
+import { partyService } from '@/services/partyService';
 import { colors, spacing, typography } from '@/theme';
+import type { HostParty } from '@/types/api';
 
-/** Edit is reachable for Draft parties only. */
-function isDraft(party: HostParty): boolean {
-  return party.status?.toLowerCase() === 'draft';
-}
-
+/**
+ * Edit a party, opened from the Parties tab. A draft can change everything; a published party that has
+ * not ended can change its line-up only (`PUT /api/parties/{id}/acts`).
+ */
 export default function EditPartyScreen() {
   const { partyId } = useLocalSearchParams<{ partyId: string }>();
+  const parties = useHostParties();
+  const party = parties.data?.find((p) => p.id === partyId) ?? null;
 
-  // Consume the handed-off draft exactly once on mount. Held in state so a
-  // re-render never re-takes (the store self-clears on take).
-  const [draft] = useState<HostParty | null>(() => takeEditDraft());
-
-  // Defensive: empty store or a non-draft party means we arrived without a valid
-  // handoff — bounce back after surfacing the reason.
-  const invalid = !draft || !isDraft(draft);
-
-  useEffect(() => {
-    if (invalid) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    }
-  }, [invalid]);
-
-  if (invalid) {
+  if (!party) {
+    let body: React.ReactNode;
+    if (parties.isPending) body = <Loading />;
+    else if (!parties.data) body = <Failed error={parties.error} onRetry={() => parties.refetch()} />;
+    else body = <Empty title="This party is gone" body="It may have been deleted. Go back to Parties." />;
     return (
       <View style={styles.root}>
-        <ModalFormHeader
-          title="Edit party"
-          postLabel="Save"
-          onCancel={() => router.back()}
-          onPost={() => router.back()}
-          submitting={false}
-        />
-        <AdminScreen>
-          <EmptyState
-            sfSymbol="exclamationmark.triangle"
-            ionicon="alert-circle-outline"
-            title="Can't edit this party"
-            body="Only drafts can be edited. Go back to Parties and try again."
-            action={{ label: 'Go back', onPress: () => router.back() }}
-          />
-        </AdminScreen>
+        <ModalFormHeader title="Edit party" postLabel="Save" onCancel={() => router.back()} onPost={() => router.back()} submitting={false} />
+        <AdminScreen>{body}</AdminScreen>
       </View>
     );
   }
 
-  return <EditPartyForm partyId={partyId} draft={draft} />;
+  if (party.status === 'Draft') return <EditDraft party={party} />;
+  if ((party.status === 'Published' || party.status === 'SoldOut') && Date.now() < new Date(party.endsAt).getTime()) {
+    return <EditLineup party={party} />;
+  }
+  return (
+    <View style={styles.root}>
+      <ModalFormHeader title="Edit party" postLabel="Save" onCancel={() => router.back()} onPost={() => router.back()} submitting={false} />
+      <AdminScreen>
+        <Empty title="This party cannot be changed" body="It has ended or was cancelled." />
+      </AdminScreen>
+    </View>
+  );
 }
 
-function EditPartyForm({ partyId, draft }: { partyId: string; draft: HostParty }) {
+function EditDraft({ party }: { party: HostParty }) {
   const client = useQueryClient();
-  const form = usePartyForm({
-    title: draft.title,
-    description: draft.description,
-    genre: draft.genre ?? undefined,
-    performerType: draft.performerType ?? undefined,
-    performerName: draft.performerName ?? undefined,
-    startsAt: draft.startsAt,
-    endsAt: draft.endsAt,
-    price: draft.price,
-    capacity: draft.capacity,
-    imageUrl: resolveMediaUrl(draft.imageUrl),
-  });
-
-  const [loading, setLoading] = useState(false);
+  const form = usePartyForm(party, resolveMediaUrl(party.imageUrl) ?? null);
+  const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const handleSubmit = async () => {
+  const save = async () => {
     setSubmitError(null);
-    Haptics.selectionAsync();
-
-    if (!form.validate()) return;
-
-    const payload = form.buildPayload();
-
-    setLoading(true);
+    if (!form.validate()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    setSaving(true);
     try {
-      // Reuse the draft's coordinates — the form has no location field, and a
-      // PATCH must keep lat/long intact. `imageUrl` is intentionally NOT sent;
-      // the cover is updated only via the image-upload endpoint below.
-      const request: UpdatePartyRequest = {
-        ...payload,
-        // Hosts cannot feature their own parties; the server ignores this field.
-        // It is only here because the shared request type still lists it.
-        featured: draft.featured,
-        latitude: draft.latitude,
-        longitude: draft.longitude,
-      };
+      // The form has no place field: the party stays where it is.
+      await partyService.updateParty(party.id, toPartyInput(form.draft, party));
+    } catch (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setSubmitError(errorText(error));
+      setSaving(false);
+      return;
+    }
 
-      const updated = await partyService.updateParty(partyId, request);
-      if (!updated) {
-        // Covers a backend InvalidState (e.g. no longer a draft) or any non-ok.
-        setSubmitError("Couldn't save your changes. This party may no longer be a draft.");
-        setLoading(false);
-        return;
+    let coverProblem: string | null = null;
+    if (form.imageUri) {
+      try {
+        await partyService.uploadPartyImage(party.id, form.imageUri);
+      } catch (error) {
+        coverProblem = `The new cover was not uploaded. ${errorText(error)}`;
       }
+    }
 
-      // Upload a new cover ONLY if the host picked one this session. A failure is
-      // non-blocking: the edits saved, so surface an inline notice and proceed.
-      if (form.hasNewImage && form.values.imageUri) {
-        const imageUrl = await partyService.uploadPartyImage(partyId, form.values.imageUri);
-        if (!imageUrl) {
-          form.setImageNotice(
-            "Changes saved, but the new cover image didn't upload. Try again from Parties.",
-          );
-        }
-      }
+    await client.invalidateQueries({ queryKey: keys.hostParties });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.replace({ pathname: '/admin/manage', params: { updatedPartyId: party.id } });
+    if (coverProblem) Alert.alert('Changes saved', coverProblem);
+  };
 
+  return (
+    <View style={styles.root}>
+      <ModalFormHeader title="Edit party" postLabel="Save" onCancel={() => router.back()} onPost={save} submitting={saving} />
+      <AdminScreen>
+        <PartyFormFields form={form} />
+        {submitError ? (
+          <Animated.Text entering={FadeIn.duration(200)} style={styles.submitError} accessibilityLiveRegion="polite">
+            {submitError}
+          </Animated.Text>
+        ) : null}
+      </AdminScreen>
+    </View>
+  );
+}
+
+/** A published party: only the line-up can change. */
+function EditLineup({ party }: { party: HostParty }) {
+  const counter = useRef(0);
+  const newKey = () => `act-${++counter.current}`;
+  const [draft, setDraft] = useState(() => draftFromParty(party, newKey, new Date()));
+  const [error, setError] = useState<string | undefined>(undefined);
+  const setActs = useSetActs();
+
+  const onChange = (acts: ActDraft[]) => {
+    setDraft((prev) => ({ ...prev, acts }));
+    setError(undefined);
+  };
+
+  const save = async () => {
+    const found = checkDraft(draft).acts;
+    if (found) {
+      setError(found);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    try {
+      await setActs.mutateAsync({ partyId: party.id, acts: toActs(draft) });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // The `updatedPartyId` param highlights the edited card in Parties.
-      client.invalidateQueries({ queryKey: keys.hostParties });
-      router.replace({ pathname: '/admin/manage', params: { updatedPartyId: partyId } });
-    } catch {
-      setSubmitError("Couldn't save your changes. Check your connection and try again.");
-      setLoading(false);
+      router.replace({ pathname: '/admin/manage', params: { updatedPartyId: party.id } });
+    } catch (e) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setError(errorText(e));
     }
   };
 
   return (
     <View style={styles.root}>
-      <ModalFormHeader
-        title="Edit party"
-        postLabel="Save"
-        onCancel={() => router.back()}
-        onPost={handleSubmit}
-        submitting={loading}
-      />
-
+      <ModalFormHeader title="Line-up" postLabel="Save" onCancel={() => router.back()} onPost={save} submitting={setActs.isPending} />
       <AdminScreen>
-        <PartyFormFields {...form.fieldProps} />
-
-        {submitError ? (
-          <Animated.Text
-            entering={FadeIn.duration(200)}
-            style={styles.submitError}
-            accessibilityLiveRegion="polite"
-          >
-            {submitError}
-          </Animated.Text>
-        ) : null}
+        <View style={styles.heading}>
+          <Display size="md" numberOfLines={2}>
+            {party.title}
+          </Display>
+          <Text style={styles.sub}>{dayAndTime(party.startsAt)}. Published, so only the line-up can change.</Text>
+        </View>
+        <LineupEditor acts={draft.acts} partyStart={draft.start} error={error} onChange={onChange} newKey={newKey} />
       </AdminScreen>
     </View>
   );
@@ -164,6 +159,14 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  heading: {
+    gap: spacing.xs,
+    marginBottom: spacing.xl,
+  },
+  sub: {
+    ...typography.subheadline,
+    color: colors.labelSecondary,
   },
   submitError: {
     ...typography.footnote,

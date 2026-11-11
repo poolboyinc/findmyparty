@@ -167,6 +167,7 @@ export interface DoorContext {
 export interface ManifestPass {
   codeId: string; kind: 'booking' | 'guest'; guestName: string; levelName: string;
   outside: number; pricePerGuest: number; dueByAdmit: number[]; skipLine: boolean;
+  perkLabel: string | null;       // the booking's perk, e.g. "Free before midnight"; null for none
 }
 export interface DoorManifest { partyId: string; partyTitle: string; generatedAt: string; capacity: number; checkedIn: number; passes: ManifestPass[] }
 export interface DoorStaff { id: string; name: string; doorName: string; userName: string; createdAt: string; lastScanAt: string | null }

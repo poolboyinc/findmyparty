@@ -5,15 +5,20 @@ import { usePartyLive } from '@/hooks/queries';
 import { errorText } from '@/services/errorText';
 import { colors, radii, spacing, typography } from '@/theme';
 import { ArrivalsChart } from './arrivals-chart';
+import { BeamCard } from './beam-card';
 import { CrowdGauge } from './crowd-gauge';
 import { euros } from './format';
 
 type Props = {
-  /** A party that is on now. The numbers refresh every 10 seconds while this is on screen. */
+  /** A party that is on now or has ended. The numbers refresh every 10 seconds while this is on screen. */
   partyId: string;
 };
 
-/** The night in numbers for one party: who is inside, who is still to come, arrivals, and the door takings. */
+/**
+ * The night in numbers for one party (S-22): who is inside, who is still to come, arrivals, the door
+ * takings, new faces, and where the venue's beam stands in the city. A past night shows its final numbers
+ * and no beam.
+ */
 export function LiveNumbers({ partyId }: Props) {
   const live = usePartyLive(partyId);
 
@@ -33,7 +38,7 @@ export function LiveNumbers({ partyId }: Props) {
     );
   }
 
-  const { capacity, passesOut, checkedIn, notHereYet, takenAtDoor, arrivals } = live.data;
+  const { capacity, passesOut, checkedIn, notHereYet, takenAtDoor, arrivals, newFaces, beam, status } = live.data;
 
   return (
     <View style={styles.wrap}>
@@ -55,15 +60,31 @@ export function LiveNumbers({ partyId }: Props) {
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Arrivals, every 15 min</Text>
-        <ArrivalsChart arrivals={arrivals} />
+        <ArrivalsChart arrivals={arrivals} live={status === 'live'} />
       </View>
 
-      <View style={styles.card} accessible accessibilityLabel={`Taken at the door, ${euros(takenAtDoor)}`}>
-        <Text style={styles.cardLabel}>Taken at the door</Text>
-        <Display size="lg" style={styles.figure}>
-          {euros(takenAtDoor)}
-        </Display>
+      <View style={styles.tiles}>
+        <Tile label="Taken at door" value={euros(takenAtDoor)} />
+        <Tile label="New faces" value={String(newFaces ?? 0)} />
       </View>
+
+      {beam ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Your beam right now</Text>
+          <BeamCard beam={beam} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function Tile({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={[styles.card, styles.tile]} accessible accessibilityLabel={`${label}, ${value}`}>
+      <Text style={styles.cardLabel}>{label}</Text>
+      <Display size="md" style={styles.figure} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+        {value}
+      </Display>
     </View>
   );
 }
@@ -86,6 +107,14 @@ const styles = StyleSheet.create({
     borderRadius: radii.card,
     padding: spacing.base,
     gap: spacing.xs,
+  },
+  tiles: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  tile: {
+    flex: 1,
+    gap: spacing.sm,
   },
   waiting: {
     minHeight: 180,

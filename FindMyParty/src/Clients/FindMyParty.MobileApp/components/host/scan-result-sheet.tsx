@@ -14,8 +14,8 @@ import { colors, layout, radii, spacing } from '@/theme';
 import { ScanResultContent, type ShownScanState } from './scan-result-content';
 import type { ScanState } from './use-door-scan';
 
-/** How long "2 in" stays up before the sheet closes by itself. */
-const ADMITTED_CLOSE_MS = 1_200;
+/** How long "2 in" (or "Redeemed") stays up before the sheet closes by itself. */
+const ADMITTED_CLOSE_MS = 1_600;
 /**
  * `present()` mounts the sheet a frame later. A `dismiss()` that lands before that leaves the modal
  * marked as closing for good (it never opens again), so a dismiss this soon after a present waits.
@@ -26,8 +26,7 @@ type Props = {
   state: ScanState;
   /** False when the scanner is not the screen in front: the sheet must not stay over another tab. */
   focused: boolean;
-  onAdmit: (code: string, count: number) => void;
-  onRetry: (code: string, during: 'check' | 'admit') => void;
+  onAdmit: (count: number) => void;
   /** The result is gone from the screen: scanning may resume. */
   onDismissed: () => void;
 };
@@ -41,7 +40,7 @@ function shownState(state: ScanState): ShownScanState | null {
  * closing it by any means (a button, a swipe, a tap outside, or by itself after an entry) is what
  * lets the next pass be read.
  */
-export function ScanResultSheet({ state, focused, onAdmit, onRetry, onDismissed }: Props) {
+export function ScanResultSheet({ state, focused, onAdmit, onDismissed }: Props) {
   const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheetModal>(null);
   const presented = useRef(false);
@@ -95,7 +94,7 @@ export function ScanResultSheet({ state, focused, onAdmit, onRetry, onDismissed 
     if (!focused && inProgress) onDismissed();
   }, [wantOpen, focused, inProgress, dismiss, onDismissed]);
 
-  const admitted = state.phase === 'admitted';
+  const admitted = state.phase === 'admitted' || state.phase === 'redeemed';
   useEffect(() => {
     if (!admitted) return;
     const timer = setTimeout(dismiss, ADMITTED_CLOSE_MS);
@@ -141,7 +140,7 @@ export function ScanResultSheet({ state, focused, onAdmit, onRetry, onDismissed 
     >
       <BottomSheetView style={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}>
         {content ? (
-          <ScanResultContent state={content} onAdmit={onAdmit} onRetry={onRetry} onClose={dismiss} onSignIn={signIn} />
+          <ScanResultContent state={content} onAdmit={onAdmit} onClose={dismiss} onSignIn={signIn} />
         ) : null}
       </BottomSheetView>
     </BottomSheetModal>

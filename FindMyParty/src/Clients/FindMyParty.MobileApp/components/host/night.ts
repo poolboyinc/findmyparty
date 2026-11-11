@@ -21,18 +21,30 @@ export function isOnNow(party: HostParty, now: number): boolean {
   return isOpen(party) && new Date(party.startsAt).getTime() <= now && now < new Date(party.endsAt).getTime();
 }
 
+const NIGHTS_BACK_MS = 30 * 24 * 60 * 60_000;
+
+/** Has ended. */
+export function isOver(party: HostParty, now: number): boolean {
+  return new Date(party.endsAt).getTime() <= now;
+}
+
 /**
- * The host's parties that matter tonight: everything published that has not ended, soonest first.
- * Parties already running therefore come before the ones still to start.
+ * The nights the Live tab's date pill offers: every published party of the last 30 days and every one
+ * ahead, in date order.
  */
-export function partiesAhead(parties: readonly HostParty[] | undefined, now: number): HostParty[] {
+export function pillNights(parties: readonly HostParty[] | undefined, now: number): HostParty[] {
   if (!parties) return [];
   return parties
-    .filter((p) => isOpen(p) && now < new Date(p.endsAt).getTime())
+    .filter((p) => isOpen(p) && new Date(p.endsAt).getTime() > now - NIGHTS_BACK_MS)
     .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
 }
 
-/** The party the door is working: the one on now that started first, if any. */
-export function partyOnNow(parties: readonly HostParty[] | undefined, now: number): HostParty | null {
-  return partiesAhead(parties, now).find((p) => isOnNow(p, now)) ?? null;
+/** The night shown first: the one on now, else the next one, else the latest past one. */
+export function defaultNight(nights: readonly HostParty[], now: number): HostParty | null {
+  return (
+    nights.find((p) => isOnNow(p, now)) ??
+    nights.find((p) => !isOver(p, now)) ??
+    nights[nights.length - 1] ??
+    null
+  );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActionSheetIOS, Alert, Platform, RefreshControl, StyleSheet, View } from 'react-native';
+import { Alert, RefreshControl, StyleSheet, View } from 'react-native';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -7,6 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { AdminScreen } from '@/components/admin/admin-screen';
 import { DashboardSectionHeader } from '@/components/admin/dashboard-section-header';
 import { HostPartyCard } from '@/components/admin/host-party-card';
+import { chooseOption } from '@/components/admin/option-sheet';
 import { PressableScale } from '@/components/afterglow/motion';
 import { Empty, Failed, Loading } from '@/components/afterglow/state';
 import { Display } from '@/components/afterglow/text';
@@ -14,29 +15,39 @@ import { dayWord, euros, timeRange } from '@/components/host/format';
 import { Icon } from '@/components/ui/icon';
 import { SwipeDeleteAction, SWIPE_DEFAULTS } from '@/components/ui/swipe-delete-action';
 import { useHostDashboard, toCardStatus } from '@/hooks/useHostDashboard';
-import { setEditDraft } from '@/hooks/useEditPartyDraft';
+import { errorText } from '@/services/errorText';
 import { partyService } from '@/services/partyService';
 import { resolveMediaUrl } from '@/constants/api';
 import type { HostParty } from '@/types/api';
 import { colors, layout, radii, spacing } from '@/theme';
 
+type GroupKey = 'draft' | 'ahead' | 'past' | 'cancelled';
+
 type StatusGroup = {
-  key: 'draft' | 'published' | 'soldout' | 'cancelled';
+  key: GroupKey;
   title: string;
   items: HostParty[];
 };
 
-/** Partitions parties into the Drafts, Published, Sold out and Cancelled sections. */
-function groupByStatus(parties: HostParty[]): StatusGroup[] {
+/** Where a party sits in the list. A published party that has ended is a past night. */
+function groupOf(party: HostParty, now: number): GroupKey {
+  const status = toCardStatus(party.status);
+  if (status === 'draft' || status === 'cancelled') return status;
+  return new Date(party.endsAt).getTime() <= now ? 'past' : 'ahead';
+}
+
+/** Drafts, then what is coming up (soonest first), then past nights (latest first), then cancelled. */
+function groupParties(parties: HostParty[], now: number): StatusGroup[] {
   const groups: StatusGroup[] = [
     { key: 'draft', title: 'Drafts', items: [] },
-    { key: 'published', title: 'Published', items: [] },
-    { key: 'soldout', title: 'Sold out', items: [] },
+    { key: 'ahead', title: 'Coming up', items: [] },
+    { key: 'past', title: 'Past nights', items: [] },
     { key: 'cancelled', title: 'Cancelled', items: [] },
   ];
-  for (const party of parties) {
-    const status = toCardStatus(party.status);
-    groups.find((g) => g.key === status)?.items.push(party);
+  for (const party of parties) groups.find((g) => g.key === groupOf(party, now))?.items.push(party);
+  const time = (p: HostParty) => new Date(p.startsAt).getTime();
+  for (const group of groups) {
+    group.items.sort((a, b) => (group.key === 'past' || group.key === 'cancelled' ? time(b) - time(a) : time(a) - time(b)));
   }
   return groups.filter((g) => g.items.length > 0);
 }
@@ -73,18 +84,18 @@ export default function ManagePartiesScreen() {
 
   // ─── Per-status actions ───
   const handleEdit = useCallback((party: HostParty) => {
-    setEditDraft(party);
     router.push({ pathname: '/admin/edit', params: { partyId: party.id } });
   }, []);
 
   const handlePublish = useCallback(
     async (party: HostParty) => {
-      const success = await partyService.publishParty(party.id);
-      if (success) {
+      try {
+        await partyService.publishParty(party.id);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await refresh();
-      } else {
-        Alert.alert('Not published', 'The party could not be published. Try again.');
+      } catch (error) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert('Not published', errorText(error));
       }
     },
     [refresh],
@@ -99,11 +110,11 @@ export default function ManagePartiesScreen() {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            const success = await partyService.deleteParty(party.id);
-            if (success) {
+            try {
+              await partyService.deleteParty(party.id);
               removeParty(party.id);
-            } else {
-              Alert.alert('Not deleted', 'The draft could not be deleted. Try again.');
+            } catch (error) {
+              Alert.alert('Not deleted', errorText(error));
             }
           },
         },
@@ -121,77 +132,41 @@ export default function ManagePartiesScreen() {
           text: 'Cancel party',
           style: 'destructive',
           onPress: async () => {
-            const success = await partyService.cancelParty(party.id);
-            if (success) {
-              removeParty(party.id);
-            } else {
-              Alert.alert('Not cancelled', 'The party could not be cancelled. Try again.');
+            try {
+              await partyService.cancelParty(party.id);
+              await refresh();
+            } catch (error) {
+              Alert.alert('Not cancelled', errorText(error));
             }
           },
         },
       ]);
     },
-    [removeParty],
+    [refresh],
   );
 
-  // "More" menu — iOS action sheet; Android falls back to an Alert. Mirrors
-  // the party form's `openOptionPicker` shape.
+  // The "more" menu: a draft can be edited, published or deleted; a party still to come can have its
+  // line-up changed or be cancelled.
   const openActions = useCallback(
     (party: HostParty) => {
-      const isDraft = toCardStatus(party.status) === 'draft';
-
-      if (Platform.OS === 'ios') {
-        if (isDraft) {
-          ActionSheetIOS.showActionSheetWithOptions(
-            {
-              title: party.title,
-              options: ['Edit', 'Publish', 'Delete draft', 'Cancel'],
-              destructiveButtonIndex: 2,
-              cancelButtonIndex: 3,
-              userInterfaceStyle: 'dark',
-            },
-            (index) => {
-              if (index === 0) handleEdit(party);
-              else if (index === 1) handlePublish(party);
-              else if (index === 2) handleDeleteDraft(party);
-            },
-          );
-        } else {
-          ActionSheetIOS.showActionSheetWithOptions(
-            {
-              title: party.title,
-              options: ['Cancel party', 'Dismiss'],
-              destructiveButtonIndex: 0,
-              cancelButtonIndex: 1,
-              userInterfaceStyle: 'dark',
-            },
-            (index) => {
-              if (index === 0) handleCancelParty(party);
-            },
-          );
-        }
+      if (toCardStatus(party.status) === 'draft') {
+        chooseOption(party.title, ['Edit', 'Publish', 'Delete draft'], (index) => {
+          if (index === 0) handleEdit(party);
+          else if (index === 1) handlePublish(party);
+          else handleDeleteDraft(party);
+        });
         return;
       }
-
-      // Android
-      if (isDraft) {
-        Alert.alert(party.title, undefined, [
-          { text: 'Edit', onPress: () => handleEdit(party) },
-          { text: 'Publish', onPress: () => handlePublish(party) },
-          { text: 'Delete draft', style: 'destructive', onPress: () => handleDeleteDraft(party) },
-          { text: 'Cancel', style: 'cancel' },
-        ]);
-      } else {
-        Alert.alert(party.title, undefined, [
-          { text: 'Cancel party', style: 'destructive', onPress: () => handleCancelParty(party) },
-          { text: 'Dismiss', style: 'cancel' },
-        ]);
-      }
+      chooseOption(party.title, ['Edit line-up', 'Cancel party'], (index) => {
+        if (index === 0) handleEdit(party);
+        else handleCancelParty(party);
+      });
     },
     [handleEdit, handlePublish, handleDeleteDraft, handleCancelParty],
   );
 
-  const groups = useMemo(() => groupByStatus(parties), [parties]);
+  // Read once per list change; a party ending while the tab is open moves on the next refresh.
+  const groups = useMemo(() => groupParties(parties, Date.now()), [parties]);
 
   let body: React.ReactNode;
   if (loading) {
@@ -209,6 +184,7 @@ export default function ManagePartiesScreen() {
           <Animated.View key={party.id} layout={LinearTransition.springify()}>
             <PartyRow
               party={party}
+              past={group.key === 'past'}
               highlighted={party.id === pulseId}
               onOpen={openBookings}
               onMore={openActions}
@@ -248,6 +224,8 @@ export default function ManagePartiesScreen() {
 
 type PartyRowProps = {
   party: HostParty;
+  /** Ended: it only opens its bookings. */
+  past: boolean;
   highlighted: boolean;
   onOpen: (party: HostParty) => void;
   onMore: (party: HostParty) => void;
@@ -255,8 +233,11 @@ type PartyRowProps = {
   onCancel: (party: HostParty) => void;
 };
 
-/** One party: its card, with a swipe to delete (a draft) or cancel (a published party). A cancelled party only opens. */
-function PartyRow({ party, highlighted, onOpen, onMore, onDelete, onCancel }: PartyRowProps) {
+/**
+ * One party: its card, with a swipe to delete (a draft) or cancel (a party still to come).
+ * A cancelled party or a past night only opens.
+ */
+function PartyRow({ party, past, highlighted, onOpen, onMore, onDelete, onCancel }: PartyRowProps) {
   const status = toCardStatus(party.status);
   const card = (
     <HostPartyCard
@@ -264,16 +245,17 @@ function PartyRow({ party, highlighted, onOpen, onMore, onDelete, onCancel }: Pa
       title={party.title}
       status={status}
       when={`${dayWord(party.startsAt)}, ${timeRange(party.startsAt, party.endsAt)}`}
+      lineup={party.lineupText}
       passesOut={party.ticketsSold}
       capacity={party.capacity}
       worth={party.revenue > 0 ? euros(Math.round(party.revenue)) : undefined}
       isNew={highlighted}
       onPress={() => onOpen(party)}
-      onMorePress={status === 'cancelled' ? undefined : () => onMore(party)}
+      onMorePress={status === 'cancelled' || past ? undefined : () => onMore(party)}
     />
   );
 
-  if (status === 'cancelled') return card;
+  if (status === 'cancelled' || past) return card;
 
   const isDraft = status === 'draft';
   return (

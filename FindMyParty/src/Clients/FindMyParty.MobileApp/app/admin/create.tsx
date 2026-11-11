@@ -1,140 +1,96 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { AdminScreen } from '@/components/admin/admin-screen';
 import { ModalFormHeader } from '@/components/admin/modal-form-header';
-import { PartyFormFields, usePartyForm } from '@/components/admin/party-form';
+import { PartyFormFields } from '@/components/admin/party-form';
+import { toPartyInput } from '@/components/admin/party-input';
+import { usePartyForm } from '@/components/admin/use-party-form';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { keys } from '@/hooks/queries';
+import { keys, useHostVenue } from '@/hooks/queries';
+import { errorText } from '@/services/errorText';
 import { partyService } from '@/services/partyService';
-import { adminService } from '@/services/adminService';
-import type { CreatePartyRequest } from '@/types/parties';
-import type { HostProfile } from '@/types/auth';
 import { colors, spacing, typography } from '@/theme';
 
+/** A new party: saved as a draft, or published at once from "Post". Opens as a modal over the Parties tab. */
 export default function CreatePartyScreen() {
-  // Venue profile (coordinates fetched silently on mount; no role gate here —
-  // the modal is only reachable from the already-gated tab area).
-  const [hostProfile, setHostProfile] = useState<HostProfile | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    adminService.getHostProfile().then((profile) => {
-      if (!cancelled && profile) setHostProfile(profile);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const form = usePartyForm();
+  // The party sits at the venue: its coordinates come from the venue profile.
+  const venue = useHostVenue();
+  const form = usePartyForm(null);
   const client = useQueryClient();
-
-  // Submission + inline messaging owned by the screen.
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const handleSubmit = async (publish: boolean) => {
+  const save = async (publish: boolean) => {
     setSubmitError(null);
     Haptics.selectionAsync();
-
-    if (!form.validate()) return;
-
-    if (!hostProfile) {
-      setSubmitError('The venue profile is still loading. Try again in a moment.');
+    if (!form.validate()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+    if (!venue.data) {
+      setSubmitError(venue.isError ? errorText(venue.error) : 'The venue is still loading. Try again in a moment.');
+      if (venue.isError) venue.refetch();
       return;
     }
 
-    const payload = form.buildPayload();
-
-    setLoading(true);
+    setSaving(true);
+    let partyId: string;
     try {
-      const request: CreatePartyRequest = {
-        ...payload,
-        // Hosts cannot feature their own parties; the server ignores this field.
-        // It is only here because the shared request type still lists it.
-        featured: false,
-        latitude: hostProfile.latitude,
-        longitude: hostProfile.longitude,
-      };
-
-      const partyId = await partyService.createParty(request);
-      if (!partyId) {
-        setSubmitError("Couldn't create your party. Check your connection and try again.");
-        setLoading(false);
-        return;
-      }
-      // The Live tab and the scanner read the same list of parties.
-      client.invalidateQueries({ queryKey: keys.hostParties });
-
-      // Upload the cover image if one was chosen. A failure here is non-blocking:
-      // the party exists, so we surface an inline notice and still proceed.
-      if (form.values.imageUri) {
-        const imageUrl = await partyService.uploadPartyImage(partyId, form.values.imageUri);
-        if (!imageUrl) {
-          form.setImageNotice(
-            "Party created, but the cover image didn't upload. You can add it later from Parties.",
-          );
-        }
-      }
-
-      if (publish) {
-        const published = await partyService.publishParty(partyId);
-        if (!published) {
-          // Created but not published — land on Parties so the host can publish there.
-          form.setImageNotice("Saved as a draft, but it couldn't be published. Publish it from Parties.");
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          // The `newPartyId` param highlights the new card in Parties.
-          router.replace({ pathname: '/admin/manage', params: { newPartyId: partyId } });
-          return;
-        }
-      }
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      // The `newPartyId` param highlights the new card in Parties.
-      client.invalidateQueries({ queryKey: keys.hostParties });
-      router.replace({ pathname: '/admin/manage', params: { newPartyId: partyId } });
-    } catch {
-      setSubmitError("Couldn't create your party. Check your connection and try again.");
-      setLoading(false);
+      partyId = await partyService.createParty(toPartyInput(form.draft, venue.data));
+    } catch (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setSubmitError(errorText(error));
+      setSaving(false);
+      return;
     }
+
+    // From here the party exists; what fails next is said, and the host lands on Parties either way.
+    const problems: string[] = [];
+    if (form.imageUri) {
+      try {
+        await partyService.uploadPartyImage(partyId, form.imageUri);
+      } catch (error) {
+        problems.push(`The cover was not uploaded. ${errorText(error)}`);
+      }
+    }
+    if (publish) {
+      try {
+        await partyService.publishParty(partyId);
+      } catch (error) {
+        problems.push(`It was saved as a draft, not published. ${errorText(error)}`);
+      }
+    }
+
+    await client.invalidateQueries({ queryKey: keys.hostParties });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.replace({ pathname: '/admin/manage', params: { newPartyId: partyId } });
+    if (problems.length > 0) Alert.alert('Party saved', problems.join('\n\n'));
   };
 
   return (
     <View style={styles.root}>
-      <ModalFormHeader
-        title="New party"
-        onCancel={() => router.back()}
-        onPost={() => handleSubmit(true)}
-        submitting={loading}
-      />
+      <ModalFormHeader title="New party" onCancel={() => router.back()} onPost={() => save(true)} submitting={saving} />
 
       <AdminScreen>
-        <PartyFormFields {...form.fieldProps} />
+        <PartyFormFields form={form} />
 
-        {/* ─── Footer ─── */}
         {submitError ? (
-          <Animated.Text
-            entering={FadeIn.duration(200)}
-            style={styles.submitError}
-            accessibilityLiveRegion="polite"
-          >
+          <Animated.Text entering={FadeIn.duration(200)} style={styles.submitError} accessibilityLiveRegion="polite">
             {submitError}
           </Animated.Text>
         ) : null}
-        <View style={styles.footer}>
-          <PrimaryButton
-            label="Save as draft"
-            variant="secondary"
-            onPress={() => handleSubmit(false)}
-            loading={loading}
-            disabled={loading}
-            accessibilityHint="Saves this party as a draft without publishing"
-          />
-        </View>
+        <PrimaryButton
+          label="Save as draft"
+          variant="secondary"
+          onPress={() => save(false)}
+          loading={saving}
+          disabled={saving}
+          accessibilityHint="Saves this party without publishing it"
+        />
       </AdminScreen>
     </View>
   );
@@ -150,8 +106,5 @@ const styles = StyleSheet.create({
     color: colors.danger,
     paddingHorizontal: spacing.xs,
     marginBottom: spacing.md,
-  },
-  footer: {
-    marginTop: spacing.sm,
   },
 });

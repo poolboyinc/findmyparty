@@ -47,6 +47,8 @@ type Props = {
   status: HostPartyStatus;
   /** Day and hours, e.g. "Tonight, 23:00 to 03:00". */
   when: string;
+  /** The acts in time order, e.g. "Lena K, DJ Proximus". Left out when there is no line-up. */
+  lineup?: string | null;
   /** Passes taken, of `capacity`. */
   passesOut: number;
   capacity: number;
@@ -65,7 +67,7 @@ type Props = {
  * The "more" control is a SIBLING of the card's pressable (absolutely positioned), not nested, so
  * tapping it never presses the card.
  */
-export function HostPartyCard({ imageUrl, title, status, when, passesOut, capacity, worth, onPress, onMorePress, isNew = false }: Props) {
+export function HostPartyCard({ imageUrl, title, status, when, lineup, passesOut, capacity, worth, onPress, onMorePress, isNew = false }: Props) {
   const reduceMotion = useReducedMotion();
   const highlight = useSharedValue(0);
 
@@ -95,7 +97,7 @@ export function HostPartyCard({ imageUrl, title, status, when, passesOut, capaci
         onPress={onPress}
         scaleTo={0.98}
         accessibilityRole="button"
-        accessibilityLabel={`${title}, ${when}, ${meta}`}
+        accessibilityLabel={[title, lineup, when, meta].filter(Boolean).join(', ')}
         accessibilityHint="Opens the bookings for this party"
       >
         <Animated.View style={[styles.card, highlightStyle]}>
@@ -110,6 +112,11 @@ export function HostPartyCard({ imageUrl, title, status, when, passesOut, capaci
             <Display size="sm" numberOfLines={2}>
               {title}
             </Display>
+            {lineup ? (
+              <Text style={styles.lineup} numberOfLines={2}>
+                {lineup}
+              </Text>
+            ) : null}
             <Text style={styles.line}>{when}</Text>
             <Text style={styles.line}>{meta}</Text>
           </View>
@@ -175,6 +182,10 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     paddingBottom: spacing.base,
     gap: spacing.xs,
+  },
+  lineup: {
+    ...typography.subheadline,
+    color: colors.label,
   },
   line: {
     ...typography.footnote,

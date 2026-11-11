@@ -1,59 +1,59 @@
 import { useState } from 'react';
 import { RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
 import { AdminScreen } from '@/components/admin/admin-screen';
 import { DashboardSectionHeader } from '@/components/admin/dashboard-section-header';
 import { StatTile, SummaryStrip } from '@/components/admin/stat-tile';
 import { Block } from '@/components/afterglow/block';
 import { Empty, Failed, Loading } from '@/components/afterglow/state';
 import { Display } from '@/components/afterglow/text';
-import { euros } from '@/components/host/format';
-import { api } from '@/services/apiClient';
-import type { BookingItem } from '@/types/bookings';
+import { clock, euros, price } from '@/components/host/format';
+import { usePartyBookings } from '@/hooks/queries';
 import { colors, radii, spacing, typography } from '@/theme';
+import type { HostBooking } from '@/types/api';
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+/** Still counts: not cancelled, not let go when its hold ran out. */
+function isActive(booking: HostBooking): boolean {
+  return booking.status !== 'Cancelled' && booking.status !== 'Expired';
 }
 
-/**
- * A booking's state. Confirmed (scanned in at the door) is a lime block, anything still open a
- * white one, cancelled plain red text. An unexpected server value renders as it came.
- */
-function BookingStatus({ status }: { status: string }) {
-  if (status === 'Cancelled') {
-    return (
-      <Text style={styles.cancelled} accessibilityLabel="Status: Cancelled">
-        Cancelled
-      </Text>
-    );
-  }
+/** Lime once everybody on it is inside; a white block while some are in; nothing while nobody is. */
+function InBlock({ booking }: { booking: HostBooking }) {
+  if (booking.checkedInCount <= 0) return null;
+  const all = booking.checkedInCount >= booking.ticketCount;
   return (
-    // The wrapper keeps the block against the right edge; a Block aligns itself to the start.
     <View>
-      <Block label={status} tone={status === 'Confirmed' ? 'earned' : 'light'} />
+      <Block
+        label={all ? 'In' : `${booking.checkedInCount} of ${booking.ticketCount} in`}
+        tone={all ? 'earned' : 'light'}
+      />
     </View>
   );
 }
 
-/** A single booking row: guests + date on the left, price + status on the right. */
-function BookingRow({ booking }: { booking: BookingItem }) {
+/** The line under the guest's name: how many, and how long the spot is held or why it is gone. */
+function detail(booking: HostBooking): string {
+  const guests = `${booking.ticketCount} ${booking.ticketCount === 1 ? 'guest' : 'guests'}`;
+  if (booking.status === 'Cancelled') return `${guests}, cancelled`;
+  if (booking.status === 'Expired') return `${guests}, not scanned in time`;
+  if (booking.checkedInCount === 0 && booking.heldUntil) return `${guests}, held until ${clock(booking.heldUntil)}`;
+  return guests;
+}
+
+/** One pass: who, how many, the hold, what is due at the door, and who is already in. */
+function BookingRow({ booking }: { booking: HostBooking }) {
+  const active = isActive(booking);
   return (
-    <View style={styles.row}>
+    <View style={styles.row} accessible accessibilityLabel={`${booking.guestName}, ${detail(booking)}, ${price(booking.amountDue)} at the door`}>
       <View style={styles.rowLeft}>
-        <Text style={styles.rowGuests}>
-          {booking.ticketCount} {booking.ticketCount === 1 ? 'guest' : 'guests'}
+        <Text style={[styles.rowName, !active && styles.dim]} numberOfLines={1}>
+          {booking.guestName}
         </Text>
-        <Text style={styles.rowDate}>{formatDate(booking.createdAt)}</Text>
+        <Text style={styles.rowDetail}>{detail(booking)}</Text>
       </View>
       <View style={styles.rowRight}>
-        <Text style={styles.rowPrice}>{booking.totalPrice > 0 ? euros(booking.totalPrice) : 'Free'}</Text>
-        <BookingStatus status={booking.status} />
+        <Text style={[styles.rowAmount, !active && styles.dim]}>{price(booking.amountDue)}</Text>
+        <InBlock booking={booking} />
       </View>
     </View>
   );
@@ -61,13 +61,7 @@ function BookingRow({ booking }: { booking: BookingItem }) {
 
 export default function PartyBookingsScreen() {
   const { partyId, partyTitle } = useLocalSearchParams<{ partyId: string; partyTitle: string }>();
-
-  // Asked through the API client so a failed load says why instead of looking like "no bookings".
-  const query = useQuery({
-    queryKey: ['host', 'bookings', partyId ?? ''],
-    queryFn: () => api.request<BookingItem[]>(`/api/bookings/party/${partyId}`),
-    enabled: !!partyId,
-  });
+  const query = usePartyBookings(partyId);
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -79,15 +73,6 @@ export default function PartyBookingsScreen() {
     }
   };
 
-  const bookings = query.data ?? [];
-  const activeBookings = bookings.filter((b) => b.status !== 'Cancelled');
-  const cancelledBookings = bookings.filter((b) => b.status === 'Cancelled');
-
-  // Stats cover active (non-cancelled) bookings only — the sectioned list below
-  // surfaces cancelled rows separately so the figures and the list reconcile.
-  const totalGuests = activeBookings.reduce((sum, b) => sum + b.ticketCount, 0);
-  const totalDue = activeBookings.reduce((sum, b) => sum + b.totalPrice, 0);
-
   if (!query.data) {
     return (
       <AdminScreen title="Bookings" keyboardAvoiding={false}>
@@ -96,13 +81,19 @@ export default function PartyBookingsScreen() {
     );
   }
 
+  const bookings = query.data;
+  const active = bookings.filter(isActive);
+  const gone = bookings.filter((b) => !isActive(b));
+  const guests = active.reduce((sum, b) => sum + b.ticketCount, 0);
+  const inside = active.reduce((sum, b) => sum + b.checkedInCount, 0);
+  const due = active.reduce((sum, b) => sum + b.amountDue, 0);
+
   return (
     <AdminScreen
       title="Bookings"
       keyboardAvoiding={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.labelSecondary} />}
     >
-      {/* The header says "Bookings"; the content names the party. */}
       {partyTitle ? (
         <Display size="md" style={styles.partyTitle} accessibilityRole="header" numberOfLines={2}>
           {partyTitle}
@@ -115,25 +106,25 @@ export default function PartyBookingsScreen() {
         <>
           <View style={styles.summaryBlock}>
             <SummaryStrip>
-              <StatTile value={String(activeBookings.length)} label="Bookings" />
-              <StatTile value={String(totalGuests)} label="Guests" />
-              <StatTile value={euros(Math.round(totalDue))} label="At the door" />
+              <StatTile value={String(guests)} label="Guests" />
+              <StatTile value={String(inside)} label="Inside" />
+              <StatTile value={euros(Math.round(due))} label="At the door" />
             </SummaryStrip>
           </View>
 
-          {activeBookings.length > 0 ? (
+          {active.length > 0 ? (
             <View style={styles.section}>
-              <DashboardSectionHeader title="Confirmed and pending" />
-              {activeBookings.map((b) => (
+              <DashboardSectionHeader title="Passes" />
+              {active.map((b) => (
                 <BookingRow key={b.id} booking={b} />
               ))}
             </View>
           ) : null}
 
-          {cancelledBookings.length > 0 ? (
+          {gone.length > 0 ? (
             <View style={styles.section}>
-              <DashboardSectionHeader title="Cancelled" />
-              {cancelledBookings.map((b) => (
+              <DashboardSectionHeader title="Cancelled or not scanned in time" />
+              {gone.map((b) => (
                 <BookingRow key={b.id} booking={b} />
               ))}
             </View>
@@ -163,33 +154,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radii.card,
     paddingHorizontal: spacing.base,
-    paddingVertical: spacing.base,
+    paddingVertical: spacing.md,
   },
   rowLeft: {
     flexShrink: 1,
-    gap: spacing.xs,
+    gap: spacing.xxs,
   },
-  rowGuests: {
+  rowName: {
     ...typography.headline,
     color: colors.label,
-    fontVariant: ['tabular-nums'],
   },
-  rowDate: {
+  rowDetail: {
     ...typography.footnote,
     color: colors.labelSecondary,
+    fontVariant: ['tabular-nums'],
   },
   rowRight: {
     alignItems: 'flex-end',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
-  rowPrice: {
+  rowAmount: {
     ...typography.headline,
     color: colors.label,
     fontVariant: ['tabular-nums'],
   },
-  cancelled: {
-    ...typography.footnote,
-    fontWeight: '700',
-    color: colors.danger,
+  dim: {
+    color: colors.labelTertiary,
   },
 });

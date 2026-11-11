@@ -5,7 +5,7 @@ import { Display } from '@/components/afterglow/text';
 import { Icon } from '@/components/ui/icon';
 import { colors, spacing, typography } from '@/theme';
 
-const MARK = 56;
+const MARK = 60;
 
 type Props = {
   /** Fill of the round mark, and the title's colour unless `titleColor` is given. */
@@ -15,7 +15,7 @@ type Props = {
   sfSymbol: SymbolViewProps['name'];
   ionicon: keyof typeof Ionicons.glyphMap;
   title: string;
-  /** The big "2 in" after an entry. */
+  /** Big, on one line: "Valid. Admit 2", "2 in". Otherwise a sentence (a refusal) that may wrap. */
   large?: boolean;
   /** Plain lines under the title. Nulls are skipped. */
   lines: (string | null)[];
@@ -29,7 +29,15 @@ export function ScanResultHeading({ tone, iconColor = colors.ink, titleColor = t
         <Icon sfSymbol={sfSymbol} ionicon={ionicon} size={26} color={iconColor} />
       </View>
       <View style={styles.text}>
-        <Display size={large ? 'lg' : 'sm'} color={titleColor} style={styles.figures} accessibilityRole="header">
+        <Display
+          size={large ? 'lg' : 'sm'}
+          color={titleColor}
+          style={styles.figures}
+          accessibilityRole="header"
+          numberOfLines={large ? 1 : undefined}
+          adjustsFontSizeToFit={large}
+          minimumFontScale={0.7}
+        >
           {title}
         </Display>
         {lines.map((line) =>

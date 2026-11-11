@@ -54,21 +54,23 @@ export default function AdminLoginScreen() {
     try {
       const success = await authService.login(email.trim(), password);
       if (!success) {
-        setFormError('Could not sign in. Check your email and password.');
+        setFormError('Could not sign in. Check your email or username and password.');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         return;
       }
       const userInfo = await authService.getUserInfo();
       const roles = userInfo?.roles ?? [];
-      if (roles.includes('Host') || roles.includes('Admin')) {
+      const host = roles.includes('Host') || roles.includes('Admin');
+      if (host || roles.includes('Door')) {
         // A new session: nothing loaded for whoever was signed in before may be shown.
         queryClient.clear();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace('/admin');
+        // A door login gets the scanner and nothing else.
+        router.replace(host ? '/admin' : '/admin/scan');
       } else {
         await authService.logout();
         setRoleNotice(
-          "This account isn't a host. If you're expecting access, contact your FindMyParty rep.",
+          "This account isn't a host or a door login. If you're expecting access, contact your FindMyParty rep.",
         );
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -82,7 +84,7 @@ export default function AdminLoginScreen() {
 
   return (
     <View style={styles.root}>
-      <HostHeader title="Host sign in" disabled={loading} />
+      <HostHeader title="Host and door sign in" disabled={loading} />
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -176,7 +178,7 @@ export default function AdminLoginScreen() {
               onPress={handleLogin}
               disabled={loading}
               loading={loading}
-              accessibilityHint="Signs you in as a host"
+              accessibilityHint="Signs you in as a host or a door"
             />
           </View>
         </ScrollView>

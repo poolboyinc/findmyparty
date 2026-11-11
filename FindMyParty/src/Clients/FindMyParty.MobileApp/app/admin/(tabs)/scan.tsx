@@ -6,21 +6,26 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '@/components/afterglow/motion';
 import { Loading } from '@/components/afterglow/state';
 import { Display } from '@/components/afterglow/text';
-import { partyOnNow, useNow } from '@/components/host/night';
+import { confirmSignOut } from '@/components/host/account-rows';
+import { DoorTopBar } from '@/components/host/door/door-top-bar';
+import { RefusedBanner } from '@/components/host/door/refused-banner';
+import { useDoorList } from '@/components/host/door/use-door-list';
+import { useDoorQueue } from '@/components/host/door/use-door-queue';
 import { ScanResultSheet } from '@/components/host/scan-result-sheet';
 import { ScanReticle } from '@/components/host/scan-reticle';
 import { useDoorScan } from '@/components/host/use-door-scan';
 import { useHostGate } from '@/components/host/use-host-gate';
 import { Icon } from '@/components/ui/icon';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { useHostParties, useHostVenue, usePartyLive } from '@/hooks/queries';
+import { useMe } from '@/hooks/queries';
+import { pendingAdmits, refusedBanner } from '@/services/doorQueue';
 import { colors, layout, radii, spacing, typography } from '@/theme';
 
 const BARCODES: BarcodeSettings = { barcodeTypes: ['qr'] };
 
-/** The Scan tab: the door. Same gate as the Live tab: only a Host or Admin gets a camera. */
+/** The Scan tab (S-21): the door. A Host, an Admin or a door login gets the camera. */
 export default function HostScanTab() {
-  const allowed = useHostGate();
+  const allowed = useHostGate({ allowDoor: true });
 
   if (!allowed) {
     return (
@@ -78,16 +83,24 @@ function DoorScanner() {
 
 function Scanner({ focused }: { focused: boolean }) {
   const insets = useSafeAreaInsets();
-  const now = useNow();
-  const venue = useHostVenue();
-  const parties = useHostParties();
-  const onNow = partyOnNow(parties.data, now);
-  // The count only refreshes while the scanner is the screen in front.
-  const live = usePartyLive(focused ? onNow?.id : undefined);
+  const me = useMe();
+  const roles = me.data?.roles ?? [];
+  // A door login has no tab bar (see the tabs layout) and signs out from here.
+  const doorOnly = roles.includes('Door') && !roles.includes('Host') && !roles.includes('Admin');
 
-  const { state, onScanned, admit, retry, reset } = useDoorScan();
+  const queue = useDoorQueue();
+  const { door, list } = useDoorList();
+  const { state, onScanned, admit, reset } = useDoorScan({ queue, list });
   const [torch, setTorch] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // A fresh list has the entries confirmed well before it: stop counting those on the phone.
+  const { listArrived } = queue;
+  const listParty = list?.manifest.partyId;
+  const listTime = list?.receivedAt;
+  useEffect(() => {
+    if (listParty && listTime) listArrived(listParty, listTime);
+  }, [listParty, listTime, listArrived]);
 
   // Leaving the tab switches the torch off; the camera itself is unmounted below.
   useFocusEffect(
@@ -104,7 +117,12 @@ function Scanner({ focused }: { focused: boolean }) {
   );
 
   const checking = state.phase === 'checking';
-  const bottomClear = insets.bottom + layout.floatingTabBarHeight + layout.floatingTabBarBottomOffset + spacing.base;
+  const partyId = door?.party?.id;
+  const queuedAdmits = partyId ? pendingAdmits(queue.queue, partyId) : 0;
+  const banner = refusedBanner(queue.queue.refused);
+  const bottomClear = doorOnly
+    ? insets.bottom + spacing.base
+    : insets.bottom + layout.floatingTabBarHeight + layout.floatingTabBarBottomOffset + spacing.base;
 
   return (
     <View style={styles.root}>
@@ -115,34 +133,15 @@ function Scanner({ focused }: { focused: boolean }) {
           enableTorch={torch}
           barcodeScannerSettings={BARCODES}
           // The camera reports the same code many times a second; nothing is read while a result is up.
-          onBarcodeScanned={state.phase === 'idle' ? handleBarcode : undefined}
+          onBarcodeScanned={state.phase === 'idle' && queue.ready ? handleBarcode : undefined}
           onMountError={(event) => setCameraError(event.message)}
         />
       ) : null}
 
       <View style={[styles.overlay, { paddingTop: insets.top + spacing.sm, paddingBottom: bottomClear }]} pointerEvents="box-none">
-        <View style={styles.top} pointerEvents="none">
-          {venue.data ? (
-            <View style={styles.block}>
-              <Text style={styles.blockLabel} numberOfLines={1}>
-                {venue.data.venueName}
-              </Text>
-            </View>
-          ) : (
-            <View />
-          )}
-          {onNow && live.data ? (
-            <View
-              style={[styles.block, styles.countBlock]}
-              accessible
-              accessibilityLabel={`${live.data.checkedIn} of ${live.data.capacity} in`}
-            >
-              <View style={styles.dot} />
-              <Text style={[styles.blockLabel, styles.count]}>
-                {live.data.checkedIn} / {live.data.capacity} in
-              </Text>
-            </View>
-          ) : null}
+        <View style={styles.topArea} pointerEvents="box-none">
+          <DoorTopBar door={door} queuedAdmits={queuedAdmits} waiting={queue.queue.pending.length} />
+          {banner ? <RefusedBanner text={banner} onDismiss={queue.dismissRefused} /> : null}
         </View>
 
         <View style={styles.middle} pointerEvents="none">
@@ -163,6 +162,13 @@ function Scanner({ focused }: { focused: boolean }) {
         </View>
 
         <View style={styles.bottom} pointerEvents="box-none">
+          {doorOnly ? (
+            <PressableScale onPress={confirmSignOut} style={styles.signOut} accessibilityRole="button" accessibilityLabel="Sign out">
+              <Text style={styles.blockLabel}>Sign out</Text>
+            </PressableScale>
+          ) : (
+            <View />
+          )}
           {cameraError ? null : (
             <PressableScale
               onPress={() => setTorch((on) => !on)}
@@ -182,7 +188,7 @@ function Scanner({ focused }: { focused: boolean }) {
         </View>
       </View>
 
-      <ScanResultSheet state={state} focused={focused} onAdmit={admit} onRetry={retry} onDismissed={reset} />
+      <ScanResultSheet state={state} focused={focused} onAdmit={admit} onDismissed={reset} />
     </View>
   );
 }
@@ -205,10 +211,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     paddingHorizontal: spacing.base,
   },
-  top: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+  topArea: {
     gap: spacing.md,
   },
   block: {
@@ -223,22 +226,6 @@ const styles = StyleSheet.create({
     ...typography.subheadline,
     fontWeight: '600',
     color: colors.label,
-  },
-  countBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    flexShrink: 0,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.crowd,
-  },
-  count: {
-    color: colors.crowd,
-    fontVariant: ['tabular-nums'],
   },
   middle: {
     flex: 1,
@@ -256,7 +243,16 @@ const styles = StyleSheet.create({
     color: colors.labelSecondary,
   },
   bottom: {
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  signOut: {
+    minHeight: 48,
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+    paddingHorizontal: spacing.base,
   },
   torch: {
     width: 48,
