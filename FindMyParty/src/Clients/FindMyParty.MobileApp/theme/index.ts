@@ -326,8 +326,13 @@ export const layout = {
   sheetHandleWidth: 36,
   /** Floating tab bar visual height (excluding bottom safe-area inset). */
   floatingTabBarHeight: 64,
-  /** Vertical inset between the floating tab bar and the screen edge / home indicator. */
-  floatingTabBarBottomOffset: 2,
+  /**
+   * Where the floating tab bar sits against the bottom safe area: negative tucks it into the home
+   * indicator's area (it stays clear of the indicator itself, which is a few points high).
+   */
+  floatingTabBarBottomOffset: -12,
+  /** How far above the tab bar the dark band behind it fades out, so the map does not show around it. */
+  floatingTabBarFade: 28,
   /** Promo flyer aspect — wider than 16:9 to honor event poster proportions. */
   cardImageAspect: 333 / 168,
 } as const;
