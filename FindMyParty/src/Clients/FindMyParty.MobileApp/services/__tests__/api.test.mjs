@@ -138,3 +138,64 @@ test('extra facts from the server come with the error', async () => {
   await assert.rejects(api.request('/api/checkins', { method: 'POST', body: {} }), (e) =>
     e instanceof ApiError && e.code === 'already_used' && e.data?.firstCheckedInAt === '2026-11-13T22:12:00Z');
 });
+
+// ── auth: 'optional' — endpoints that work signed out and say more to a signed-in viewer ──
+
+test('an optional request sends the token when there is a session', async () => {
+  const { api, calls } = setup({ respond: () => res(200, []) });
+
+  await api.request('/api/parties', { auth: 'optional' });
+
+  assert.equal(calls[0].headers.Authorization, 'Bearer token-1');
+});
+
+test('an optional request goes on without a token when there is no session', async () => {
+  const { api, calls } = setup({ token: null, respond: () => res(200, [{ id: 'p1' }]) });
+
+  const data = await api.request('/api/parties', { auth: 'optional' });
+
+  assert.deepEqual(data, [{ id: 'p1' }]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].headers.Authorization, undefined);
+});
+
+test('an optional request whose token is refused is sent again with the renewed one', async () => {
+  const { api, calls, state } = setup({
+    respond: (n) => (n === 1 ? res(401) : res(200, { ok: true })),
+    refresh: async (s) => { s.token = 'token-2'; return 'ok'; },
+  });
+
+  const data = await api.request('/api/venues', { auth: 'optional' });
+
+  assert.deepEqual(data, { ok: true });
+  assert.equal(state.refreshes, 1);
+  assert.equal(calls[1].headers.Authorization, 'Bearer token-2');
+});
+
+for (const outcome of ['rejected', 'unreachable']) {
+  test(`an optional request whose session cannot be renewed (${outcome}) is sent again without a token`, async () => {
+    const { api, calls } = setup({
+      respond: (n) => (n === 1 ? res(401) : res(200, [{ id: 'v1' }])),
+      refresh: async (s) => { if (outcome === 'rejected') s.token = null; return outcome; },
+    });
+
+    const data = await api.request('/api/venues', { auth: 'optional' });
+
+    assert.deepEqual(data, [{ id: 'v1' }]);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].headers.Authorization, undefined);
+  });
+}
+
+test('an optional request is retried once, not for ever', async () => {
+  const { api, calls } = setup({ respond: () => res(401) });
+
+  await assert.rejects(api.request('/api/venues', { auth: 'optional' }), failsWith('signed_out'));
+  assert.equal(calls.length, 2);
+});
+
+test('an optional request with no connection is offline', async () => {
+  const { api } = setup({ token: null, respond: () => { throw new Error('Network request failed'); } });
+
+  await assert.rejects(api.request('/api/venues', { auth: 'optional' }), failsWith('offline'));
+});

@@ -31,7 +31,8 @@ export function CodePanel({ bookingId, secret, now }: Props) {
 
   const value = useMemo(() => {
     try {
-      return passQrText(bookingId, passCode(secret, step));
+      // M0: same text as before the signature changed. M3 passes `pass.codePrefix` and `pass.codeId` instead.
+      return passQrText('fmp1', bookingId, passCode(secret, step));
     } catch {
       return null;
     }

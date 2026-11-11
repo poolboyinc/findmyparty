@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hmacSha256Hex, passCode, passQrText, passStepAt, secondsUntilNextCode } from '../passCode.ts';
+import { hmacSha256Hex, parsePassText, passCode, passQrText, passStepAt, secondsUntilNextCode } from '../passCode.ts';
 
 const bytes = (...b) => Uint8Array.from(b);
 const ascii = (s) => Uint8Array.from(Buffer.from(s, 'ascii'));
@@ -38,5 +38,47 @@ test('the countdown says how long the current code lasts', () => {
 });
 
 test('the QR text is what the door scanner expects', () => {
-  assert.equal(passQrText('3F2504E0-4F89-11D3-9A0C-0305E82C3301', 'e88c8498'), 'fmp1.3f2504e04f8911d39a0c0305e82c3301.e88c8498');
+  assert.equal(passQrText('fmp1', '3f2504e04f8911d39a0c0305e82c3301', 'e88c8498'), 'fmp1.3f2504e04f8911d39a0c0305e82c3301.e88c8498');
+});
+
+test('a guest pass carries its own prefix', () => {
+  assert.equal(passQrText('fmpg1', '3f2504e04f8911d39a0c0305e82c3301', 'e88c8498'), 'fmpg1.3f2504e04f8911d39a0c0305e82c3301.e88c8498');
+});
+
+test('an id written as a GUID is flattened to 32 hex characters', () => {
+  assert.equal(passQrText('fmp1', '3F2504E0-4F89-11D3-9A0C-0305E82C3301', 'e88c8498'), 'fmp1.3f2504e04f8911d39a0c0305e82c3301.e88c8498');
+});
+
+const ID = '3f2504e04f8911d39a0c0305e82c3301';
+
+test('the door reads a pass, a guest pass and a perk claim apart', () => {
+  assert.deepEqual(parsePassText(`fmp1.${ID}.e88c8498`), { prefix: 'fmp1', id: ID, code: 'e88c8498' });
+  assert.deepEqual(parsePassText(`fmpg1.${ID}.e88c8498`), { prefix: 'fmpg1', id: ID, code: 'e88c8498' });
+  assert.deepEqual(parsePassText(`fmpc1.${ID}.0a1b2c3d`), { prefix: 'fmpc1', id: ID, code: '0a1b2c3d' });
+});
+
+test('what the phone writes, the door reads back', () => {
+  assert.deepEqual(parsePassText(passQrText('fmpg1', ID, 'e88c8498')), { prefix: 'fmpg1', id: ID, code: 'e88c8498' });
+});
+
+test('space around the text and upper case in the id do not matter', () => {
+  assert.deepEqual(parsePassText(`  FMP1.${ID.toUpperCase()}.e88c8498\n`), { prefix: 'fmp1', id: ID, code: 'e88c8498' });
+});
+
+test('anything else is not a pass', () => {
+  for (const text of [
+    '',
+    'https://findmyparty.app/p/123',
+    `fmp2.${ID}.e88c8498`, // unknown prefix
+    `fmp1.${ID}`, // no code
+    `fmp1.${ID}.`, // empty code
+    `fmp1.${ID.slice(1)}.e88c8498`, // id too short
+    `fmp1.${ID.slice(1)}g.e88c8498`, // id not hex
+    `fmp1.${ID}.e88c.8498`, // too many parts
+    `xfmp1.${ID}.e88c8498`,
+  ]) {
+    assert.equal(parsePassText(text), null, text);
+  }
+  assert.equal(parsePassText(null), null);
+  assert.equal(parsePassText(undefined), null);
 });

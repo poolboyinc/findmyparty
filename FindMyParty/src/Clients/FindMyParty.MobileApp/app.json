@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fmpglobalinc.findmyparty",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryAddUsageDescription": "FindMyParty saves your night card to your photos."
       }
     },
     "android": {
@@ -71,6 +72,13 @@
         "expo-sensors",
         {
           "motionPermission": "FindMyParty uses motion to make the foil on your pass shift as you tilt the phone."
+        }
+      ],
+      "expo-notifications",
+      [
+        "expo-media-library",
+        {
+          "savePhotosPermission": "FindMyParty saves your night card to your photos."
         }
       ]
     ],

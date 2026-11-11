@@ -124,7 +124,27 @@ export function passCode(secretBase64: string, step: number): string {
   return hmacSha256Hex(base64ToBytes(secretBase64), message).slice(0, 8);
 }
 
-/** The text to put in the QR: "fmp1.{booking id}.{code}". */
-export function passQrText(bookingId: string, code: string): string {
-  return `fmp1.${bookingId.replace(/-/g, '').toLowerCase()}.${code}`;
+/** What a QR can be: a booking's pass, a guest pass, or a claimed perk. */
+export type PassPrefix = 'fmp1' | 'fmpg1' | 'fmpc1';
+
+/**
+ * The text to put in the QR: "{prefix}.{id as 32 hex}.{code}". `prefix` and `codeId` come from the
+ * server's `Pass` (`codePrefix`, `codeId`); `code` is `passCode(secret, step)`.
+ */
+export function passQrText(prefix: 'fmp1' | 'fmpg1', codeId: string, code: string): string {
+  return `${prefix}.${codeId.replace(/-/g, '').toLowerCase()}.${code}`;
+}
+
+const PASS_TEXT = /^(fmp1|fmpg1|fmpc1)\.([0-9a-f]{32})\.([^.\s]+)$/i;
+
+/**
+ * Reads a scanned QR for the door: which kind it is (`fmpc1` is a perk claim, to redeem instead of admit),
+ * the id to look up in the offline list, and the code. Null when the text is not one of ours.
+ * The server still decides whether the code is good.
+ */
+export function parsePassText(text: string | null | undefined): { prefix: PassPrefix; id: string; code: string } | null {
+  if (!text) return null;
+  const match = PASS_TEXT.exec(text.trim());
+  if (!match) return null;
+  return { prefix: match[1].toLowerCase() as PassPrefix, id: match[2].toLowerCase(), code: match[3] };
 }

@@ -53,8 +53,13 @@ export interface RequestOptions {
   /** A plain object is sent as JSON. A FormData is sent as it is (file uploads). */
   body?: unknown;
   headers?: Record<string, string>;
-  /** Default true. Pass false for endpoints that work signed out. */
-  auth?: boolean;
+  /**
+   * Default true: a token is required, and with no session the request fails as `signed_out` without being sent.
+   * `false`: no token is sent (endpoints that never look at who is asking).
+   * `'optional'`: for endpoints that work signed out and say more to a signed-in viewer. The token is sent
+   * when there is a session; with no session, or one that cannot be renewed, the request goes on without it.
+   */
+  auth?: boolean | 'optional';
 }
 
 const KIND_BY_STATUS: Record<number, ApiErrorKind> = {
@@ -117,18 +122,24 @@ export function createApi(deps: ApiDeps) {
     /**
      * Returns the parsed body (undefined for an empty answer) or throws an `ApiError`.
      * If the server refuses the token, the session is renewed and the request sent once more.
+     * See `RequestOptions.auth` for what happens with no session.
      */
     async request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
-      const needsAuth = options.auth !== false;
-      let token = needsAuth ? await deps.getAccessToken() : null;
-      if (needsAuth && !token) throw new ApiError('signed_out');
+      const auth = options.auth ?? true;
+      let token = auth === false ? null : await deps.getAccessToken();
+      if (auth === true && !token) throw new ApiError('signed_out');
 
       let response = await send(path, options, token);
-      if (response.status === 401 && needsAuth) {
+      if (response.status === 401 && token) {
         const renewed = await deps.refresh();
-        if (renewed === 'unreachable') throw new ApiError('offline');
-        token = renewed === 'ok' ? await deps.getAccessToken() : null;
-        if (!token) throw new ApiError('signed_out', undefined, 401);
+        if (auth === 'optional') {
+          // Signed-out data beats no data: with no renewed token the request is sent once more without one.
+          token = renewed === 'ok' ? await deps.getAccessToken() : null;
+        } else {
+          if (renewed === 'unreachable') throw new ApiError('offline');
+          token = renewed === 'ok' ? await deps.getAccessToken() : null;
+          if (!token) throw new ApiError('signed_out', undefined, 401);
+        }
         response = await send(path, options, token);
       }
 
