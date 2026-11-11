@@ -7,7 +7,8 @@ import type { CityCamera } from '@/hooks/city/useCityCamera';
 import { colors, layout, spacing } from '@/theme';
 import type { VenueSummary } from '@/types/api';
 import { CityStyle } from './city-style';
-import { MAP_STYLE_URL, type LngLat } from './constants';
+import { LAYER, MAP_STYLE_URL, type LngLat } from './constants';
+import { venueOfBuilding } from './footprint';
 import type { CityMode } from './geojson';
 import { RouteLayer } from './route-layer';
 import { UserDot } from './user-dot';
@@ -15,6 +16,7 @@ import { VenueLayers } from './venue-layers';
 import { useVenueFootprints } from '@/hooks/city/useVenueFootprints';
 
 type MapState = Parameters<NonNullable<ComponentProps<typeof MapView>['onMapIdle']>>[0];
+type MapPress = Parameters<NonNullable<ComponentProps<typeof MapView>['onPress']>>[0];
 
 type Props = {
   camera: CityCamera;
@@ -33,6 +35,8 @@ type Props = {
   onPressUser: (at: LngLat) => void;
   /** Each new position of the user. */
   onUserMove: (at: LngLat) => void;
+  /** The screen is in front of the user: busy venues may pulse. */
+  pulse?: boolean;
 };
 
 /** Left edge of the Mapbox wordmark, and of the "i" button beside it. */
@@ -58,6 +62,7 @@ export const CityMap = memo(function CityMap({
   showUser,
   onPressUser,
   onUserMove,
+  pulse = false,
 }: Props) {
   const insets = useSafeAreaInsets();
 
@@ -73,14 +78,37 @@ export const CityMap = memo(function CityMap({
 
   const mapRef = useRef<MapView>(null);
   const { footprints, scan } = useVenueFootprints();
-  const { syncPitch } = camera;
+  const { syncView } = camera;
   const handleIdle = useCallback(
     (state: MapState) => {
-      syncPitch(state.properties.pitch);
+      syncView(state.properties.pitch, state.properties.zoom);
       // Once the buildings are drawn, find each venue's own building so its roof lights up.
       void scan(mapRef.current, venues);
     },
-    [syncPitch, scan, venues],
+    [syncView, scan, venues],
+  );
+
+  // A tap anywhere on a venue's own building (its walls, its roof) selects the venue, not only a
+  // tap on its beam or its name: the map says which building is under the finger.
+  const handlePress = useCallback(
+    async (press: MapPress) => {
+      const x: unknown = press.properties?.screenPointX;
+      const y: unknown = press.properties?.screenPointY;
+      if (typeof x === 'number' && typeof y === 'number' && mapRef.current) {
+        try {
+          const under = await mapRef.current.queryRenderedFeaturesAtPoint([x, y], [], [LAYER.buildings]);
+          const venueId = venueOfBuilding(under?.features ?? [], footprints);
+          if (venueId) {
+            onSelectVenue(venueId);
+            return;
+          }
+        } catch {
+          // The map could not answer: treat it as a tap on nothing.
+        }
+      }
+      onPressEmpty();
+    },
+    [footprints, onSelectVenue, onPressEmpty],
   );
 
   // The camera's first position depends on whether today's drop runs; known within a moment.
@@ -97,7 +125,7 @@ export const CityMap = memo(function CityMap({
       attributionPosition={ornaments.attribution}
       compassEnabled={false}
       scaleBarEnabled={false}
-      onPress={onPressEmpty}
+      onPress={handlePress}
       onMapIdle={handleIdle}
       onDidFinishLoadingMap={camera.onMapLoaded}
     >
@@ -111,6 +139,7 @@ export const CityMap = memo(function CityMap({
         mode={mode}
         earned={earned}
         footprints={footprints}
+        pulse={pulse}
         onSelect={onSelectVenue}
       />
       {showUser ? <UserDot onPress={onPressUser} onMove={onUserMove} /> : null}

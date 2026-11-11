@@ -40,6 +40,30 @@ public class DemoSeedTests(TestApp app)
     }
 
     [Fact]
+    public async Task A_demo_venue_that_was_seeded_somewhere_else_moves_to_its_place_with_its_parties()
+    {
+        var database = NewDatabase();
+        using (var first = Seeded(database))
+        {
+            await first.CreateClient().GetAsync("/api/venues");
+            using var scope = first.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // As if an earlier version of the demo data had put every venue elsewhere.
+            await db.VenueProfiles.ExecuteUpdateAsync(set => set.SetProperty(v => v.Latitude, 42.0).SetProperty(v => v.Longitude, 19.0));
+            await db.Parties.ExecuteUpdateAsync(set => set.SetProperty(p => p.Latitude, 42.0).SetProperty(p => p.Longitude, 19.0));
+        }
+
+        using var second = Seeded(database);
+        var venues = await second.CreateClient().GetFromJsonAsync<List<VenueSummary>>("/api/venues?pageSize=100");
+
+        Assert.All(venues!, v => Assert.InRange(v.Latitude, 42.43, 42.45));
+        Assert.All(venues!, v => Assert.InRange(v.Longitude, 19.25, 19.27));
+        using var check = second.Services.CreateScope();
+        var parties = await check.ServiceProvider.GetRequiredService<AppDbContext>().Parties.Select(p => p.Latitude).ToListAsync();
+        Assert.All(parties, latitude => Assert.InRange(latitude, 42.43, 42.45));
+    }
+
+    [Fact]
     public async Task Starting_again_does_not_duplicate_the_demo_data()
     {
         var database = NewDatabase();

@@ -1,22 +1,12 @@
-import { memo, useCallback, useMemo, type ComponentProps } from 'react';
-import { CircleLayer, FillExtrusionLayer, ShapeSource, SymbolLayer } from '@rnmapbox/maps';
+import { memo, useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { ShapeSource } from '@rnmapbox/maps';
 import type { VenueSummary } from '@/types/api';
-import { BEAM, LAYER, SOURCE, TAP_HITBOX } from './constants';
+import { useReducedMotion } from '@/components/afterglow/motion';
+import { PULSE, SOURCE, TAP_HITBOX } from './constants';
 import type { Footprint } from './footprint';
-import { tappedVenueId, venueBeams, venuePoints, type CityMode } from './geojson';
-import {
-  FILTER,
-  beamStyle,
-  blockStyle,
-  litRoofStyle,
-  countStyle,
-  discDotStyle,
-  discGlowStyle,
-  discRingStyle,
-  discStyle,
-  nameStyle,
-  selectedLabelStyle,
-} from './layer-styles';
+import { tappedVenueId, venuePoints, venueShapes, type CityMode } from './geojson';
+import { pingLayers, venueLayers } from './layers';
+import { SpecLayers } from './spec-layer';
 
 type PressEvent = Parameters<NonNullable<ComponentProps<typeof ShapeSource>['onPress']>>[0];
 
@@ -33,26 +23,34 @@ type Props = {
   labels?: boolean;
   /** The real building of each venue that has been found on the map. */
   footprints?: Readonly<Record<string, Footprint>>;
+  /** Busy venues send a slow ripple out from their roof. Off for still pictures and with Reduce Motion. */
+  pulse?: boolean;
   /** Without it the venues cannot be tapped (the backdrop). */
   onSelect?: (venueId: string) => void;
 };
 
-// The package's FillExtrusionLayer requires both; these are the widest values the style allows.
-const ANY_ZOOM = { minZoomLevel: 0, maxZoomLevel: 24 } as const;
 const NONE: ReadonlySet<string> = new Set();
+/** Steps in one pulse: the three ripples, then a rest. */
+const PULSE_STEPS = PULSE.sizes.length + 1;
+const AT_REST: number = PULSE.sizes.length;
+
+/** Where the pulse is right now: 0, 1, 2 for the ripples, then a rest. Stays at rest when off. */
+function usePulseStep(on: boolean): number {
+  const [step, setStep] = useState(AT_REST);
+  useEffect(() => {
+    if (!on) {
+      setStep(AT_REST);
+      return;
+    }
+    const timer = setInterval(() => setStep((current) => (current + 1) % PULSE_STEPS), PULSE.stepMs);
+    return () => clearInterval(timer);
+  }, [on]);
+  return step;
+}
 
 /**
- * Every venue as light, drawn by the map itself (no React view per venue).
- *
- * Bottom to top, which is the order the layers are mounted in:
- *   pools of light and discs on the ground → the white core → the beam in three pieces, fading
- *   upwards → My City ghosts → the ring → the faint wide beam → names, crowd lines, the selected block.
- *
- * Order matters for the see-through extrusions: an extrusion that lies behind one drawn earlier is
- * not drawn at all. So the thin core goes first (it shows through the beam around it), and the wide
- * faint beam last (it would hide everything inside it).
- *
- * Tapping a beam, a disc or a name selects the venue.
+ * Every venue as light, drawn by the map itself (no React view per venue): see `venueLayers()` in
+ * layers.ts for what is drawn and in which order. Tapping a beam, a ring or a name selects the venue.
  */
 export const VenueLayers = memo(function VenueLayers({
   venues,
@@ -62,36 +60,19 @@ export const VenueLayers = memo(function VenueLayers({
   earned = NONE,
   labels = true,
   footprints,
+  pulse = false,
   onSelect,
 }: Props) {
+  const reduceMotion = useReducedMotion();
+  const step = usePulseStep(pulse && !flat && !reduceMotion);
+  const pings = useMemo(() => pingLayers(flat, step), [flat, step]);
   const drawing = useMemo(
     () => ({ selectedId, mode, earned, flat, footprints }),
     [selectedId, mode, earned, flat, footprints],
   );
   const points = useMemo(() => venuePoints(venues, drawing), [venues, drawing]);
-  const beams = useMemo(() => venueBeams(venues, drawing), [venues, drawing]);
-
-  const styles = useMemo(
-    () => ({
-      discGlow: discGlowStyle(flat),
-      disc: discStyle(flat),
-      discDot: discDotStyle(flat),
-      discRing: discRingStyle(flat),
-      block: blockStyle(false, flat),
-      edge: blockStyle(true, flat),
-      roof: litRoofStyle(),
-      core: beamStyle(BEAM.coreOpacity, flat),
-      // The beam's three pieces (BEAM.pieces), brightest at the foot.
-      pieces: [0, 1, 2].map((index) => beamStyle(BEAM.pieces[index].opacity, flat)),
-      ghost: beamStyle(BEAM.opacityGhost, flat),
-      ring: beamStyle(1, flat),
-      halo: beamStyle(BEAM.opacityHalo, flat),
-      name: nameStyle(flat),
-      count: countStyle(flat),
-      selected: selectedLabelStyle(flat),
-    }),
-    [flat],
-  );
+  const shapes = useMemo(() => venueShapes(venues, drawing), [venues, drawing]);
+  const layers = useMemo(() => venueLayers(flat, labels), [flat, labels]);
 
   const handlePress = useCallback(
     (event: PressEvent) => {
@@ -105,32 +86,15 @@ export const VenueLayers = memo(function VenueLayers({
   return (
     <>
       <ShapeSource id={SOURCE.venuePoints} shape={points} {...press}>
-        <CircleLayer id={LAYER.discGlow} style={styles.discGlow} />
-        <CircleLayer id={LAYER.disc} style={styles.disc} />
-        <CircleLayer id={LAYER.discDot} style={styles.discDot} />
-        <CircleLayer id={LAYER.discRing} filter={FILTER.selected} style={styles.discRing} />
+        <SpecLayers specs={layers.ground} />
       </ShapeSource>
-
-      <ShapeSource id={SOURCE.beams} shape={beams} {...press}>
-        <FillExtrusionLayer id={LAYER.venueBlock} filter={FILTER.block} style={styles.block} {...ANY_ZOOM} />
-        <FillExtrusionLayer id={LAYER.venueEdge} filter={FILTER.edge} style={styles.edge} {...ANY_ZOOM} />
-        <FillExtrusionLayer id={LAYER.venueRoof} filter={FILTER.roof} style={styles.roof} {...ANY_ZOOM} />
-        <FillExtrusionLayer id={LAYER.beamCore} filter={FILTER.core} style={styles.core} {...ANY_ZOOM} />
-        <FillExtrusionLayer id={`${LAYER.beamPiece}0`} filter={FILTER.piece(0)} style={styles.pieces[0]} {...ANY_ZOOM} />
-        <FillExtrusionLayer id={`${LAYER.beamPiece}1`} filter={FILTER.piece(1)} style={styles.pieces[1]} {...ANY_ZOOM} />
-        <FillExtrusionLayer id={`${LAYER.beamPiece}2`} filter={FILTER.piece(2)} style={styles.pieces[2]} {...ANY_ZOOM} />
-        <FillExtrusionLayer id={LAYER.beamGhost} filter={FILTER.ghost} style={styles.ghost} {...ANY_ZOOM} />
-        <FillExtrusionLayer id={LAYER.beamRing} filter={FILTER.ring} style={styles.ring} {...ANY_ZOOM} />
-        <FillExtrusionLayer id={LAYER.beamHalo} filter={FILTER.halo} style={styles.halo} {...ANY_ZOOM} />
+      <ShapeSource id={SOURCE.venueShapes} shape={shapes} {...press}>
+        <SpecLayers specs={layers.shapes} />
       </ShapeSource>
-
-      {labels ? (
-        <ShapeSource id={SOURCE.labels} shape={points} {...press}>
-          <SymbolLayer id={LAYER.labelNames} filter={FILTER.names} style={styles.name} />
-          <SymbolLayer id={LAYER.labelCounts} filter={FILTER.counts} style={styles.count} />
-          <SymbolLayer id={LAYER.labelSelected} filter={FILTER.selected} style={styles.selected} />
-        </ShapeSource>
-      ) : null}
+      <ShapeSource id={SOURCE.venueLights} shape={points} {...press}>
+        <SpecLayers specs={pings} />
+        <SpecLayers specs={layers.lights} />
+      </ShapeSource>
     </>
   );
 });

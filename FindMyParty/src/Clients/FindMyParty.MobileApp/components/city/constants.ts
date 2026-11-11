@@ -26,10 +26,11 @@ export const SWITCH = {
   // ("Unexpeted value for color ... retuning red" on the first device test).
   light: false as boolean,
   /**
-   * `true`: the glowing ring sits on top of each beam. `false`: at its foot.
-   * (In the mock the ring sits on the venue's roof, where the beam starts.)
+   * Beams and their names grow a little as the map zooms in and shrink as it zooms out
+   * (SPRITE.sizeByZoom). `false` keeps them one size at every zoom; flip it if names drift away
+   * from the tops of their beams on a device.
    */
-  ringAtTop: true as boolean,
+  beamsScaleWithZoom: true as boolean,
   /** The camera drop on the first open of the day. */
   cameraDrop: true as boolean,
 } as const;
@@ -79,7 +80,7 @@ export const PALETTE = {
   waterEdge: '#465aff',
   road: '#141026',
   rail: '#120e22',
-  roof: '#1c1934',
+  roof: '#110f24',
   wall: '#1d1836',
   street: '#9d6bff',
   streetCore: '#b99bff',
@@ -93,10 +94,16 @@ export const PALETTE = {
 /** The facade image, registered under this name; 60×56 px drawn at 2× (30×28 pt). */
 export const FACADE_IMAGE = 'city-facade';
 export const FACADE_IMAGE_SCALE = 2;
-/** A 2×2 white square, stretched behind the selected venue's name. */
+/**
+ * The white block behind the selected venue's name (assets/images/city/label-box.png): 24 px square
+ * at 3×, with rounded corners. Only its middle stretches, so the corners stay crisp.
+ */
 export const LABEL_BOX_IMAGE = 'city-label-box';
-export const LABEL_BOX_DATA_URI =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR4nGP8////fwYGBgYmBigAAD34BADaOyqcAAAAAElFTkSuQmCC';
+export const LABEL_BOX = {
+  pixelRatio: 3,
+  /** Points of the image (pixels ÷ 3), from and to, that may stretch: the same sideways and upwards. */
+  stretch: [[3, 5]] as [number, number][],
+} as const;
 
 export const BUILDINGS = {
   /** Mapbox Streets carries buildings from zoom 13. */
@@ -122,7 +129,7 @@ export const CITY = {
    * with room for their names. It lies south of their middle because a tilted camera shows more
    * of what is far away.
    */
-  center: [19.2603, 42.4372] as LngLat,
+  center: [19.2632, 42.4419] as LngLat,
 } as const;
 
 export const CAMERA = {
@@ -130,12 +137,19 @@ export const CAMERA = {
    * Close, as in the mock: a few streets around Stara Varoš with their buildings standing up.
    * Not every venue fits; the rest are a pan away. (13.35 showed the whole town as a flat map.)
    */
-  zoom: 15.1,
+  zoom: 16.15,
   /** Tilted is how the city is meant to be seen. */
   pitch: 60,
   heading: -17,
+  /**
+   * Further out than this the buildings thin out (map tiles carry only the big ones) and beams
+   * would stand on bare streets, so the map lays itself flat, as the mock says it should; zoomed
+   * back in past `tiltAgainAboveZoom` it tilts up again by itself.
+   */
+  flattenBelowZoom: 15,
+  tiltAgainAboveZoom: 15.3,
   /** How close locate-me goes. */
-  locateZoom: 15.2,
+  locateZoom: 16.2,
   /** Below this pitch the map counts as flat (2D); above `tiltedAbovePitch` as tilted. */
   flatBelowPitch: 10,
   tiltedAbovePitch: 20,
@@ -153,81 +167,84 @@ export const CAMERA = {
  * points so the beams stand in the middle of the screen under the logo.
  */
 export const BACKDROP_CAMERA = {
-  center: [19.2612, 42.4385] as LngLat,
-  zoom: 15.0,
+  center: [19.2634, 42.4411] as LngLat,
+  zoom: 15.9,
   pitch: 62,
   heading: -17,
   paddingTop: 200,
 } as const;
 
 /**
- * The venue itself, as in the mock: a block a little taller than its neighbours with a bright edge
- * on its roof, and the beam rising from that roof.
+ * The venue's own building, lit as in the mock: a bright line along the edge of its roof and thin
+ * lines up its corners. Both are real 3D shapes sized in metres, so each is drawn once per zoom
+ * level (`bands`) to stay about a point and a half wide on screen at any zoom.
  */
-export const VENUE_BLOCK = {
-  halfM: 15,
-  heightM: 30,
-  edgeM: 2.5,
-  edgeDepthM: 1.2,
-  fill: '#2b2253',
+export const FRAME = {
+  /** A band starts at each of these zoom levels; the first band covers everything further out. */
+  bandFromZoom: [14, 15, 16, 17] as const,
+  /** Width of the roof line in metres, per band (one more entry than `bandFromZoom`). */
+  widthM: [9, 4.9, 2.5, 1.25, 0.62] as const,
+  /** Never wider than this share of the building's short side. */
+  maxShareOfRoof: 0.2,
+  /** How far the line stands above the roof, and how far it overhangs the walls, in metres. */
+  depthM: 0.7,
+  overhangM: 0.15,
+  /** Corner lines: this share of the roof line's width, on corners that turn at least this much. */
+  postShare: 0.7,
+  postMinTurnDeg: 30,
+  postMax: 8,
+  /** How much white goes into the roof line, and how far the corner lines are dimmed. */
+  white: 0.25,
+  postDim: 0.4,
 } as const;
 
 /** Remembers the day of the last camera drop. */
 export const DROP_DAY_KEY = '@findmyparty/city-drop-day';
 
 // ── Beams ───────────────────────────────────────────────────────────────────
+// A beam is a picture of light (assets/images/city/beam-*.png, drawn by
+// tools/city-preview/make-sprites.mjs exactly as the mock draws its beams) that stands upright on
+// the venue's roof and always faces the camera. Its size is in points on the screen, not metres,
+// so zooming in makes the building bigger and leaves the beam slim.
 
-export const BEAM = {
-  /** Radii in metres: the white core, the coloured beam, the faint wider one, the ring. */
-  coreRadiusM: 3,
-  beamRadiusM: 8,
-  haloRadiusM: 20,
-  ringOuterM: 17,
-  ringInnerM: 12,
-  /** How tall the ring is, in metres. */
-  ringDepthM: 4,
-  /** Corners of the polygon that stands in for a circle. */
-  points: 24,
-  /** Height in metres by strength (0 nothing known, 0.2 quiet, 1 the busiest). */
-  heightAtNothing: 60,
-  heightAtQuiet: 140,
-  heightAtBusiest: 620,
+export const SPRITE = {
+  /** The mock's sizes are for a 286 pt wide screen; an iPhone is 393 pt. */
+  mockScale: 1.37,
+  /** Pixels per point in the image files. */
+  pixelRatio: 3,
+  /** Points from the centre of the pool of light at the beam's foot to the bottom of the image. */
+  haloPt: 22 * 1.37,
   /** In My City every lit venue gets the same beam: it is a collection, not a crowd. */
-  heightEarned: 380,
-  heightGhost: 40,
-  /**
-   * The beam in three stacked pieces, brightest at the foot, like the mock's fading beam.
-   * `to` is the share of the beam's height where the piece ends.
-   */
-  pieces: [
-    { to: 0.45, opacity: 0.95 },
-    { to: 0.75, opacity: 0.7 },
-    { to: 1, opacity: 0.42 },
-  ],
-  /** The lit roof over the venue's own building: how much wider than the roof, and how thick (m). */
-  roofInflate: 1.04,
-  roofDepthM: 1.5,
-  /** The white core runs up this share of the beam. */
-  coreShare: 0.8,
-  coreOpacity: 0.9,
-  /** The faint wider beam runs up this share. */
-  haloShare: 0.6,
-  opacityHalo: 0.16,
-  opacityGhost: 0.22,
-  /** Close in, beams shrink so they do not leave the screen: factor at each zoom. */
-  scaleByZoom: [13, 1.4, 15, 1, 17, 0.55] as const,
-  /** How much white goes into the ring, and into the foot of the beam. */
-  ringWhite: 0.72,
-  footWhite: 0.3,
-  /** An expected crowd is drawn this much darker than a live one. */
-  expectedDim: 0.3,
+  earnedHeat: 0.45,
+  /** Size of the beam at each zoom: [zoom, size, zoom, size, zoom, size]. */
+  sizeByZoom: [13, 0.55, 15.5, 1, 18, 1.4] as const,
+  /** The ring lies on the roof, so it grows faster, more like the roof itself. */
+  ringByZoom: [13, 0.45, 15.5, 1, 18, 2.4] as const,
 } as const;
+
+/**
+ * "A slow ring pulses from the roof of busy venues" (the mock's motion table): three ripples, each
+ * wider and fainter than the one before, lit one after another, then a rest.
+ */
+export const PULSE = {
+  /** Size of each ripple, as a multiple of the roof ring's own size. */
+  sizes: [0.72, 1.02, 1.36] as const,
+  opacity: [0.85, 0.55, 0.3] as const,
+  /** One step of the pulse; four steps (three ripples and a rest) make the mock's 2.4 s. */
+  stepMs: 600,
+  fadeMs: 650,
+} as const;
+
+/** The soft pool of light on the ground around a lit venue, in points: far, middle, near. */
+export const GROUND_GLOW = { radius: [10, 30, 80] as const, live: 0.36, expected: 0.2 } as const;
 
 // ── Labels ──────────────────────────────────────────────────────────────────
 
 export const LABEL = {
-  size: 15,
+  size: 16,
+  /** The crowd line is a picture (count-*.png) this many points tall, text and its dark edge. */
   countSize: 10.5,
+  countHeight: 15,
   selectedSize: 14,
   ghostSize: 12.5,
   /**
@@ -237,11 +254,8 @@ export const LABEL = {
   allFromZoom: 13.5,
   /** "Busy" for the rule above. */
   minStrength: 0.4,
-  /**
-   * `true`: the name floats at the top of its beam (the map lifts it by the beam's height).
-   * `false`: the name sits beside the beam's foot. Flip if lifted labels misbehave on a device.
-   */
-  atBeamTop: true as boolean,
+  /** Points between the tip of the beam and the text above it. */
+  gap: 3,
 } as const;
 
 // ── Ids ─────────────────────────────────────────────────────────────────────
@@ -249,15 +263,15 @@ export const LABEL = {
 
 export const SOURCE = {
   route: 'city-route',
+  /** One point per venue: what lies on the ground (the pool of light, the 2D discs). */
   venuePoints: 'city-venue-points',
-  beams: 'city-beams',
-  labels: 'city-venue-labels',
+  /** The lit roof edge and corner lines of each venue's building. */
+  venueShapes: 'city-venue-shapes',
+  /** The same points again, for what stands on the roof: ring, beam, names. */
+  venueLights: 'city-venue-lights',
 } as const;
 
 export const LAYER = {
-  venueBlock: 'city-venue-block',
-  venueEdge: 'city-venue-edge',
-  venueRoof: 'city-venue-roof',
   waterEdge: 'city-water-edge',
   streetGlow: 'city-street-glow',
   streetCore: 'city-street-core',
@@ -266,17 +280,16 @@ export const LAYER = {
   routeGlow: 'city-route-glow',
   routeLine: 'city-route-line',
   routeCore: 'city-route-core',
-  discGlow: 'city-disc-glow',
+  groundGlow: 'city-ground-glow',
   disc: 'city-disc',
   discDot: 'city-disc-dot',
   discRing: 'city-disc-ring',
-  beamCore: 'city-beam-core',
-  beamPiece: 'city-beam-piece-',
-  beamGhost: 'city-beam-ghost',
-  beamRing: 'city-beam-ring',
-  beamHalo: 'city-beam-halo',
+  roofFrame: 'city-roof-frame',
+  cornerPosts: 'city-corner-posts',
+  ping: 'city-ping-',
+  roofRing: 'city-roof-ring',
+  beam: 'city-beam',
   labelNames: 'city-label-names',
-  labelCounts: 'city-label-counts',
   labelSelected: 'city-label-selected',
   youGlow: 'city-you-glow',
   youCentre: 'city-you-centre',

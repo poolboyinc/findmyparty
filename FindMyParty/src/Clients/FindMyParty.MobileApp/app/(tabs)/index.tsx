@@ -3,34 +3,34 @@
  * and warmer the beam. This file is only layout; what happens lives in `hooks/city/useCity.ts`,
  * what is drawn in `components/city/`. Target: mock screens S-04 to S-08.
  *
- * WRITTEN WITHOUT A SIMULATOR. Check these on a phone, most important first. Every switch named
- * here is in `SWITCH` in components/city/constants.ts.
+ * The map can be looked at without a phone: `tools/city-preview` draws the same layer list in a
+ * browser and saves pictures (see its README). The phone is still the judge. What to check there,
+ * most important first; every switch named here is in `SWITCH` in components/city/constants.ts.
  *
  *  1. The city. Mapbox dark-v11 repainted: near-black violet ground, deep navy water with a thin
  *     blue edge, glowing violet streets, no grey anywhere. If it is grey, the repaint did not take
  *     (`restyleBasemap`); if the streets look like neon spaghetti, set `streetGlow` false.
  *  2. Buildings. Dark violet blocks with lit windows, plain dark roofs, a violet haze towards the
  *     top. If the walls look striped, blurry or empty, set `facadePattern` false (plain walls).
- *     If they look too tall or too flat, change `BUILDINGS.verticalScale`. No buildings at all:
- *     zoom in past 13; Mapbox has none further out.
- *  3. Light and haze. Walls facing the lower left lighter than the others. Wrong-looking light:
- *     `light` false. A grey or white sky band: `atmosphere` false.
- *  4. Beams. Bright at the foot, fading upwards, a thin white core inside, a faint wider glow
- *     around the lower part, a bright ring at the top (`ringAtTop` false puts it at the foot),
- *     a pool of light at the foot. Taller than every building. If the core does not show
- *     through the beam, or the wide glow hides the beam, the layer order in venue-layers.tsx is
- *     being ignored.
- *  5. The first view. All seven demo venues in view, tilted 60°, turned 17° (CAMERA in constants).
+ *     If they look too tall or too flat, change `BUILDINGS.verticalScale`.
+ *  3. A venue. Its own building has a bright line round the roof and thin lines up its corners;
+ *     a ring lies on the roof and a slim beam of light stands in it, bright at the foot, fading
+ *     upwards. The beam stays slim when you zoom in: the building grows, the light does not.
+ *     Busy venues send a slow ripple out from the roof ring (not with Reduce Motion).
+ *  4. The first view. The demo venues in view, tilted 60°, turned 17° (CAMERA in constants).
  *     First open of the day: the camera falls from straight above and tilts in (~0.9 s); not
  *     again that day, and never with Reduce Motion on (`cameraDrop` false turns it off).
- *  6. Names. White, the crowd ("200+") under it in the beam's colour, at the top of each beam,
- *     moving with it. If they sit on the ground or jump about, set `LABEL.atBeamTop` false.
- *     The selected venue's name sits on a white block. Zoomed out only busy venues are named.
- *  7. Live / My city. My city: venues you were scanned into turn lime, the rest are short dim
- *     columns with a dim ring and name; the line under "Podgorica" says "3 of 7 venues lit".
- *  8. Taps. A beam, its disc and its name each open the venue sheet; empty map closes it; the
- *     back button closes it; share opens the share sheet. Standing at a venue, tapping your
- *     own dot selects it.
+ *  5. Names. White, the crowd ("200+") under it in the beam's colour, just above the tip of each
+ *     beam, moving with it. Where two would overlap, the busier venue keeps its name. If names
+ *     drift away from the tips while zooming, set `beamsScaleWithZoom` false.
+ *     The selected venue's name sits on a white block and its building's lines turn white.
+ *  6. Zoomed far out (below zoom 15, where Mapbox has few buildings) the map lays itself flat
+ *     and shows discs; zoomed back in it tilts up again.
+ *  7. Live / My city. My city: venues you were scanned into turn lime, the rest are dashed rings
+ *     with a dim name; the line under "Podgorica" says "3 of 7 venues lit".
+ *  8. Taps. A beam, its ring, its name, or anywhere on the venue's own building opens the venue
+ *     sheet; empty map closes it; the back button closes it; share opens the share sheet.
+ *     Standing at a venue, tapping your own dot selects it.
  *  9. 2D / 3D. The camera eases flat and back; in 2D the beams go, the discs show the crowd.
  * 10. The venue sheet. Address and distance under the name, the crowd card with its coloured
  *     edge, the party with its line-up, "Get pass for €5". The beam stays visible above it.
@@ -42,6 +42,7 @@
  *     you hold one, "Share ETA", "End". Network off: "Could not get a route. Try again."
  */
 import { useCallback } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import { Share, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Mapbox from '@rnmapbox/maps';
 import { router } from 'expo-router';
@@ -83,6 +84,8 @@ export default function CityScreen() {
 
 function City() {
   const city = useCity();
+  // Only the screen in front pulses: a hidden tab should not keep the map busy.
+  const focused = useIsFocused();
   const { route, selected, nextTurn } = city;
   const { height } = useWindowDimensions();
 
@@ -114,6 +117,7 @@ function City() {
   return (
     <View style={styles.root}>
       <CityMap
+        pulse={focused}
         camera={city.camera}
         venues={city.venues}
         selectedId={selected?.id ?? null}

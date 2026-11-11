@@ -21,7 +21,7 @@ import type {
   SymbolLayerStyle as SymbolLayerStyleProps,
 } from '@rnmapbox/maps';
 import { colors } from '@/theme';
-import { BEAM, BUILDINGS, FACADE_IMAGE, LABEL, LABEL_BOX_IMAGE, PALETTE } from './constants';
+import { BUILDINGS, FACADE_IMAGE, FRAME, GROUND_GLOW, LABEL, LABEL_BOX_IMAGE, PALETTE, PULSE, SPRITE, SWITCH } from './constants';
 
 /** A Mapbox expression, as the package types it. */
 type Expr = Extract<NonNullable<CircleLayerStyleProps['circleRadius']>, readonly unknown[]>;
@@ -47,20 +47,9 @@ function withStrength(base: number, gain: number): Expr {
   return ['+', base, ['*', gain, STRENGTH]];
 }
 
-/** A height property in metres, shrunk as the map zooms in (beams stay on screen close up). */
-function beamMetres(property: string): Expr {
-  const [z0, f0, z1, f1, z2, f2] = BEAM.scaleByZoom;
-  return [
-    'interpolate',
-    ['linear'],
-    ['zoom'],
-    z0,
-    ['*', f0, ['get', property]],
-    z1,
-    ['*', f1, ['get', property]],
-    z2,
-    ['*', f2, ['get', property]],
-  ];
+/** [zoom, value, zoom, value, …] as one top-level interpolate on zoom. */
+function zoomStops(stops: readonly number[]): Expr {
+  return ['interpolate', ['linear'], ['zoom'], ...stops];
 }
 
 // ── Filters ─────────────────────────────────────────────────────────────────
@@ -94,18 +83,28 @@ const STREET_CLASSES: string[] = [
   'pedestrian',
 ];
 
+/**
+ * One part of a lit building, in the zoom band it was made for. The zoom rule is the outermost
+ * expression (Mapbox only accepts ["zoom"] there); the map checks it once per whole zoom level,
+ * which is exactly where the bands change.
+ */
+function banded(kind: string): Expr {
+  const inBand = (band: number): Expr => ['all', KIND(kind), ['==', ['get', 'band'], band]];
+  const steps: (number | Expr)[] = [];
+  FRAME.bandFromZoom.forEach((zoom, index) => {
+    steps.push(zoom, inBand(index + 1));
+  });
+  return ['step', ['zoom'], inBand(0), ...steps];
+}
+
 export const FILTER = {
-  core: KIND('core'),
-  piece: (index: number): LayerFilter => ['all', KIND('piece'), ['==', ['get', 'piece'], index]],
-  ghost: KIND('ghost'),
-  ring: KIND('ring'),
-  halo: KIND('halo'),
   selected: IS_SELECTED,
   names: NAMED,
-  counts: named(['!=', ['get', 'label'], '']),
-  block: KIND('block'),
-  edge: KIND('edge'),
-  roof: KIND('roof'),
+  /** Venues that have a picture to show: '' means none. */
+  hasBeam: ['!=', ['get', 'beam'], ''],
+  hasPing: ['!=', ['get', 'ping'], ''],
+  frame: banded('frame'),
+  post: banded('post'),
   /** Mapbox Streets buildings that are meant to be drawn in 3D. */
   buildings: ['==', ['get', 'extrude'], 'true'],
   /** Every road a car or a person walks along, not paths, tracks or rails. */
@@ -255,83 +254,121 @@ export const LIGHT_STYLE: LightLayerStyleProps = {
   intensity: 0.4,
 };
 
-// ── Beams ───────────────────────────────────────────────────────────────────
+// ── A venue's light ─────────────────────────────────────────────────────────
 
-/** One part of the beams. In flat (2D) mode beams are switched off and the discs carry the picture. */
-export function beamStyle(opacity: number, flat: boolean): FillExtrusionLayerStyleProps {
+/** Metres above the ground of the venue's roof, stretched like the city's buildings. */
+const ON_THE_ROOF: Expr = growing(['get', 'roofM']);
+
+const BEAM_SIZE: Num = SWITCH.beamsScaleWithZoom ? zoomStops(SPRITE.sizeByZoom) : 1;
+const RING_SIZE: Num = zoomStops(SPRITE.ringByZoom);
+
+/**
+ * The beam: a picture of light standing on the roof, always upright and facing the camera, the
+ * same few points wide whatever the zoom. Hidden in flat (2D) mode, where the discs carry the picture.
+ */
+export function beamStyle(flat: boolean): SymbolLayerStyleProps {
   return {
     visibility: flat ? 'none' : 'visible',
-    fillExtrusionColor: ['get', 'fill'],
-    fillExtrusionBase: beamMetres('base'),
-    fillExtrusionHeight: beamMetres('top'),
-    fillExtrusionOpacity: opacity,
-    // A beam is light, not a wall: the same brightness from foot to top.
-    fillExtrusionVerticalGradient: false,
+    iconImage: ['get', 'beam'],
+    iconSize: BEAM_SIZE,
+    iconAnchor: 'bottom',
+    // The picture has a pool of light below the beam's foot; push it down so the foot is on the roof.
+    iconOffset: [0, SPRITE.haloPt],
+    iconPitchAlignment: 'viewport',
+    iconRotationAlignment: 'viewport',
+    iconAllowOverlap: true,
+    iconIgnorePlacement: true,
+    symbolZOffset: ON_THE_ROOF,
   };
 }
 
-/** The lit roof over a venue's real building: stretched like the city's buildings, so it sits on them. */
-export function litRoofStyle(): FillExtrusionLayerStyleProps {
+/** The ring the beam rises from: it lies flat on the roof, so the tilt turns it into an ellipse. */
+export function ringStyle(flat: boolean): SymbolLayerStyleProps {
   return {
+    visibility: flat ? 'none' : 'visible',
+    iconImage: ['get', 'ring'],
+    iconSize: RING_SIZE,
+    iconPitchAlignment: 'map',
+    iconRotationAlignment: 'map',
+    iconAllowOverlap: true,
+    iconIgnorePlacement: true,
+    symbolZOffset: ON_THE_ROOF,
+  };
+}
+
+/**
+ * One ripple of the pulse on a busy venue's roof. `lit` is whether this ripple is the one showing
+ * right now; the map fades it in and out by itself, so the ripples read as one ring spreading.
+ */
+export function pingStyle(flat: boolean, step: number, lit: boolean): SymbolLayerStyleProps {
+  const scale = PULSE.sizes[step];
+  return {
+    visibility: flat ? 'none' : 'visible',
+    iconImage: ['get', 'ping'],
+    iconSize: zoomStops(SPRITE.ringByZoom.map((value, index) => (index % 2 === 1 ? value * scale : value))),
+    iconPitchAlignment: 'map',
+    iconRotationAlignment: 'map',
+    iconAllowOverlap: true,
+    iconIgnorePlacement: true,
+    iconOpacity: lit ? PULSE.opacity[step] : 0,
+    iconOpacityTransition: { duration: PULSE.fadeMs, delay: 0 },
+    symbolZOffset: ON_THE_ROOF,
+  };
+}
+
+/**
+ * The bright line along the roof edge and the lines up the corners of a venue's building:
+ * stretched like the city's buildings, so they sit exactly on them.
+ */
+export function litBuildingStyle(flat: boolean): FillExtrusionLayerStyleProps {
+  return {
+    visibility: flat ? 'none' : 'visible',
     fillExtrusionColor: ['get', 'fill'],
     fillExtrusionBase: growing(['get', 'base']),
     fillExtrusionHeight: growing(['get', 'top']),
     fillExtrusionOpacity: 1,
+    // Light, not a wall: the same brightness from foot to top.
     fillExtrusionVerticalGradient: false,
   };
 }
 
-/** The venue's block and the bright edge on its roof: plain metres, the same at every zoom. */
-export function blockStyle(edge: boolean, flat: boolean): FillExtrusionLayerStyleProps {
-  return {
-    visibility: flat ? 'none' : 'visible',
-    fillExtrusionColor: ['get', 'fill'],
-    fillExtrusionBase: ['get', 'base'],
-    fillExtrusionHeight: ['get', 'top'],
-    fillExtrusionOpacity: 1,
-    fillExtrusionVerticalGradient: !edge,
-  };
-}
+// ── On the ground ───────────────────────────────────────────────────────────
 
-// ── Discs at the beams' feet ────────────────────────────────────────────────
-
-/** The soft pool of light on the ground. In flat mode it grows with the crowd. */
-export function discGlowStyle(flat: boolean): CircleLayerStyleProps {
+/** The soft pool of light on the ground around a lit venue. In flat mode it grows with the crowd. */
+export function groundGlowStyle(flat: boolean): CircleLayerStyleProps {
+  const [far, mid, near] = GROUND_GLOW.radius;
   return {
     circleColor: COLOR,
-    circleRadius: flat
-      ? byZoom(withStrength(8, 8), withStrength(16, 22), withStrength(30, 36))
-      : byZoom(10, 26, 60),
+    circleRadius: flat ? byZoom(withStrength(8, 8), withStrength(16, 22), withStrength(30, 36)) : byZoom(far, mid, near),
     circleRadiusTransition: QUICK,
     circleBlur: 1,
     // An expected crowd glows less than one that is really there; a ghost not at all.
-    circleOpacity: ['case', IS_GHOST, 0, IS_EXPECTED, 0.3, 0.5],
+    circleOpacity: ['case', IS_GHOST, 0, IS_EXPECTED, GROUND_GLOW.expected, GROUND_GLOW.live],
     circlePitchAlignment: 'map',
     circlePitchScale: 'map',
   };
 }
 
 /**
- * The disc. Under a beam a small solid spot; in flat mode the venue's mark, as in the mock:
- * a see-through disc with a solid edge, sized by the crowd. A My City ghost is an empty dim ring.
+ * Flat mode only: the venue's mark, as in the mock: a see-through disc with a solid edge, sized by
+ * the crowd. A My City ghost is an empty dim ring.
  */
 export function discStyle(flat: boolean): CircleLayerStyleProps {
   return {
+    visibility: flat ? 'visible' : 'none',
     circleColor: COLOR,
-    circleRadius: flat
-      ? byZoom(withStrength(3, 3), withStrength(6, 9), withStrength(10, 14))
-      : byZoom(['case', IS_GHOST, 3, 2], ['case', IS_GHOST, 6, 3.5], ['case', IS_GHOST, 12, 7]),
+    circleRadius: byZoom(withStrength(3, 3), withStrength(6, 9), withStrength(10, 14)),
     circleRadiusTransition: QUICK,
-    circleOpacity: ['case', IS_GHOST, 0, flat ? 0.3 : 0.95],
+    circleOpacity: ['case', IS_GHOST, 0, 0.3],
     circleStrokeColor: ['case', IS_GHOST, colors.label, COLOR],
-    circleStrokeWidth: ['case', IS_GHOST, 1, flat ? 1.5 : 0],
+    circleStrokeWidth: ['case', IS_GHOST, 1, 1.5],
     circleStrokeOpacity: ['case', IS_GHOST, 0.4, 1],
     circlePitchAlignment: 'map',
     circlePitchScale: 'map',
   };
 }
 
-/** The white dot in the middle of a flat-mode disc. */
+/** Flat mode only: the white dot in the middle of a disc. */
 export function discDotStyle(flat: boolean): CircleLayerStyleProps {
   return {
     visibility: flat ? 'visible' : 'none',
@@ -342,12 +379,13 @@ export function discDotStyle(flat: boolean): CircleLayerStyleProps {
   };
 }
 
-/** A white ring around the selected venue's disc. */
+/** Flat mode only: a white ring around the selected venue's disc. */
 export function discRingStyle(flat: boolean): CircleLayerStyleProps {
   return {
+    visibility: flat ? 'visible' : 'none',
     circleColor: colors.label,
     circleOpacity: 0,
-    circleRadius: flat ? byZoom(withStrength(6, 3), withStrength(10, 9), withStrength(15, 14)) : byZoom(5, 8, 13),
+    circleRadius: byZoom(withStrength(6, 3), withStrength(10, 9), withStrength(15, 14)),
     circleRadiusTransition: QUICK,
     circleStrokeColor: colors.label,
     circleStrokeWidth: 2,
@@ -359,72 +397,63 @@ export function discRingStyle(flat: boolean): CircleLayerStyleProps {
 // ── Labels ──────────────────────────────────────────────────────────────────
 
 /** dark-v11's own font, so no extra glyphs are downloaded. Coolvetica cannot be used on the map. */
-const MAP_FONT = ['DIN Pro Medium', 'Arial Unicode MS Regular'];
+const MAP_FONT = ['DIN Pro Bold', 'Arial Unicode MS Bold'];
 
-/** Above its beam when tilted (the map lifts it by the beam's height), on the ground when flat. */
-function labelPlacement(flat: boolean): Pick<SymbolLayerStyleProps, 'symbolZOffset' | 'textAnchor' | 'textJustify'> {
-  const beside = !LABEL.atBeamTop && !flat;
-  return {
-    symbolZOffset: flat || !LABEL.atBeamTop ? 0 : beamMetres('lift'),
-    textAnchor: beside ? 'left' : 'bottom',
-    textJustify: beside ? 'left' : 'center',
-  };
+/** A value each venue carries at the three zooms of SPRITE.sizeByZoom (`…Far`, `…Mid`, `…Near`). */
+function perZoom(part: 'name' | 'count' | 'block'): Expr {
+  const [z0, , z1, , z2] = SPRITE.sizeByZoom;
+  if (!SWITCH.beamsScaleWithZoom) return ['get', `${part}Mid`];
+  return ['interpolate', ['linear'], ['zoom'], z0, ['get', `${part}Far`], z1, ['get', `${part}Mid`], z2, ['get', `${part}Near`]];
 }
 
-/** Venue names set straight on the map: white with a dark edge, no box. A ghost's is dim. */
-export function nameStyle(flat: boolean): SymbolLayerStyleProps {
+/**
+ * A venue's name and, under it, its crowd ("200+") just above the tip of the beam: the name is
+ * type set straight on the map, white with a dark edge, no box; the crowd is a small picture in the
+ * venue's colour. They are one label: where two venues' labels would overlap, the busier venue
+ * keeps its label whole and the other shows only its beam until you zoom in. A ghost's name is dim.
+ */
+export function nameStyle(): SymbolLayerStyleProps {
   return {
-    ...labelPlacement(flat),
+    symbolZOffset: ON_THE_ROOF,
     textField: ['get', 'name'],
     textFont: MAP_FONT,
     textSize: ['get', 'nameSize'],
     textMaxWidth: 9,
+    textAnchor: 'bottom',
+    textJustify: 'center',
+    textOffset: perZoom('name'),
     textColor: ['get', 'nameColor'],
     textHaloColor: colors.bg,
-    textHaloWidth: 1.6,
-    textHaloBlur: 0.6,
-    textOffset: ['get', 'nameOffset'],
+    textHaloWidth: 1.4,
+    textHaloBlur: 0.8,
+    textPadding: 3,
+    iconImage: ['get', 'count'],
+    iconAnchor: 'bottom',
+    iconOffset: perZoom('count'),
+    iconPadding: 1,
     // Busy venues get their place first.
     symbolSortKey: ['-', 1, STRENGTH],
-    textAllowOverlap: true,
   };
 }
 
-/** The crowd under the name ("200+"), small, in the venue's own colour. */
-export function countStyle(flat: boolean): SymbolLayerStyleProps {
+/** The selected venue: dark type on a white block, name and crowd on two lines (S-05). Always shown. */
+export function selectedLabelStyle(): SymbolLayerStyleProps {
   return {
-    ...labelPlacement(flat),
-    textField: ['get', 'label'],
-    textFont: MAP_FONT,
-    textSize: LABEL.countSize,
-    textColor: COLOR,
-    textHaloColor: colors.bg,
-    textHaloWidth: 1.4,
-    textHaloBlur: 0.5,
-    textOffset: ['get', 'countOffset'],
-    textAllowOverlap: true,
-    textIgnorePlacement: true,
-  };
-}
-
-/** The selected venue: dark type on a white block, name and crowd on two lines (S-05). */
-export function selectedLabelStyle(flat: boolean): SymbolLayerStyleProps {
-  return {
-    ...labelPlacement(flat),
+    symbolZOffset: ON_THE_ROOF,
     textField: ['get', 'text'],
     textFont: MAP_FONT,
     textSize: LABEL.selectedSize,
     textLineHeight: 1.15,
+    textAnchor: 'bottom',
+    textJustify: 'center',
+    textOffset: perZoom('block'),
     textColor: colors.ink,
-    textOffset: [0, flat ? -1.6 : -0.6],
     textAllowOverlap: true,
-    textIgnorePlacement: true,
     iconImage: LABEL_BOX_IMAGE,
     iconTextFit: 'both',
     // Points around the text: top, right, bottom, left.
     iconTextFitPadding: [5, 9, 4, 9],
     iconAllowOverlap: true,
-    iconIgnorePlacement: true,
   };
 }
 

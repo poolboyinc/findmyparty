@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import type { MapView } from '@rnmapbox/maps';
 import { LAYER } from '@/components/city/constants';
 import { pickFootprint, type Footprint } from '@/components/city/footprint';
@@ -7,47 +7,71 @@ import type { VenueSummary } from '@/types/api';
 /** Points around a venue in which its building is looked for. */
 const SEARCH_PT = 60;
 
+type Footprints = Readonly<Record<string, Footprint>>;
+
+// One store for the whole app: the City tab and the welcome backdrop show the same venues, and a
+// building found by one map does not have to be looked for again by the other.
+let known: Footprints = {};
+const listeners = new Set<() => void>();
+let busy = false;
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function snapshot(): Footprints {
+  return known;
+}
+
+/** Where a venue was when its building was found; if the venue moves, the building is looked for again. */
+const foundAt = new Map<string, string>();
+const placeOf = (venue: VenueSummary) => `${venue.longitude},${venue.latitude}`;
+
+async function scan(map: MapView | null, venues: readonly VenueSummary[]): Promise<void> {
+  if (!map || busy) return;
+  const missing = venues.filter((venue) => foundAt.get(venue.id) !== placeOf(venue));
+  if (missing.length === 0) return;
+  busy = true;
+  let next: Record<string, Footprint> | null = null;
+  try {
+    for (const venue of missing) {
+      try {
+        const at: [number, number] = [venue.longitude, venue.latitude];
+        const [x, y] = await map.getPointInView(at);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        // [top, right, bottom, left] in points (RNMBXMapViewManager.queryRenderedFeaturesInRect).
+        const result = await map.queryRenderedFeaturesInRect(
+          [y - SEARCH_PT, x + SEARCH_PT, y + SEARCH_PT, x - SEARCH_PT],
+          [],
+          [LAYER.buildings],
+        );
+        const footprint = pickFootprint(at, result?.features ?? []);
+        if (footprint) {
+          next ??= { ...known };
+          next[venue.id] = footprint;
+          foundAt.set(venue.id, placeOf(venue));
+        }
+      } catch {
+        // Off screen, or the map is between styles: try again on the next scan.
+      }
+    }
+  } finally {
+    busy = false;
+    if (next) {
+      known = next;
+      listeners.forEach((listener) => listener());
+    }
+  }
+}
+
 /**
- * Finds the real building each venue is in, from the buildings the map has drawn, so the venue
- * lights up its own roof (and, later, its own walls can carry signs). Call `scan` when the map
- * settles; venues found once are kept, the rest are tried again on the next scan.
+ * The real building each venue is in, found from the buildings a map has drawn, so the venue
+ * lights up its own roof and its beam stands on it (and its walls can carry signs). Call `scan`
+ * when a map settles; venues found once are kept, the rest are tried again on the next scan.
  */
 export function useVenueFootprints() {
-  const [footprints, setFootprints] = useState<Readonly<Record<string, Footprint>>>({});
-  const found = useRef<Record<string, Footprint>>({});
-  const busy = useRef(false);
-
-  const scan = useCallback(async (map: MapView | null, venues: readonly VenueSummary[]) => {
-    if (!map || busy.current) return;
-    const missing = venues.filter((venue) => !found.current[venue.id]);
-    if (missing.length === 0) return;
-    busy.current = true;
-    let changed = false;
-    try {
-      for (const venue of missing) {
-        try {
-          const [x, y] = await map.getPointInView([venue.longitude, venue.latitude]);
-          if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-          // [top, right, bottom, left] in points (RNMBXMapViewManager.queryRenderedFeaturesInRect).
-          const result = await map.queryRenderedFeaturesInRect(
-            [y - SEARCH_PT, x + SEARCH_PT, y + SEARCH_PT, x - SEARCH_PT],
-            [],
-            [LAYER.buildings],
-          );
-          const footprint = pickFootprint([venue.longitude, venue.latitude], result?.features ?? []);
-          if (footprint) {
-            found.current = { ...found.current, [venue.id]: footprint };
-            changed = true;
-          }
-        } catch {
-          // Off screen, or the map is between styles: try again on the next scan.
-        }
-      }
-    } finally {
-      busy.current = false;
-      if (changed) setFootprints(found.current);
-    }
-  }, []);
-
-  return { footprints, scan };
+  const footprints = useSyncExternalStore(subscribe, snapshot, snapshot);
+  const scanMap = useCallback((map: MapView | null, venues: readonly VenueSummary[]) => scan(map, venues), []);
+  return { footprints, scan: scanMap };
 }

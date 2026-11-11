@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useCallback, useRef } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Mapbox, { Camera, MapView } from '@rnmapbox/maps';
 import { ApiConstants } from '@/constants/api';
@@ -8,6 +8,7 @@ import type { VenueSummary } from '@/types/api';
 import { CityStyle } from './city-style';
 import { BACKDROP_CAMERA, MAP_STYLE_URL } from './constants';
 import { VenueLayers } from './venue-layers';
+import { useVenueFootprints } from '@/hooks/city/useVenueFootprints';
 
 // The welcome screens can open before the City tab has ever loaded, so the token is set here too.
 if (ApiConstants.MapboxPublicToken) {
@@ -36,11 +37,20 @@ type Props = { style?: StyleProp<ViewStyle> };
  */
 export const CityBackdrop = memo(function CityBackdrop({ style }: Props) {
   const { data } = useVenues();
+  const venues = data ?? NO_VENUES;
+  const mapRef = useRef<MapView>(null);
+  const { footprints, scan } = useVenueFootprints();
+  // Once the buildings are drawn, find each venue's own building so its beam stands on its roof.
+  const handleIdle = useCallback(() => {
+    void scan(mapRef.current, venues);
+  }, [scan, venues]);
 
   return (
     <View style={[styles.root, style]} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       {ApiConstants.MapboxPublicToken ? (
         <MapView
+          ref={mapRef}
+          onMapIdle={handleIdle}
           style={StyleSheet.absoluteFill}
           styleURL={MAP_STYLE_URL}
           scrollEnabled={false}
@@ -54,7 +64,7 @@ export const CityBackdrop = memo(function CityBackdrop({ style }: Props) {
         >
           <Camera defaultSettings={FIXED_CAMERA} />
           <CityStyle />
-          <VenueLayers venues={data ?? NO_VENUES} selectedId={null} flat={false} labels={false} />
+          <VenueLayers venues={venues} selectedId={null} flat={false} labels={false} footprints={footprints} />
         </MapView>
       ) : null}
     </View>

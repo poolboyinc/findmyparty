@@ -1,0 +1,125 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.css" rel="stylesheet" />
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.js"></script>
+    <style>
+      html, body, #map { margin: 0; height: 100%; background: #07060d; }
+      .mapboxgl-ctrl-bottom-right, .mapboxgl-ctrl-bottom-left { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script>
+      // Style properties that Mapbox GL JS keeps under `layout`; everything else is `paint`.
+      const LAYOUT = new Set(
+        ('visibility symbol-placement symbol-spacing symbol-avoid-edges symbol-sort-key symbol-z-order symbol-z-elevate ' +
+          'symbol-elevation-reference icon-allow-overlap icon-ignore-placement icon-optional icon-rotation-alignment icon-size ' +
+          'icon-size-scale-range icon-text-fit icon-text-fit-padding icon-image icon-rotate icon-padding icon-keep-upright ' +
+          'icon-offset icon-anchor icon-pitch-alignment text-pitch-alignment text-rotation-alignment text-field text-font ' +
+          'text-size text-size-scale-range text-max-width text-line-height text-letter-spacing text-justify text-radial-offset ' +
+          'text-variable-anchor text-anchor text-max-angle text-writing-mode text-rotate text-padding text-keep-upright ' +
+          'text-transform text-offset text-allow-overlap text-ignore-placement text-optional line-cap line-join ' +
+          'line-miter-limit line-round-limit line-sort-key line-z-offset line-elevation-reference fill-sort-key ' +
+          'circle-sort-key fill-extrusion-edge-radius').split(' '),
+      );
+      const kebab = (name) => name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
+      const TYPE = { fillExtrusion: 'fill-extrusion' };
+      const problems = [];
+
+      function split(style) {
+        const layout = {};
+        const paint = {};
+        for (const [key, value] of Object.entries(style)) {
+          if (value === undefined) continue;
+          const name = kebab(key);
+          (LAYOUT.has(name) ? layout : paint)[name] = value;
+        }
+        return { layout, paint };
+      }
+
+      /** Adds or repaints one entry of the app's layers.ts. */
+      function applySpec(spec) {
+        const { layout, paint } = split(spec.style);
+        try {
+          if (spec.existing) {
+            if (!map.getLayer(spec.id)) return problems.push('no such layer in the style: ' + spec.id);
+            for (const [k, v] of Object.entries(layout)) map.setLayoutProperty(spec.id, k, v);
+            for (const [k, v] of Object.entries(paint)) map.setPaintProperty(spec.id, k, v);
+            return;
+          }
+          if (map.getLayer(spec.id)) map.removeLayer(spec.id);
+          const layer = { id: spec.id, type: TYPE[spec.type] ?? spec.type, source: spec.source, layout, paint };
+          if (spec.sourceLayer) layer['source-layer'] = spec.sourceLayer;
+          if (spec.filter) layer.filter = spec.filter;
+          if (spec.minZoom != null) layer.minzoom = spec.minZoom;
+          if (spec.maxZoom != null) layer.maxzoom = spec.maxZoom;
+          map.addLayer(layer, spec.below && map.getLayer(spec.below) ? spec.below : undefined);
+        } catch (error) {
+          problems.push(spec.id + ': ' + error.message);
+        }
+      }
+
+      function loadImage({ name, url, ...options }) {
+        return new Promise((resolve) => {
+          map.loadImage(url, (error, image) => {
+            if (error) problems.push('image ' + name + ': ' + error.message);
+            else if (!map.hasImage(name)) map.addImage(name, image, options);
+            resolve();
+          });
+        });
+      }
+
+      const idle = () => new Promise((resolve) => map.once('idle', resolve));
+
+      async function start({ token, styleUrl, camera }) {
+        mapboxgl.accessToken = token;
+        window.map = new mapboxgl.Map({
+          container: 'map',
+          style: styleUrl,
+          center: camera.center,
+          zoom: camera.zoom,
+          pitch: camera.pitch,
+          bearing: camera.bearing,
+          fadeDuration: 0,
+          preserveDrawingBuffer: true,
+          attributionControl: false,
+        });
+        map.on('error', (event) => problems.push('map: ' + (event.error && event.error.message)));
+        await new Promise((resolve) => map.once('load', resolve));
+      }
+
+      async function dress({ images, fog, layers, sources }) {
+        await Promise.all(images.map(loadImage));
+        if (fog) map.setFog(fog);
+        for (const [id, data] of Object.entries(sources)) {
+          if (map.getSource(id)) map.getSource(id).setData(data);
+          else map.addSource(id, { type: 'geojson', data });
+        }
+        layers.forEach(applySpec);
+        await idle();
+        return problems;
+      }
+
+      async function setSources(sources) {
+        for (const [id, data] of Object.entries(sources)) map.getSource(id).setData(data);
+        await idle();
+      }
+
+      async function moveTo(camera) {
+        map.jumpTo(camera);
+        await idle();
+      }
+
+      /** The building features drawn within `reach` points of a coordinate. */
+      function buildingsNear(at, layer, reach) {
+        const p = map.project(at);
+        return map
+          .queryRenderedFeatures([[p.x - reach, p.y - reach], [p.x + reach, p.y + reach]], { layers: [layer] })
+          .map((f) => ({ id: f.id, properties: f.properties, geometry: f.geometry }));
+      }
+    </script>
+  </body>
+</html>

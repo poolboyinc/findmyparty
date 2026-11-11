@@ -1,4 +1,4 @@
-import { Platform, StyleSheet, TextStyle } from 'react-native';
+import { Platform, StyleSheet, type TextStyle } from 'react-native';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FindMyParty Design System

@@ -1,17 +1,22 @@
 // Turns venues into the GeoJSON the map draws. Pure functions: no React, no map imports.
 
-import type { Feature, FeatureCollection, LineString, Point, Polygon, Position } from 'geojson';
-import { crowdColor, crowdStrength } from '@/services/crowd';
+import type { Feature, FeatureCollection, LineString, Point, Polygon } from 'geojson';
+import { crowdBars, crowdColor, crowdStrength } from '@/services/crowd';
 import { colors } from '@/theme';
 import type { VenueSummary } from '@/types/api';
-import { BEAM, LABEL, PALETTE, SWITCH, type LngLat, VENUE_BLOCK } from './constants';
-import { inflate, type Footprint } from './footprint';
+import { BUILDINGS, FRAME, LABEL, PALETTE, SPRITE, SWITCH, type LngLat } from './constants';
+import type { Footprint } from './footprint';
+import { closed, inset, narrowSide, reversed, sharpCorners, squareAround, tidy, toDegrees, toMetres, type XY } from './outline';
+import { BEAM_EARNED, RING_EARNED, RING_GHOST, RING_SELECTED, beamImage, beamLengthPt, countImage, pingImage, ringImage } from './sprites';
 
 /**
  * What the map shows. `live`: every venue by its crowd. `mine` (My City): the venues the user has
- * been scanned into, lit in lime; the others as dim ghosts.
+ * been scanned into, lit in lime; the others as dashed rings waiting.
  */
 export type CityMode = 'live' | 'mine';
+
+/** A text offset in ems: [right, down]. */
+type Offset = [number, number];
 
 /** What every venue feature carries; the layer styles and the tap handler read these by name. */
 export type VenueProps = {
@@ -21,6 +26,8 @@ export type VenueProps = {
   mode: CityMode;
   /** The crowd under the name ("200+", "50+ expected"), or '' when there is none to show. */
   label: string;
+  /** The same line as a picture in the venue's colour, or '' for none. */
+  count: string;
   /** The selected venue's block: name, and under it the crowd ("200+ inside"). */
   text: string;
   /** 0–1, from `crowdStrength`. Sets the disc's size in flat mode. */
@@ -30,11 +37,27 @@ export type VenueProps = {
   /** Text colour of the name: white, or dim for a ghost. */
   nameColor: string;
   nameSize: number;
-  /** Where the name and the crowd line sit above their point, in ems ([x, y]). */
-  nameOffset: [number, number];
-  countOffset: [number, number];
-  /** Metres above the ground where the name floats: the top of the beam. */
-  lift: number;
+  /** The picture of the beam ('' for none) and of the ring on the roof. */
+  beam: string;
+  ring: string;
+  /** The ripple a busy, scanning venue sends out from its roof, or '' for none. */
+  ping: string;
+  /** Metres from the ground to where the light stands: the roof of the venue's building, or 0. */
+  roofM: number;
+  /**
+   * Where the name and the selected block (in ems of their own text size) and the crowd line (in
+   * points) sit above the roof, at the three zooms of SPRITE.sizeByZoom: the beam under them
+   * changes size with zoom.
+   */
+  nameFar: Offset;
+  nameMid: Offset;
+  nameNear: Offset;
+  countFar: Offset;
+  countMid: Offset;
+  countNear: Offset;
+  blockFar: Offset;
+  blockMid: Offset;
+  blockNear: Offset;
   /** Passes taken but nobody scanned in yet. */
   expected: boolean;
   /** My City: a venue the user has not been scanned into yet. */
@@ -42,76 +65,24 @@ export type VenueProps = {
   selected: boolean;
 };
 
-/** Which part of a beam a polygon is. */
-export type BeamKind = 'block' | 'edge' | 'roof' | 'core' | 'piece' | 'halo' | 'ring' | 'ghost';
+/** Which part of a lit building a polygon is. */
+export type ShapeKind = 'frame' | 'post';
 
-/** Beam polygons say which part they are, how high they start and end, and their own colour. */
-export type BeamProps = VenueProps & {
-  kind: BeamKind;
-  /** For `piece`: 0 at the foot, up to the last piece at the top. */
-  piece: number;
+/** The polygons say which part they are, which zoom band they are for, how high they stand, and their colour. */
+export type ShapeProps = {
+  id: string;
+  kind: ShapeKind;
+  /** Index into FRAME.widthM: the same shape is made once per zoom band. */
+  band: number;
   base: number;
   top: number;
   fill: string;
+  selected: boolean;
 };
 
-// Metres to degrees.
-// The Earth's mean radius is 6 371 008.8 m, so one degree of arc along a meridian is
-// (π / 180) × 6 371 008.8 m ≈ 111 195 m. That is one degree of latitude, everywhere.
-// A degree of longitude is that long only at the equator; circles of latitude shrink
-// with cos(latitude), so at latitude φ one degree of longitude is 111 195 m × cos φ.
-// Hence: Δlat° = metres / 111 195, and Δlng° = metres / (111 195 × cos φ).
-// Check at Podgorica (φ = 42.44°, cos φ = 0.738): 7 m is 0.0000630° of latitude and
-// 0.0000853° of longitude. Over a few metres the flat-Earth error is far below a centimetre.
 const EARTH_RADIUS_M = 6_371_008.8;
 const METRES_PER_DEGREE = (Math.PI / 180) * EARTH_RADIUS_M;
 const TO_RADIANS = Math.PI / 180;
-
-/**
- * A closed ring of `points` corners approximating a circle of `radiusM` metres around a coordinate.
- * Counter-clockwise, first corner repeated at the end, as GeoJSON wants an outer ring.
- */
-export function circleRing(center: LngLat, radiusM: number, points: number = BEAM.points): Position[] {
-  const [lng, lat] = center;
-  // Never divide by zero at a pole; no venue is there, but a bad coordinate should not make NaNs.
-  const cosLat = Math.max(Math.cos(lat * TO_RADIANS), 1e-6);
-  const dLat = radiusM / METRES_PER_DEGREE;
-  const dLng = radiusM / (METRES_PER_DEGREE * cosLat);
-
-  const ring: Position[] = [];
-  for (let i = 0; i < points; i++) {
-    const angle = (2 * Math.PI * i) / points;
-    // East is +longitude, north is +latitude, so a growing angle walks counter-clockwise.
-    ring.push([lng + dLng * Math.cos(angle), lat + dLat * Math.sin(angle)]);
-  }
-  ring.push(ring[0]);
-  return ring;
-}
-
-/** A closed square of side 2 × `halfM` metres, counter-clockwise. */
-export function squareRing(center: LngLat, halfM: number): Position[] {
-  const [lng, lat] = center;
-  const cosLat = Math.max(Math.cos(lat * TO_RADIANS), 1e-6);
-  const dLat = halfM / METRES_PER_DEGREE;
-  const dLng = halfM / (METRES_PER_DEGREE * cosLat);
-  return [
-    [lng - dLng, lat - dLat],
-    [lng + dLng, lat - dLat],
-    [lng + dLng, lat + dLat],
-    [lng - dLng, lat + dLat],
-    [lng - dLng, lat - dLat],
-  ];
-}
-
-/** A square frame: outer square counter-clockwise, inner square clockwise. */
-export function squareFrame(center: LngLat, halfM: number, widthM: number): Position[][] {
-  return [squareRing(center, halfM), squareRing(center, halfM - widthM).reverse()];
-}
-
-/** An annulus: the outer circle counter-clockwise and the hole clockwise, as GeoJSON wants. */
-export function annulus(center: LngLat, outerM: number, innerM: number): Position[][] {
-  return [circleRing(center, outerM), circleRing(center, innerM).reverse()];
-}
 
 /** `#RRGGBB` mixed `share` of the way towards `#RRGGBB` `to` (0 is `from`, 1 is `to`). */
 export function mixHex(from: string, to: string, share: number): string {
@@ -131,16 +102,6 @@ export function mixHex(from: string, to: string, share: number): string {
 }
 
 const WHITE = '#ffffff';
-
-/** Metres of beam for a crowd strength: a stub when nothing is known, tallest when busiest. */
-export function beamHeight(strength: number): number {
-  if (!(strength > 0)) return BEAM.heightAtNothing;
-  if (strength <= 0.2) {
-    return BEAM.heightAtNothing + ((BEAM.heightAtQuiet - BEAM.heightAtNothing) * strength) / 0.2;
-  }
-  const t = Math.min(1, (strength - 0.2) / 0.8);
-  return BEAM.heightAtQuiet + (BEAM.heightAtBusiest - BEAM.heightAtQuiet) * t;
-}
 
 /**
  * The crowd line under a venue's name on the map, kept short: "200+" for a live count,
@@ -175,9 +136,9 @@ export type VenueDrawing = {
   mode: CityMode;
   /** My City: the venues the user has been scanned into. */
   earned: ReadonlySet<string>;
-  /** 2D: names sit above the discs instead of at the tops of the beams. */
+  /** 2D: names sit above the discs instead of at the tips of the beams. */
   flat: boolean;
-  /** The real building each venue is in, once the map has drawn it (useVenueFootprints). */
+  /** The real building each venue is in, once it is known (useVenueFootprints). */
   footprints?: Readonly<Record<string, Footprint>>;
 };
 
@@ -186,58 +147,80 @@ function anchorOf(venue: VenueSummary, drawing: VenueDrawing): LngLat {
   return drawing.footprints?.[venue.id]?.centroid ?? [venue.longitude, venue.latitude];
 }
 
-/** Name and crowd-line offsets, in ems of their own text sizes. */
-function labelOffsets(
-  hasCount: boolean,
-  flat: boolean,
-  strength: number,
-): { name: [number, number]; count: [number, number] } {
-  // Points between the anchor and the bottom of the crowd line: just above the beam's top, or
-  // clear of the disc in flat mode (the disc there is about 6 + 9 × strength points across).
-  const gap = flat ? 9 + 9 * strength : 4;
-  const countLine = hasCount ? LABEL.countSize * 1.2 + 1.5 : 0;
-  if (!LABEL.atBeamTop && !flat) {
-    // Beside the foot: name and crowd line to the right of the beam.
-    return { name: [1.1, hasCount ? -0.5 : 0], count: [1.6, 0.7] };
-  }
+/** Metres from the ground to the top of the lit roof line (before the map's vertical stretch). */
+function roofTop(footprint: Footprint | undefined): number {
+  return footprint ? footprint.height + BUILDINGS.roofCapM + FRAME.depthM : 0;
+}
+
+/**
+ * Name, crowd-line and selected-block offsets for a beam `beamPt` points long at size 1,
+ * when the beam is drawn at `size`. All three hang from their bottom edge.
+ */
+function offsetsAt(beamPt: number, size: number, hasCount: boolean, flatGap: number | null): { name: Offset; count: Offset; block: Offset } {
+  // Points between the anchor and the bottom of the lowest line.
+  const lift = flatGap ?? beamPt * size + LABEL.gap;
+  const countLine = hasCount ? LABEL.countHeight : 0;
   return {
-    name: [0, -(gap + countLine) / LABEL.size],
-    count: [0, -gap / LABEL.countSize],
+    name: [0, -(lift + countLine) / LABEL.size],
+    count: [0, -lift],
+    block: [0, -(lift + 6) / LABEL.selectedSize],
   };
 }
 
 function venueProps(venue: VenueSummary, drawing: VenueDrawing): VenueProps {
   const mine = drawing.mode === 'mine';
   const ghost = mine && !drawing.earned.has(venue.id);
+  const bars = crowdBars(venue.crowdLevel);
   const strength = crowdStrength(venue.crowdLevel);
   const expected = venue.crowdSource === 'expected';
+  const selected = venue.id === drawing.selectedId;
   // My City is about where you have been, so it shows no crowd.
   const label = mine ? '' : mapCrowdLabel(venue.crowdLevel, venue.crowdSource);
   const crowd = mine ? '' : selectedCrowdLine(venue.crowdLevel, venue.crowdSource);
-  const color = mine ? colors.earned : mixHex(crowdColor(venue.crowdLevel), PALETTE.ground, expected ? BEAM.expectedDim : 0);
-  const height = ghost ? BEAM.heightGhost : mine ? BEAM.heightEarned : beamHeight(strength);
-  const lift = drawing.flat || !LABEL.atBeamTop ? 0 : SWITCH.ringAtTop ? height + 2 : height;
-  const offsets = labelOffsets(label.length > 0, drawing.flat, strength);
+  const color = mine ? colors.earned : crowdColor(venue.crowdLevel);
+
+  const beam = ghost ? '' : mine ? BEAM_EARNED : beamImage(bars, expected);
+  const ring = ghost ? RING_GHOST : selected ? RING_SELECTED : mine ? RING_EARNED : ringImage(bars);
+  const beamPt = ghost ? 4 : beamLengthPt(mine ? SPRITE.earnedHeat : strength);
+
+  // In flat mode the name clears the disc (about 6 + 9 × strength points across); tilted, the beam.
+  const flatGap = drawing.flat ? 9 + 9 * strength : null;
+  const hasCount = label.length > 0;
+  const [, far, , mid, , near] = SPRITE.sizeByZoom;
+  const sizes = SWITCH.beamsScaleWithZoom ? [far, mid, near] : [1, 1, 1];
+  const [atFar, atMid, atNear] = sizes.map((size) => offsetsAt(beamPt, size, hasCount, flatGap));
+
   return {
     id: venue.id,
     name: venue.name,
     mode: drawing.mode,
     label,
+    count: hasCount ? countImage(bars, expected) : '',
     text: crowd ? `${venue.name}\n${crowd}` : venue.name,
     strength,
     color,
     nameColor: ghost ? 'rgba(236,232,255,0.45)' : colors.label,
     nameSize: ghost ? LABEL.ghostSize : LABEL.size,
-    nameOffset: offsets.name,
-    countOffset: offsets.count,
-    lift,
+    beam,
+    ring,
+    ping: !mine && !expected && !selected ? pingImage(bars) : '',
+    roofM: drawing.flat ? 0 : roofTop(drawing.footprints?.[venue.id]),
+    nameFar: atFar.name,
+    nameMid: atMid.name,
+    nameNear: atNear.name,
+    countFar: atFar.count,
+    countMid: atMid.count,
+    countNear: atNear.count,
+    blockFar: atFar.block,
+    blockMid: atMid.block,
+    blockNear: atNear.block,
     expected,
     ghost,
-    selected: venue.id === drawing.selectedId,
+    selected,
   };
 }
 
-/** One point per venue: the discs at the beams' feet and the names hang on these. */
+/** One point per venue: the lights on the roof, the names and the discs all hang on these. */
 export function venuePoints(
   venues: readonly VenueSummary[],
   drawing: VenueDrawing,
@@ -254,106 +237,81 @@ export function venuePoints(
   return { type: 'FeatureCollection', features };
 }
 
-function beamPart(
-  props: VenueProps,
-  geometry: Position[][],
-  part: Pick<BeamProps, 'kind' | 'base' | 'top' | 'fill'> & { piece?: number },
-): Feature<Polygon, BeamProps> {
+function shape(props: ShapeProps, rings: XY[][], origin: LngLat): Feature<Polygon, ShapeProps> {
   return {
     type: 'Feature',
-    properties: { ...props, piece: part.piece ?? 0, kind: part.kind, base: part.base, top: part.top, fill: part.fill },
-    geometry: { type: 'Polygon', coordinates: geometry },
+    properties: props,
+    geometry: { type: 'Polygon', coordinates: rings.map((ring) => closed(toDegrees(ring, origin))) },
   };
 }
 
 /**
- * The polygons the map extrudes into each venue's light:
- * a thin white core, the coloured beam in pieces that fade towards the top, a faint wider beam
- * around the lower part, and a bright ring. A My City ghost is one short dim column.
+ * The venue's own building, lit: a bright line along the edge of its roof and thin lines up its
+ * corners, in the venue's colour (white when selected), as the mock draws a venue's block.
+ * Nothing is drawn over the roof itself or the walls: those stay free (signs go there).
+ *
+ * Each shape is made once per zoom band (FRAME), in the width that looks right at that zoom.
+ * Heights are plain metres; the layer style stretches them the same way as the city's buildings.
  */
-export function venueBeams(
+export function venueShapes(
   venues: readonly VenueSummary[],
   drawing: VenueDrawing,
-): FeatureCollection<Polygon, BeamProps> {
-  const features: Feature<Polygon, BeamProps>[] = [];
+): FeatureCollection<Polygon, ShapeProps> {
+  const features: Feature<Polygon, ShapeProps>[] = [];
+  if (drawing.flat) return { type: 'FeatureCollection', features };
+
   for (const venue of venues) {
-    if (!isOnEarth(venue)) continue;
-    const props = venueProps(venue, drawing);
-    const center: LngLat = anchorOf(venue, drawing);
     const footprint = drawing.footprints?.[venue.id];
-    const beam = [circleRing(center, BEAM.beamRadiusM)];
+    if (!footprint || !isOnEarth(venue)) continue;
+    const ghost = drawing.mode === 'mine' && !drawing.earned.has(venue.id);
+    if (ghost) continue;
 
-    if (props.ghost) {
-      features.push(beamPart(props, beam, { kind: 'ghost', base: 0, top: BEAM.heightGhost, fill: PALETTE.label }));
-      continue;
-    }
+    const origin = footprint.centroid;
+    const outline = tidy(toMetres(footprint.ring, origin));
+    if (outline.length < 3) continue;
+    const selected = venue.id === drawing.selectedId;
+    const color = drawing.mode === 'mine' ? colors.earned : crowdColor(venue.crowdLevel);
+    const roof = footprint.height + BUILDINGS.roofCapM;
+    const room = narrowSide(outline) * FRAME.maxShareOfRoof;
+    const outer = inset(outline, -FRAME.overhangM);
 
-    const height = drawing.mode === 'mine' ? BEAM.heightEarned : beamHeight(props.strength);
-    // With the venue's real building known, its roof lights up in the venue's colour (a slab laid
-    // just over the roof, a touch wider so it covers the edges) and the beam rises from inside it.
-    // Until then, a stand-in block marks the spot. Heights are metres; the styles stretch them
-    // the same way as the city's buildings.
-    const ROOF = footprint ? 0 : VENUE_BLOCK.heightM * 1.2;
-    if (footprint) {
+    FRAME.widthM.forEach((bandWidth, band) => {
+      const width = Math.max(0.3, Math.min(bandWidth, room));
       features.push(
-        beamPart(props, [inflate(footprint.ring, footprint.centroid, BEAM.roofInflate)], {
-          kind: 'roof',
-          base: footprint.height,
-          top: footprint.height + BEAM.roofDepthM,
-          fill: props.selected ? mixHex(props.color, WHITE, 0.75) : mixHex(props.color, WHITE, 0.25),
-        }),
+        shape(
+          {
+            id: venue.id,
+            kind: 'frame',
+            band,
+            base: roof,
+            top: roof + FRAME.depthM,
+            fill: selected ? WHITE : mixHex(color, WHITE, FRAME.white),
+            selected,
+          },
+          // The outer edge one way round, the hole the other way, as GeoJSON wants.
+          [outer, reversed(inset(outline, width))],
+          origin,
+        ),
       );
-    } else {
-      features.push(
-        beamPart(props, [squareRing(center, VENUE_BLOCK.halfM)], {
-          kind: 'block',
-          base: 0,
-          top: VENUE_BLOCK.heightM,
-          fill: VENUE_BLOCK.fill,
-        }),
-        beamPart(props, squareFrame(center, VENUE_BLOCK.halfM, VENUE_BLOCK.edgeM), {
-          kind: 'edge',
-          base: VENUE_BLOCK.heightM,
-          top: VENUE_BLOCK.heightM + VENUE_BLOCK.edgeDepthM,
-          fill: mixHex(props.color, WHITE, 0.35),
-        }),
-      );
-    }
-    features.push(
-      beamPart(props, [circleRing(center, BEAM.coreRadiusM)], {
-        kind: 'core',
-        base: ROOF,
-        top: height * BEAM.coreShare,
-        fill: mixHex(props.color, WHITE, 0.82),
-      }),
-    );
-    let from = ROOF / height;
-    BEAM.pieces.forEach((piece, index) => {
-      features.push(
-        beamPart(props, beam, {
-          kind: 'piece',
-          piece: index,
-          base: from * height,
-          top: piece.to * height,
-          fill: index === 0 ? mixHex(props.color, WHITE, BEAM.footWhite) : props.color,
-        }),
-      );
-      from = piece.to;
+      const side = Math.max(0.3, width * FRAME.postShare);
+      for (const corner of sharpCorners(outer, FRAME.postMinTurnDeg, FRAME.postMax)) {
+        features.push(
+          shape(
+            {
+              id: venue.id,
+              kind: 'post',
+              band,
+              base: footprint.minHeight,
+              top: roof + FRAME.depthM,
+              fill: selected ? WHITE : mixHex(color, PALETTE.ground, FRAME.postDim),
+              selected,
+            },
+            [squareAround(corner, side)],
+            origin,
+          ),
+        );
+      }
     });
-    features.push(
-      beamPart(props, annulus(center, BEAM.ringOuterM, BEAM.ringInnerM), {
-        kind: 'ring',
-        base: SWITCH.ringAtTop ? height - BEAM.ringDepthM : 0,
-        top: SWITCH.ringAtTop ? height : BEAM.ringDepthM,
-        fill: mixHex(props.color, WHITE, BEAM.ringWhite),
-      }),
-      beamPart(props, [circleRing(center, BEAM.haloRadiusM)], {
-        kind: 'halo',
-        base: ROOF,
-        top: height * BEAM.haloShare,
-        fill: props.color,
-      }),
-    );
   }
   return { type: 'FeatureCollection', features };
 }

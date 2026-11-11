@@ -24,13 +24,13 @@ public class DemoSeeder(AppDbContext db, UserManager<ApplicationUser> users, ILo
     // Inside = guests already scanned in ("live"); 0 with passes out shows as "expected".
     private static readonly Venue[] Venues =
     [
-        new("monkey", "Monkey", "Stara Varoš 12", 42.4362, 19.2608, "Neon Friday", "Techno", "DJ Proximus", 5, 300, 268, 214, "House Arrest"),
-        new("kula", "Kula", "Njegoševa 21", 42.4418, 19.2631, "Rooftop Session", "House", "Lena K", 8, 220, 190, 160, "Sunset Disco"),
-        new("dr-house", "Dr. House", "Bokeška 4", 42.4432, 19.2569, "Deep Cuts", "House", "VRT", 5, 200, 150, 120, "Vinyl Only"),
-        new("blok-5", "Blok 5", "Bulevar Džordža Vašingtona 98", 42.4476, 19.2412, "Balkan Bass", "Balkan", "Trio Morača", 3, 150, 110, 90, "Trubači Night"),
-        new("neon-basta", "Neon Bašta", "Hercegovačka 30", 42.4399, 19.2678, "Garden Live", "Live", "Ana & Band", 0, 120, 70, 0, "Acoustic Sunday"),
-        new("hangar-7", "Hangar 7", "Oktobarske revolucije 7", 42.4301, 19.2542, "Warehouse", "Techno", "Kontra", 6, 100, 52, 40, "Raw Cuts"),
-        new("atlas", "Atlas", "Cetinjska 11", 42.4409, 19.2478, "Ladies Night", "Pop", "DJ Mila", 0, 80, 18, 12, "Throwback Thursday"),
+        new("monkey", "Monkey", "Stara Varoš 12", 42.44054, 19.26346, "Neon Friday", "Techno", "DJ Proximus", 5, 300, 268, 214, "House Arrest"),
+        new("kula", "Kula", "Njegoševa 21", 42.44123, 19.26495, "Rooftop Session", "House", "Lena K", 8, 220, 190, 160, "Sunset Disco"),
+        new("dr-house", "Dr. House", "Bokeška 4", 42.44082, 19.26236, "Deep Cuts", "House", "VRT", 5, 200, 150, 120, "Vinyl Only"),
+        new("blok-5", "Blok 5", "Bulevar Džordža Vašingtona 98", 42.43994, 19.2633, "Balkan Bass", "Balkan", "Trio Morača", 3, 150, 110, 90, "Trubači Night"),
+        new("neon-basta", "Neon Bašta", "Hercegovačka 30", 42.44206, 19.26419, "Garden Live", "Live", "Ana & Band", 0, 120, 70, 0, "Acoustic Sunday"),
+        new("hangar-7", "Hangar 7", "Oktobarske revolucije 7", 42.442, 19.2625, "Warehouse", "Techno", "Kontra", 6, 100, 52, 40, "Raw Cuts"),
+        new("atlas", "Atlas", "Cetinjska 11", 42.44006, 19.26507, "Ladies Night", "Pop", "DJ Mila", 0, 80, 18, 12, "Throwback Thursday"),
     ];
 
     /// <summary>A fixed id per demo venue, so restarts find the same rows.</summary>
@@ -46,6 +46,7 @@ public class DemoSeeder(AppDbContext db, UserManager<ApplicationUser> users, ILo
             var hostUserId = await db.VenueProfiles.Where(p => p.Id == venueId).Select(p => p.UserId).FirstOrDefaultAsync(ct)
                              ?? await CreateVenueAsync(v, venueId, ct);
             var hostId = Guid.Parse(hostUserId);
+            await MoveIfNeededAsync(v, venueId, ct);
 
             var open = db.Parties.Where(p => p.VenueId == venueId && p.Status == PartyStatus.Published && !p.IsDeleted);
             if (!await open.AnyAsync(p => p.StartsAt <= now && p.EndsAt > now.AddHours(1), ct))
@@ -56,6 +57,19 @@ public class DemoSeeder(AppDbContext db, UserManager<ApplicationUser> users, ILo
 
         if (!string.IsNullOrWhiteSpace(ownerEmail))
             await MakeOwnerAsync(ownerEmail, ct);
+    }
+
+    /// <summary>A demo venue whose place in this file has changed moves there, with its parties.</summary>
+    private async Task MoveIfNeededAsync(Venue v, Guid venueId, CancellationToken ct)
+    {
+        var moved = await db.VenueProfiles
+            .Where(p => p.Id == venueId && (p.Latitude != v.Lat || p.Longitude != v.Lng))
+            .ExecuteUpdateAsync(set => set.SetProperty(p => p.Latitude, v.Lat).SetProperty(p => p.Longitude, v.Lng), ct);
+        if (moved == 0) return;
+        await db.Parties
+            .Where(p => p.VenueId == venueId)
+            .ExecuteUpdateAsync(set => set.SetProperty(p => p.Latitude, v.Lat).SetProperty(p => p.Longitude, v.Lng), ct);
+        logger.LogInformation("Demo venue moved: {Venue}", v.Name);
     }
 
     private async Task<string> CreateVenueAsync(Venue v, Guid venueId, CancellationToken ct)

@@ -82,6 +82,8 @@ export function useCityCamera() {
   const focused = useRef<LngLat | null>(null);
   /** Until this time, pitch reported by the map is ignored: our own tilt animation is running. */
   const ignorePitchUntil = useRef(0);
+  /** The map laid itself flat because it was zoomed far out; it tilts back up when zoomed in again. */
+  const flattenedByZoom = useRef(false);
 
   useEffect(() => {
     if (drop !== null) return;
@@ -113,29 +115,53 @@ export function useCityCamera() {
     setFlatState(next);
   }, []);
 
-  /** The 2D/3D control: tilt down flat facing north, or back up to the city view. */
+  /** Tilt down flat facing north, or back up to the city view. */
+  const tilt = useCallback(
+    (toFlat: boolean) => {
+      setFlat(toFlat);
+      ignorePitchUntil.current = Date.now() + CAMERA.tiltMs + 400;
+      move({
+        pitch: toFlat ? 0 : CAMERA.pitch,
+        heading: toFlat ? 0 : CAMERA.heading,
+        animationDuration: CAMERA.tiltMs,
+      });
+    },
+    [move, setFlat],
+  );
+
+  /** The 2D/3D control. */
   const toggleFlat = useCallback(() => {
-    const next = !flatRef.current;
-    setFlat(next);
-    ignorePitchUntil.current = Date.now() + CAMERA.tiltMs + 400;
-    move({
-      pitch: next ? 0 : CAMERA.pitch,
-      heading: next ? 0 : CAMERA.heading,
-      animationDuration: CAMERA.tiltMs,
-    });
-  }, [move, setFlat]);
+    flattenedByZoom.current = false;
+    tilt(!flatRef.current);
+  }, [tilt]);
 
   /**
-   * Called when the map comes to rest. If the user tilted it by hand, the 2D/3D control and the
-   * beams follow what the map really shows.
+   * Called when the map comes to rest, with what it really shows.
+   *  - Zoomed far out, the city lays itself flat (there are no buildings to stand beams on);
+   *    zoomed back in, it tilts up again, unless the user chose 2D themselves.
+   *  - If the user tilted the map by hand, the 2D/3D control and the beams follow.
    */
-  const syncPitch = useCallback(
-    (pitch: number) => {
+  const syncView = useCallback(
+    (pitch: number, zoom: number) => {
       if (Date.now() < ignorePitchUntil.current) return;
-      if (!flatRef.current && pitch < CAMERA.flatBelowPitch) setFlat(true);
-      else if (flatRef.current && pitch > CAMERA.tiltedAbovePitch) setFlat(false);
+      if (!flatRef.current && zoom < CAMERA.flattenBelowZoom) {
+        flattenedByZoom.current = true;
+        tilt(true);
+        return;
+      }
+      if (flatRef.current && flattenedByZoom.current && zoom > CAMERA.tiltAgainAboveZoom) {
+        flattenedByZoom.current = false;
+        tilt(false);
+        return;
+      }
+      if (!flatRef.current && pitch < CAMERA.flatBelowPitch) {
+        flattenedByZoom.current = false;
+        setFlat(true);
+      } else if (flatRef.current && !flattenedByZoom.current && pitch > CAMERA.tiltedAbovePitch) {
+        setFlat(false);
+      }
     },
-    [setFlat],
+    [setFlat, tilt],
   );
 
   /**
@@ -219,8 +245,8 @@ export function useCityCamera() {
   const initial = drop === null ? null : drop ? DROP_START : DEFAULT_CAMERA;
 
   return useMemo(
-    () => ({ ref, initial, flat, toggleFlat, syncPitch, onMapLoaded, flyTo, focus, refocus, release, fitBounds }),
-    [initial, flat, toggleFlat, syncPitch, onMapLoaded, flyTo, focus, refocus, release, fitBounds],
+    () => ({ ref, initial, flat, toggleFlat, syncView, onMapLoaded, flyTo, focus, refocus, release, fitBounds }),
+    [initial, flat, toggleFlat, syncView, onMapLoaded, flyTo, focus, refocus, release, fitBounds],
   );
 }
 
