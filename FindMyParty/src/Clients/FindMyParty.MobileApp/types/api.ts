@@ -266,7 +266,7 @@ export interface MapSign {
   advertiser: string; text: string;                              // "VOLT", "AURA|SPRITZ" (| = line break)
   colorTop: string; colorBottom: string; ink: string; artworkUrl: string | null;
   spot: SignSpot;
-  card: { title: string; subtitle: string; logoText: string; perkId: string | null; partyId: string | null; venueId: string | null };
+  card: { title: string; subtitle: string; logoText: string; perkId: string | null; glowCost: number | null; partyId: string | null; venueId: string | null };
 }
 export interface SignWeek { id: string; startsOn: string; endsOn: string; label: string }   // "2026-W46", "This week"
 export interface SignFormatInfo { format: SignFormat; title: string; price: number; unit: 'week' | 'night'; total: number; free: number }
