@@ -42,9 +42,12 @@ public class Party
 
     protected Party() { }
 
-    public Party(Guid hostId, Guid? venueId, PartyRequest r)
+    public Party(Guid hostId, Guid? venueId, PartyRequest r) : this(Guid.NewGuid(), hostId, venueId, r) { }
+
+    /// <summary>With an id chosen by the caller: demo data finds the same row again on the next run.</summary>
+    internal Party(Guid id, Guid hostId, Guid? venueId, PartyRequest r)
     {
-        Id = Guid.NewGuid();
+        Id = id;
         HostId = hostId;
         VenueId = venueId;
         Status = PartyStatus.Draft;
@@ -71,12 +74,23 @@ public class Party
         Genre = r.Genre;
         PerformerName = r.PerformerName;
         PerformerType = r.PerformerType;
+        AgeLimit = r.AgeLimit;
+        HoldMinutes = r.HoldMinutes ?? DefaultHoldMinutes;
     }
 
-    public void Publish()
+    /// <summary>The line-up's first act stands in for the performer, so everything that reads these two fields keeps working.</summary>
+    public void SetHeadliner(string? name, string? role)
+    {
+        PerformerName = name;
+        PerformerType = role;
+    }
+
+    public void SetAgeLimit(int? ageLimit) => AgeLimit = ageLimit;
+
+    public void Publish(DateTime? now = null)
     {
         if (Status != PartyStatus.Draft) throw new InvalidOperationException("Party must be draft to publish.");
-        if (StartsAt <= DateTime.UtcNow) throw new InvalidOperationException("Party must start in the future.");
+        if (StartsAt <= (now ?? DateTime.UtcNow)) throw new InvalidOperationException("Party must start in the future.");
         Status = PartyStatus.Published;
     }
 

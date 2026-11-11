@@ -1,4 +1,5 @@
 using FindMyParty.Api.Bookings;
+using FindMyParty.Api.Cities;
 using FindMyParty.Api.Common;
 using FindMyParty.Api.Data;
 using FindMyParty.Api.Identity;
@@ -11,7 +12,8 @@ namespace FindMyParty.Api.Parties;
 
 [ApiController]
 [Route("api/parties")]
-public class PartiesController(AppDbContext db, IImageStorage images, PartyReader reader, PassService passes, Enrichers enrich) : ControllerBase
+public class PartiesController(AppDbContext db, IImageStorage images, PartyReader reader, PassService passes, Enrichers enrich,
+    PartyPublisher publisher, TimeProvider time) : ControllerBase
 {
     [Authorize(Roles = Roles.Host)]
     [HttpPost]
@@ -20,6 +22,12 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
         var hostId = User.UserIdString();
         var venueId = await db.VenueProfiles.Where(v => v.UserId == hostId).Select(v => (Guid?)v.Id).FirstOrDefaultAsync();
         var party = new Party(User.UserId(), venueId, request);
+        if (request.Acts is not null)
+        {
+            var acts = Lineup.Check(party, request.Acts);
+            db.Set<PartyAct>().AddRange(acts);
+            party.SetHeadliner(acts.FirstOrDefault()?.Name, acts.FirstOrDefault()?.Role);
+        }
         db.Parties.Add(party);
         await db.SaveChangesAsync();
         return CreatedAtAction(nameof(GetById), new { id = party.Id }, new { id = party.Id });
@@ -32,7 +40,40 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
         var party = await OwnedPartyAsync(id);
         if (party.Status != PartyStatus.Draft) return BadRequest("Only draft parties can be edited.");
         party.Update(request);
+
+        await using var tx = await db.Database.BeginTransactionAsync();
+        if (request.Acts is not null)
+        {
+            await Lineup.ReplaceAsync(db, party, Lineup.Check(party, request.Acts));
+        }
+        else
+        {
+            // The line-up stays as it was: it must still fit the new hours, and its first act stays the performer.
+            var kept = await db.Set<PartyAct>().AsNoTracking().Where(a => a.PartyId == id).OrderBy(a => a.Order).ToListAsync();
+            if (kept.Count > 0)
+                await Lineup.ReplaceAsync(db, party, Lineup.Check(party, kept.Select(a => new PartyActInput(a.Name, a.Role, a.StartsAt)).ToList()));
+        }
         await db.SaveChangesAsync();
+        await tx.CommitAsync();
+        return NoContent();
+    }
+
+    /// <summary>The line-up, replaced whole. Allowed on a draft or a published party that has not ended.</summary>
+    [Authorize(Roles = Roles.Host)]
+    [HttpPut("{id:guid}/acts")]
+    public async Task<IActionResult> SetActs(Guid id, [FromBody] SetActsRequest request, CancellationToken ct)
+    {
+        var party = await OwnedPartyAsync(id);
+        if (party.Status is not (PartyStatus.Draft or PartyStatus.Published))
+            throw ApiException.Conflict("This party was cancelled.", "party_cancelled");
+        if (party.EndsAt <= time.GetUtcNow().UtcDateTime)
+            throw ApiException.Conflict("This party is over.", "party_over");
+
+        var acts = Lineup.Check(party, request.Acts ?? []);
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await Lineup.ReplaceAsync(db, party, acts, ct);
+        await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return NoContent();
     }
 
@@ -43,13 +84,14 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
         var party = await OwnedPartyAsync(id);
         try
         {
-            party.Publish();
+            party.Publish(time.GetUtcNow().UtcDateTime);
         }
         catch (InvalidOperationException)
         {
             return BadRequest("Party cannot be published in its current state.");
         }
         await db.SaveChangesAsync();
+        await publisher.TellFollowersAsync(party, HttpContext.RequestAborted);
         return NoContent();
     }
 
@@ -109,18 +151,27 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
                 Genre = p.Genre,
                 PerformerName = p.PerformerName,
                 PerformerType = p.PerformerType,
-                Featured = p.Featured
+                Featured = p.Featured,
+                AgeLimit = p.AgeLimit,
+                HoldMinutes = p.HoldMinutes
             })
             .ToListAsync();
+        var acts = await Lineup.ForAsync(db, parties.Select(p => p.Id).ToList());
+        foreach (var p in parties)
+        {
+            p.Acts = acts.GetValueOrDefault(p.Id) ?? [];
+            p.LineupText = Lineup.Text(p.Acts, p.PerformerName);
+        }
         return Ok(parties);
     }
 
     /// <summary>
-    /// Published parties that have not ended, soonest first.
+    /// Published parties that have not ended, soonest first. `city` keeps the parties of that city's venues.
     /// Pass lat, lng and radiusKm together to get only parties within that distance.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> Get(
+        [FromQuery] string? city,
         [FromQuery] double? lat,
         [FromQuery] double? lng,
         [FromQuery] double? radiusKm,
@@ -133,6 +184,8 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
         pageSize = Math.Clamp(pageSize, 1, 100);
 
         var query = reader.Open();
+        if (await CityLookup.RequireAsync(db, city, ct) is { } slug)
+            query = query.Where(p => db.VenueProfiles.Any(v => v.Id == p.VenueId && v.CitySlug == slug));
         if (date.HasValue)
         {
             var dayStart = date.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
@@ -170,6 +223,10 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
         if (p == null) return NotFound();
         if (p.Status == PartyStatus.Draft && !(User.Identity?.IsAuthenticated == true && p.HostId == User.UserId())) return NotFound();
 
+        var venue = p.VenueId == null ? null
+            : await db.VenueProfiles.AsNoTracking().Where(v => v.Id == p.VenueId).Select(v => new { v.VenueName, v.CitySlug, v.Area, v.Address }).FirstOrDefaultAsync(ct);
+        var (crowdLevel, crowdSource) = Crowd.Of(p.TicketsSold, await reader.CheckedInAsync(p.Id, ct));
+        var acts = (await Lineup.ForAsync(db, [p.Id], ct)).GetValueOrDefault(p.Id) ?? [];
         var party = new PartyDetailResponse
         {
             Id = p.Id,
@@ -185,10 +242,19 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
             IsSoldOut = p.TicketsSold >= p.Capacity,
             ImageUrl = p.ImageUrl,
             VenueId = p.VenueId,
-            VenueName = p.VenueId == null ? null : await db.VenueProfiles.Where(v => v.Id == p.VenueId).Select(v => v.VenueName).FirstOrDefaultAsync(ct),
+            VenueName = venue?.VenueName,
             Genre = p.Genre,
             PerformerName = p.PerformerName,
-            PerformerType = p.PerformerType
+            PerformerType = p.PerformerType,
+            CrowdLevel = crowdLevel,
+            CrowdSource = crowdSource,
+            City = venue?.CitySlug,
+            VenueArea = venue?.Area,
+            VenueAddress = venue?.Address,
+            AgeLimit = p.AgeLimit,
+            HoldMinutes = p.HoldMinutes,
+            Acts = acts,
+            LineupText = Lineup.Text(acts, p.PerformerName)
         };
         await enrich.PartyAsync(party, User.OptionalUserId(), ct); // other features add their fields here; keep this call
         return Ok(party);
@@ -215,8 +281,7 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
     public async Task<IActionResult> UploadImage(Guid id, IFormFile file, CancellationToken ct)
     {
         var party = await OwnedPartyAsync(id);
-        if (!images.IsConfigured)
-            return Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Image storage is not set up yet.");
+        if (!images.IsConfigured) throw StorageOff();
 
         await using var stream = file.OpenReadStream();
         // The type comes from the bytes, not from the file name or what the client claims.
@@ -229,6 +294,10 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
         await db.SaveChangesAsync(ct);
         return Ok(new { imageUrl });
     }
+
+    /// <summary>No image storage is set up: 503 storage_off. Everything else still works.</summary>
+    public static ApiException StorageOff() =>
+        new(StatusCodes.Status503ServiceUnavailable, "Images cannot be uploaded yet. Everything else was saved.", "storage_off");
 
     /// <summary>The party, if it exists and belongs to the signed-in host.</summary>
     private async Task<Party> OwnedPartyAsync(Guid id)
