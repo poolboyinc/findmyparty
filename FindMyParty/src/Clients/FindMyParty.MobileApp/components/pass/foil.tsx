@@ -59,7 +59,7 @@ export function FoilSeal({ tilt }: { tilt: SharedValue<number> }) {
       <Animated.View style={[styles.sheet, { width: SEAL_SIZE * 3 }, slide]}>
         <LinearGradient colors={FOIL} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
       </Animated.View>
-      <Icon sfSymbol="flame.fill" ionicon="flame" size={16} color={colors.ink} />
+      <Icon sfSymbol="flame" ionicon="flame-outline" size={16} color={colors.ink} />
     </View>
   );
 }

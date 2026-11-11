@@ -16,7 +16,10 @@ const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 const RING_TRACK = alpha(colors.ink, 0.16);
 
 type Props = {
-  bookingId: string;
+  /** `Pass.codePrefix`: `fmp1` for a booking, `fmpg1` for a guest pass. */
+  prefix: 'fmp1' | 'fmpg1';
+  /** `Pass.codeId`: the 32-hex id that goes into the QR. */
+  codeId: string;
   secret: string;
   /** The screen's shared clock, in milliseconds. The code and the countdown follow it. */
   now: number;
@@ -25,18 +28,17 @@ type Props = {
 const ignoreQrError = () => {};
 
 /** The door code: a QR that changes every half minute, and how long until it does. */
-export function CodePanel({ bookingId, secret, now }: Props) {
+export function CodePanel({ prefix, codeId, secret, now }: Props) {
   const step = passStepAt(now);
   const seconds = secondsUntilNextCode(now);
 
   const value = useMemo(() => {
     try {
-      // M0: same text as before the signature changed. M3 passes `pass.codePrefix` and `pass.codeId` instead.
-      return passQrText('fmp1', bookingId, passCode(secret, step));
+      return passQrText(prefix, codeId, passCode(secret, step));
     } catch {
       return null;
     }
-  }, [bookingId, secret, step]);
+  }, [prefix, codeId, secret, step]);
 
   if (!value) {
     return <Text style={styles.problem}>This pass could not be drawn. Pull down to load it again.</Text>;

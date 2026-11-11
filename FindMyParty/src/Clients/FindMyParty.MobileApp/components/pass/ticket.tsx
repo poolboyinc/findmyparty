@@ -9,7 +9,7 @@ import type { Booking, Pass } from '@/types/api';
 import { colors, radii, spacing, typography } from '@/theme';
 import { CodePanel, QR_SIZE } from './code-panel';
 import { FoilSeal, FoilStripe } from './foil';
-import { alpha, doorsLine, priceAtDoor } from './format';
+import { admitFromBooking, admitLine, alpha, deadPassLine, doorsLine, guestOfLine, venueLine } from './format';
 import { usePassData } from './usePassData';
 
 const INK_SOFT = alpha(colors.ink, 0.62);
@@ -18,7 +18,10 @@ const NOTCH = 22;
 const PADDING = spacing.lg - 1;
 
 type Props = {
+  /** `Booking.id`; for a pass someone gave you, the guest pass id. */
   bookingId: string;
+  /** A pass someone gave you. */
+  guest: boolean;
   /** Null when the bookings could not be loaded and only the saved pass is known. */
   booking: Booking | null;
   width: number;
@@ -26,29 +29,34 @@ type Props = {
   now: number;
   /** True while this ticket is the one on screen: checks with the server for a door scan. */
   watch: boolean;
-  guestName: string | null;
-  /** The guest's Glow level, printed in bold after the name. */
-  levelName?: string | null;
   tilt: SharedValue<number>;
   onScanned: (pass: Pass) => void;
 };
 
 /**
  * The pass as a paper ticket: the one pale object in a dark app. Party, foil band, the changing
- * door code, a tear line, and who it admits.
+ * door code, a tear line, and who it admits. Name, level, admit and amount are the server's (`Pass`).
  */
-export function Ticket({ bookingId, booking, width, now, watch, guestName, levelName, tilt, onScanned }: Props) {
-  const { pass, isLoading, error, refetch } = usePassData(bookingId, watch, onScanned);
+export function Ticket({ bookingId, guest, booking, width, now, watch, tilt, onScanned }: Props) {
+  const { pass, isLoading, error, refetch } = usePassData(bookingId, guest, watch, onScanned);
 
-  const title = booking?.party?.title ?? pass?.partyTitle ?? 'Your pass';
-  const venue = booking?.party?.venueName ?? pass?.venueName ?? null;
-  const doors = doorsLine(booking?.party?.startsAt ?? pass?.startsAt, now);
-  const ticketCount = booking?.ticketCount ?? pass?.ticketCount ?? 1;
-  const totalPrice = booking?.totalPrice ?? pass?.totalPrice ?? 0;
+  const party = booking?.party ?? null;
+  const title = party?.title ?? pass?.partyTitle ?? 'Your pass';
+  const venue = venueLine(party?.venueName ?? pass?.venueName, party?.venueArea ?? pass?.venueArea);
+  const guestOf = guestOfLine(pass?.guestOf ?? booking?.guestOf);
+  const doors = doorsLine(party?.startsAt ?? pass?.startsAt, now);
+  const ticketCount = pass?.ticketCount ?? booking?.ticketCount ?? 1;
   // Counts only go up, so the higher of the two answers is the newer one.
   const checkedIn = Math.min(ticketCount, Math.max(booking?.checkedInCount ?? 0, pass?.checkedInCount ?? 0));
-  const outside = ticketCount - checkedIn;
-  const cancelled = pass?.status === 'Cancelled';
+  const admit = pass ? pass.admit : booking ? admitFromBooking(booking) : 0;
+  const amountDue = pass?.amountDue ?? booking?.amountDue ?? 0;
+  const footer = admitLine(admit, amountDue);
+  // Either answer saying the pass is dead wins: the list is changed at once when a pass is cancelled here.
+  const heldUntil = pass?.heldUntil ?? booking?.heldUntil;
+  const dead =
+    deadPassLine(booking?.status ?? 'Confirmed', guest, heldUntil) ?? deadPassLine(pass?.status ?? 'Confirmed', guest, heldUntil);
+  const holder = pass?.holderName ?? null;
+  const level = pass?.levelName ?? null;
 
   return (
     <View style={[styles.card, { width }]}>
@@ -59,6 +67,7 @@ export function Ticket({ bookingId, booking, width, now, watch, guestName, level
             {title}
           </Display>
           {venue ? <Text style={styles.venue}>{venue}</Text> : null}
+          {guestOf ? <Text style={styles.venue}>{guestOf}</Text> : null}
         </View>
         <FoilSeal tilt={tilt} />
       </View>
@@ -74,15 +83,15 @@ export function Ticket({ bookingId, booking, width, now, watch, guestName, level
                 {checkedIn} of {ticketCount} in
               </Text>
             </View>
-            {outside === 0 ? <Text style={styles.note}>Everyone on this pass is inside.</Text> : null}
+            {admit === 0 && !dead ? <Text style={styles.note}>Everyone on this pass is inside.</Text> : null}
           </View>
         ) : null}
 
-        {cancelled ? (
-          <Text style={styles.note}>This booking was cancelled.</Text>
-        ) : outside > 0 ? (
+        {dead ? (
+          <Text style={styles.note}>{dead}</Text>
+        ) : admit > 0 ? (
           pass ? (
-            <CodePanel bookingId={bookingId} secret={pass.secret} now={now} />
+            <CodePanel prefix={pass.codePrefix} codeId={pass.codeId} secret={pass.secret} now={now} />
           ) : (
             <View style={styles.waiting}>
               {isLoading || !error ? (
@@ -114,16 +123,21 @@ export function Ticket({ bookingId, booking, width, now, watch, guestName, level
       </View>
 
       <View style={styles.footer}>
-        {guestName || levelName ? (
+        {holder ? (
           <Text style={styles.guest} numberOfLines={1}>
-            {guestName}
-            {guestName && levelName ? ', ' : null}
-            {levelName ? <Text style={styles.level}>{levelName}</Text> : null}
+            {holder}
+            {level ? ', ' : null}
+            {level ? <Text style={styles.level}>{level}</Text> : null}
           </Text>
-        ) : null}
-        <Text style={styles.admit}>
-          <Text style={styles.admitCount}>Admit {ticketCount}</Text>, {priceAtDoor(totalPrice)}
-        </Text>
+        ) : (
+          <View />
+        )}
+        {dead ? null : (
+          <Text style={styles.admit}>
+            <Text style={styles.admitCount}>{footer.lead}</Text>
+            {footer.rest ? `, ${footer.rest}` : null}
+          </Text>
+        )}
       </View>
     </View>
   );

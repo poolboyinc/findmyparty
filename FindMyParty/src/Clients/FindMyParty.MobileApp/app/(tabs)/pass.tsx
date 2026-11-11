@@ -10,10 +10,9 @@ import { NoPass, PassBoard } from '@/components/pass/pass-board';
 import { useNow } from '@/components/pass/useNow';
 import { useSavedPasses } from '@/components/pass/usePassData';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { useMe, useMyBookings } from '@/hooks/queries';
+import { useMyBookings } from '@/hooks/queries';
 import { ApiError } from '@/services/api';
 import { errorText } from '@/services/errorText';
-import { glowFrom } from '@/services/glow';
 import { colors, layout, spacing, typography } from '@/theme';
 
 /** The Pass tab: the ticket for tonight (or the next night), and the nights before it. */
@@ -22,7 +21,6 @@ export default function PassTab() {
   const focused = useIsFocused();
   const now = useNow();
   const { data, error, isPending, refetch } = useMyBookings();
-  const me = useMe();
   const [refreshing, setRefreshing] = useState(false);
 
   // Coming back to the tab is a reason to look again: a new booking, a scan, a party called off.
@@ -48,10 +46,6 @@ export default function PassTab() {
     refetch().finally(() => setRefreshing(false));
   };
 
-  const guestName = me.data?.userName ?? null;
-  // The Glow level the door scans have earned, printed on the ticket next to the name.
-  const levelName = useMemo(() => (data ? glowFrom(data, new Date(minute)).level.name : null), [data, minute]);
-
   let body: ReactNode;
   if (signedOut) {
     body = (
@@ -65,7 +59,7 @@ export default function PassTab() {
       data.length === 0 ? (
         <NoPass title="No pass yet" fill />
       ) : (
-        <PassBoard entries={upcoming} past={past} now={now} focused={focused} guestName={guestName} levelName={levelName} />
+        <PassBoard entries={upcoming} past={past} now={now} focused={focused} />
       );
   } else if (isPending || (cannotLoad && saved === null)) {
     body = <Loading />;
@@ -76,8 +70,6 @@ export default function PassTab() {
         past={[]}
         now={now}
         focused={focused}
-        guestName={guestName}
-        levelName={null}
         notice={`${errorText(error)} Showing the pass saved on this phone.`}
       />
     );

@@ -13,6 +13,10 @@ function parse(raw: string | null | undefined): Pass | null {
   try {
     const value = JSON.parse(raw) as Partial<Pass> | null;
     if (!value || typeof value.bookingId !== 'string' || typeof value.secret !== 'string') return null;
+    // A copy saved before passes carried their own QR prefix and id was always a booking's.
+    if (typeof value.codeId !== 'string' || (value.codePrefix !== 'fmp1' && value.codePrefix !== 'fmpg1')) {
+      return { ...value, kind: 'booking', codePrefix: 'fmp1', codeId: value.bookingId } as Pass;
+    }
     return value as Pass;
   } catch {
     return null;

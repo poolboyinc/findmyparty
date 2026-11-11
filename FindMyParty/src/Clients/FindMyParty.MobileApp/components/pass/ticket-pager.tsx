@@ -28,8 +28,6 @@ type Props = {
   now: number;
   /** The screen is focused: the ticket on screen checks with the server for a door scan. */
   watching: boolean;
-  guestName: string | null;
-  levelName: string | null;
   tilt: SharedValue<number>;
   onScanned: (pass: Pass) => void;
 };
@@ -38,7 +36,7 @@ type Props = {
  * The upcoming passes, one ticket per page, swiped sideways. The tickets settle in once when the
  * pager first appears; that is the screen's one entrance.
  */
-export function TicketPager({ entries, pageWidth, page, onPageChange, now, watching, guestName, levelName, tilt, onScanned }: Props) {
+export function TicketPager({ entries, pageWidth, page, onPageChange, now, watching, tilt, onScanned }: Props) {
   const reduceMotion = useReducedMotion();
   const ticketWidth = Math.min(pageWidth - layout.screenMargin * 2, MAX_TICKET_WIDTH);
 
@@ -47,11 +45,17 @@ export function TicketPager({ entries, pageWidth, page, onPageChange, now, watch
     if (!reduceMotion) arrival.set(withSpring(1, springs.arrive));
   }, [arrival, reduceMotion]);
 
+  // The ticket is laid down: it comes in from slightly below, tipped back, and settles flat on the spring.
   const arrivalStyle = useAnimatedStyle(() => {
     const progress = arrival.get();
     return {
       opacity: Math.min(1, Math.max(0, progress * 2)),
-      transform: [{ translateY: (1 - progress) * 28 }, { scale: 0.94 + 0.06 * progress }],
+      transform: [
+        { perspective: 900 },
+        { translateY: (1 - progress) * 36 },
+        { rotateX: `${(1 - progress) * 18}deg` },
+        { scale: 0.94 + 0.06 * progress },
+      ],
     };
   });
 
@@ -88,12 +92,11 @@ export function TicketPager({ entries, pageWidth, page, onPageChange, now, watch
           <Animated.View exiting={leave} style={[styles.page, { width: pageWidth }]}>
             <Ticket
               bookingId={item.bookingId}
+              guest={item.guest}
               booking={item.booking}
               width={ticketWidth}
               now={now}
               watch={watching && index === page}
-              guestName={guestName}
-              levelName={levelName}
               tilt={tilt}
               onScanned={onScanned}
             />

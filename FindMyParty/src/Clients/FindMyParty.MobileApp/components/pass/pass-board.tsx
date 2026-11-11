@@ -7,21 +7,20 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useReducedMotion } from '@/components/afterglow/motion';
 import { Display } from '@/components/afterglow/text';
 import { PrimaryButton } from '@/components/ui/primary-button';
-import { keys, useCancelBooking } from '@/hooks/queries';
+import { keys, useCancelBooking, useRevokeGuestPass } from '@/hooks/queries';
 import type { Booking, Pass } from '@/types/api';
 import { colors, layout, spacing, typography } from '@/theme';
 import { CancelSheet, type CancelSheetRef } from './cancel-sheet';
 import { Earlier } from './earlier';
-import { clock, type TicketEntry } from './format';
+import { requestFlare } from './flare-bus';
+import { type TicketEntry } from './format';
 import { glide, leave } from './glide';
+import { GuestSheet, type GuestSheetRef } from './guest-sheet';
 import { PassActions } from './pass-actions';
 import { removePasses } from './passStore';
-import { ScanMoment } from './scan-moment';
 import { TicketPager } from './ticket-pager';
 import { useFoilTilt } from './useFoilTilt';
-
-/** Pause between the success buzz and the heavy thud, so they land as two beats. */
-const THUD_AFTER_MS = 260;
+import { useFullBrightness } from './useFullBrightness';
 
 type Props = {
   /** Passes for parties still to come, soonest first. */
@@ -31,14 +30,9 @@ type Props = {
   /** The screen's shared clock, in milliseconds. */
   now: number;
   focused: boolean;
-  guestName: string | null;
-  /** The guest's Glow level ("Flame"), printed after the name on the ticket. */
-  levelName: string | null;
   /** A sentence above the tickets, e.g. that these are the copies saved on the phone. */
   notice?: string | null;
 };
-
-type Moment = { time: string; venueName: string | null; bookingId: string };
 
 /** "No pass" with the way to get one. Fills the screen when there is nothing else on it. */
 export function NoPass({ title, fill = false }: { title: string; fill?: boolean }) {
@@ -60,21 +54,27 @@ export function NoPass({ title, fill = false }: { title: string; fill?: boolean 
 }
 
 /** Everything on the Pass tab once there is something to show: the tickets, what to do with them, and earlier nights. */
-export function PassBoard({ entries, past, now, focused, guestName, levelName, notice }: Props) {
+export function PassBoard({ entries, past, now, focused, notice }: Props) {
   const reduceMotion = useReducedMotion();
   const { width } = useWindowDimensions();
   const client = useQueryClient();
-  const cancel = useCancelBooking();
+  const cancelBooking = useCancelBooking();
+  const giveBack = useRevokeGuestPass();
   const sheetRef = useRef<CancelSheetRef>(null);
+  const guestRef = useRef<GuestSheetRef>(null);
 
   const [pageState, setPage] = useState(0);
   const page = Math.max(0, Math.min(pageState, entries.length - 1));
   const current = entries[page]?.booking ?? null;
 
   const [target, setTarget] = useState<Booking | null>(null);
-  const [moment, setMoment] = useState<Moment | null>(null);
+  const targetGuest = !!target?.guestPassId;
+  const cancel = targetGuest ? giveBack : cancelBooking;
 
-  const tilt = useFoilTilt(focused && entries.length > 0);
+  const showing = focused && entries.length > 0;
+  const tilt = useFoilTilt(showing);
+  // The door's scanner reads the code best on a bright screen.
+  useFullBrightness(showing);
 
   // A pass whose night is over or was cancelled has no use at the door: drop its saved copy.
   const pastIds = past.map((booking) => booking.id).join(',');
@@ -82,24 +82,18 @@ export function PassBoard({ entries, past, now, focused, guestName, levelName, n
     if (pastIds) void removePasses(pastIds.split(','));
   }, [pastIds]);
 
+  // The door let someone in while the ticket was on screen: the flare is drawn at the app's root, once per booking.
   const onScanned = useCallback(
     (pass: Pass) => {
-      setMoment({ time: clock(new Date()), venueName: pass.venueName, bookingId: pass.bookingId });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-        .then(() => {
-          setTimeout(() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
-          }, THUD_AFTER_MS);
-        })
-        .catch(() => {});
-      // The booking's own count moved too.
+      requestFlare({ bookingId: pass.bookingId, award: null, venueName: pass.venueName, noticedAt: Date.now(), tapped: false });
       void client.invalidateQueries({ queryKey: keys.bookings });
     },
     [client],
   );
 
   const askCancel = (booking: Booking) => {
-    cancel.reset();
+    cancelBooking.reset();
+    giveBack.reset();
     setTarget(booking);
     sheetRef.current?.present();
   };
@@ -135,16 +129,14 @@ export function PassBoard({ entries, past, now, focused, guestName, levelName, n
             page={page}
             onPageChange={setPage}
             now={now}
-            watching={focused && !moment}
-            guestName={guestName}
-            levelName={levelName}
+            watching={focused}
             tilt={tilt}
             onScanned={onScanned}
           />
           {/* The foil follows the phone's tilt; with Reduce Motion it stays still, so there is nothing to say. */}
           {reduceMotion ? null : <Text style={styles.tiltHint}>Tilt your phone and the foil moves</Text>}
           <Animated.View layout={glide}>
-            <PassActions booking={current} onCancel={askCancel} />
+            <PassActions booking={current} onSendToGuest={() => guestRef.current?.present()} onCancel={askCancel} />
           </Animated.View>
         </Animated.View>
       ) : (
@@ -156,13 +148,16 @@ export function PassBoard({ entries, past, now, focused, guestName, levelName, n
       <CancelSheet
         ref={sheetRef}
         partyTitle={target?.party?.title ?? null}
+        guest={targetGuest}
+        guestOf={target?.guestOf ?? null}
+        linksOut={target?.guestPasses.length ?? 0}
         cancelling={cancel.isPending}
         error={cancel.error}
         onConfirm={confirmCancel}
         onDismiss={() => setTarget(null)}
       />
 
-      {moment ? <ScanMoment time={moment.time} venueName={moment.venueName} bookingId={moment.bookingId} onDone={() => setMoment(null)} /> : null}
+      <GuestSheet ref={guestRef} booking={current} />
     </View>
   );
 }

@@ -11,10 +11,11 @@ const SCAN_WATCH_MS = 60_000;
 
 /**
  * A booking's pass: fresh from the server when there is signal, otherwise the copy saved on the phone.
+ * `guest` for a pass someone gave you (`bookingId` is then the guest pass id).
  * `onScanned` fires when the door lets more guests in while this pass is being watched. Never on first load.
  */
-export function usePassData(bookingId: string, watch: boolean, onScanned: (pass: Pass) => void) {
-  const query = usePass(bookingId, { watch });
+export function usePassData(bookingId: string, guest: boolean, watch: boolean, onScanned: (pass: Pass) => void) {
+  const query = usePass(bookingId, { watch, guest });
   const live = query.data;
   const updatedAt = query.dataUpdatedAt;
 
