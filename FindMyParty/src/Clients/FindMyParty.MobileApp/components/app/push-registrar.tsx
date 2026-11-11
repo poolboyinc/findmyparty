@@ -1,14 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { router, useSegments, type Href } from 'expo-router';
-import * as Notifications from 'expo-notifications';
+import type * as NotificationsTypes from 'expo-notifications';
 import { useMe } from '@/hooks/queries';
 import { rememberLink } from '@/services/pendingLink';
+import { notificationsModule } from '@/services/nativeModules';
 import { registerPushDevice } from '@/services/push';
 import { pushRoute } from './push-route';
 
 // A push that arrives while the app is open shows as a banner, except the scan: the flare
 // (ScanMomentHost) is the app's own answer to that one.
-Notifications.setNotificationHandler({
+// A build without the notification library has nothing to show and nothing to set.
+notificationsModule()?.setNotificationHandler({
   handleNotification: async (notification) => {
     const show = notification.request.content.data?.type !== 'scanned';
     return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: false };
@@ -44,7 +46,9 @@ export function PushRegistrar(): null {
   }, [userId]);
 
   useEffect(() => {
-    const open = (response: Notifications.NotificationResponse | null) => {
+    const Notifications = notificationsModule();
+    if (!Notifications) return;
+    const open = (response: NotificationsTypes.NotificationResponse | null) => {
       if (!response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
       const id = response.notification.request.identifier;
       if (handled.has(id)) return;

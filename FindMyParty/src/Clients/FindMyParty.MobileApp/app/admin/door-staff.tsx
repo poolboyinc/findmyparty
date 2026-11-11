@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Alert, RefreshControl, Share, StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import * as Clipboard from 'expo-clipboard';
 import { AdminScreen } from '@/components/admin/admin-screen';
 import { DashboardSectionHeader } from '@/components/admin/dashboard-section-header';
 import { FormField } from '@/components/admin/form-field';
@@ -14,6 +13,7 @@ import { useHostGate } from '@/components/host/use-host-gate';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { useAddDoorStaff, useDoorStaff, useRemoveDoorStaff, useResetDoorPassword } from '@/hooks/queries';
 import { errorText } from '@/services/errorText';
+import { clipboardModule } from '@/services/nativeModules';
 import { colors, layout, radii, spacing, typography } from '@/theme';
 import type { DoorStaff } from '@/types/api';
 
@@ -181,16 +181,19 @@ function DoorStaffList() {
 function PasswordCard({ revealed, onDone }: { revealed: Revealed; onDone: () => void }) {
   const [copied, setCopied] = useState(false);
   const text = `FindMyParty door login\nUser name: ${revealed.userName}\nPassword: ${revealed.password}`;
+  const send = () => {
+    Share.share({ message: text }).catch(() => {});
+  };
   const copy = () => {
+    const Clipboard = clipboardModule();
+    // A build without the clipboard library: the share sheet has Copy in it.
+    if (!Clipboard) return send();
     Clipboard.setStringAsync(text)
       .then(() => {
         setCopied(true);
         Haptics.selectionAsync();
       })
       .catch(() => {});
-  };
-  const send = () => {
-    Share.share({ message: text }).catch(() => {});
   };
 
   return (

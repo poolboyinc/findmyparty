@@ -1,10 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
+import type * as NotificationsTypes from 'expo-notifications';
 import { Platform } from 'react-native';
 import { api } from './apiClient';
 import { PUSH_TOKEN_KEY } from './authService';
+import { deviceModule, notificationsModule } from './nativeModules';
 
 // Push notifications (BUILD-3-SPEC §3.3 "Push", §2.6). The app never asks on launch: `askForPush()` asks
 // once, at the first of a pass taken, a venue followed, or "Show me on friends' maps" switched on.
@@ -23,15 +23,15 @@ function projectId(): string | null {
 
 /** Push needs a real phone and a project to send through. */
 function canPush(): boolean {
-  return Device.isDevice && projectId() !== null;
+  return deviceModule()?.isDevice === true && notificationsModule() !== null && projectId() !== null;
 }
 
-function allowed(permission: Notifications.NotificationPermissionsStatus): boolean {
+function allowed(Notifications: typeof NotificationsTypes, permission: NotificationsTypes.NotificationPermissionsStatus): boolean {
   return permission.granted || permission.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
 }
 
 /** Android shows nothing without a channel; it must exist before the prompt on Android 13 and later. */
-async function ensureChannel(): Promise<void> {
+async function ensureChannel(Notifications: typeof NotificationsTypes): Promise<void> {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync('default', {
     name: 'FindMyParty',
@@ -50,9 +50,10 @@ export function registerPushDevice(): Promise<void> {
   registering ??= (async () => {
     try {
       const id = projectId();
-      if (!Device.isDevice || !id) return;
-      if (!allowed(await Notifications.getPermissionsAsync())) return;
-      await ensureChannel();
+      const Notifications = notificationsModule();
+      if (!canPush() || !id || !Notifications) return;
+      if (!allowed(Notifications, await Notifications.getPermissionsAsync())) return;
+      await ensureChannel(Notifications);
       const { data: expoPushToken } = await Notifications.getExpoPushTokenAsync({ projectId: id });
       if (!expoPushToken) return;
       await api.request<void>('/api/me/devices', {
@@ -80,15 +81,16 @@ let asking: Promise<void> | null = null;
 export function askForPush(): Promise<void> {
   asking ??= (async () => {
     try {
-      if (!canPush()) return;
+      const Notifications = notificationsModule();
+      if (!canPush() || !Notifications) return;
       const current = await Notifications.getPermissionsAsync();
-      if (!allowed(current)) {
+      if (!allowed(Notifications, current)) {
         // Asked before, or the phone says no for good: stay quiet.
         if (!current.canAskAgain) return;
         if ((await AsyncStorage.getItem(PUSH_ASKED_KEY)) === '1') return;
         await AsyncStorage.setItem(PUSH_ASKED_KEY, '1');
-        await ensureChannel();
-        if (!allowed(await Notifications.requestPermissionsAsync())) return;
+        await ensureChannel(Notifications);
+        if (!allowed(Notifications, await Notifications.requestPermissionsAsync())) return;
       }
       await registerPushDevice();
     } catch {
