@@ -1,9 +1,14 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using FindMyParty.Api.Bookings;
 using FindMyParty.Api.Parties;
 using FindMyParty.Api.Venues;
+using FindMyParty.Api.Common;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 namespace FindMyParty.Api.Tests;
@@ -303,17 +308,40 @@ public class PassTests(TestApp app)
     [Fact]
     public async Task Venues_nearby_come_with_tonights_crowd()
     {
+        var (lat, lng) = TestApp.NewSpot();
         var host = await app.HostAsync();
         var party = await app.PublishedPartyAsync(host);
         var venueId = (await app.CreateClient().GetFromJsonAsync<PartyDetailResponse>($"/api/parties/{party}"))!.VenueId;
+        await app.WithDb(db => db.VenueProfiles.Where(v => v.Id == venueId)
+            .ExecuteUpdateAsync(s => s.SetProperty(v => v.Latitude, lat).SetProperty(v => v.Longitude, lng)));
+        var near = string.Create(CultureInfo.InvariantCulture, $"lat={lat}&lng={lng}&radiusKm=1&pageSize=100");
+        var away = string.Create(CultureInfo.InvariantCulture, $"lat={lat + 1}&lng={lng}&radiusKm=1&pageSize=100");
 
-        var nearby = await app.CreateClient().GetFromJsonAsync<List<VenueSummary>>("/api/venues?lat=42.44&lng=19.26&radiusKm=5&pageSize=100");
-        var farAway = await app.CreateClient().GetFromJsonAsync<List<VenueSummary>>("/api/venues?lat=45.8&lng=15.97&radiusKm=5&pageSize=100");
+        var nearby = await app.CreateClient().GetFromJsonAsync<List<VenueSummary>>($"/api/venues?{near}");
+        var farAway = await app.CreateClient().GetFromJsonAsync<List<VenueSummary>>($"/api/venues?{away}");
 
         var mine = nearby!.Single(v => v.Id == venueId);
         Assert.Equal("Test venue", mine.Name);
         Assert.NotNull(mine.CrowdLevel);
         Assert.DoesNotContain(farAway!, v => v.Id == venueId);
+    }
+
+    // ── the pass as the phone draws it ──
+
+    [Fact]
+    public async Task The_pass_names_its_holder_and_level_and_says_how_many_it_admits_and_what_to_pay()
+    {
+        var (_, _, guest, booking, _) = await BookedAsync(tickets: 2, price: 5);
+        await app.WithDb(db => db.Users.Where(u => u.Id == guest.Id.ToString())
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.DisplayName, "Vule Marković").SetProperty(u => u.GlowLifetime, 1240)));
+
+        var pass = await guest.PassAsync(booking);
+
+        Assert.Equal(("booking", "fmp1", booking.ToString("N")), (pass.Kind, pass.CodePrefix, pass.CodeId));
+        Assert.Equal(("Vule M.", "Flame"), (pass.HolderName, pass.LevelName));
+        Assert.Equal((2, 10m), (pass.Admit, pass.AmountDue));
+        Assert.NotNull(pass.HeldUntil);
+        Assert.Null(pass.GuestOf);
     }
 }
 
@@ -347,5 +375,95 @@ public class PassCodeTests
         Assert.True(PassCode.TryParse(PassCode.Format(id, "0a1b2c3d"), out var booking, out var code));
         Assert.Equal((id, "0a1b2c3d"), (booking, code));
         Assert.False(PassCode.TryParse("fmp1.nope.0a1b2c3d", out _, out _));
+    }
+}
+
+/// <summary>What the booking and door tests share: passes, codes, scans, problems, a fake pricer and door logins.</summary>
+public static class DoorKit
+{
+    public record PassBody(
+        Guid BookingId, string Kind, string CodePrefix, string CodeId, string Secret, int TicketCount, int CheckedInCount, string Status,
+        string PartyTitle, string? VenueName, string? VenueArea, int Admit, decimal AmountDue, string? PerkTitle, bool SkipLine,
+        DateTime? HeldUntil, string HolderName, string LevelName, string? GuestOf);
+
+    public record Problem(string Title, string Code, DateTime? FirstCheckedInAt, string? Door, DateTime? HeldUntil);
+
+    public static async Task<PassBody> PassAsync(this Actor guest, Guid bookingId) =>
+        (await guest.Http.GetFromJsonAsync<PassBody>($"/api/bookings/{bookingId}/pass"))!;
+
+    public static async Task<PassBody> GuestPassAsync(this Actor guest, Guid guestPassId) =>
+        (await guest.Http.GetFromJsonAsync<PassBody>($"/api/guest-passes/{guestPassId}/pass"))!;
+
+    /// <summary>The QR text the pass shows at `at` (default: now on the real clock).</summary>
+    public static string Code(this PassBody pass, DateTime? at = null, int stepsAgo = 0) =>
+        $"{pass.CodePrefix}.{pass.CodeId}.{PassCode.Compute(pass.Secret, PassCode.StepAt(at ?? DateTime.UtcNow) - stepsAgo)}";
+
+    public static Task<HttpResponseMessage> ScanAsync(this HttpClient door, string code, int? admit = null, Guid? clientScanId = null) =>
+        door.PostAsJsonAsync("/api/checkins", new { code, admit, clientScanId });
+
+    public static async Task<Problem> ProblemAsync(this HttpResponseMessage response) =>
+        (await response.Content.ReadFromJsonAsync<Problem>())!;
+
+    public static HttpClient As(this WebApplicationFactory<Program> host, Actor actor)
+    {
+        var client = host.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", actor.Tokens.AccessToken);
+        return client;
+    }
+
+    /// <summary>A host whose only pricer answers what the test says.</summary>
+    public static WebApplicationFactory<Program> WithPricer(this TestApp app, FakePricer pricer) => app.WithServices(s =>
+    {
+        s.RemoveAll<IBookingPricer>();
+        s.AddSingleton<IBookingPricer>(pricer);
+    });
+
+    public static async Task<Guid> BookedOnAsync(this HttpClient guest, Guid partyId, int tickets)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/bookings") { Content = JsonContent.Create(new { partyId, ticketCount = tickets }) };
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var response = await guest.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<Actor.BookingIdBody>())!.BookingId;
+    }
+
+    public record DoorLogin(Guid Id, string Name, string DoorName, string UserName, DateTime CreatedAt, DateTime? LastScanAt, string Password);
+
+    /// <summary>A door login made by the host, signed in.</summary>
+    public static async Task<(DoorLogin Login, Actor Door)> DoorLoginAsync(this TestApp app, Actor host, string doorName = "Door 1")
+    {
+        var created = await host.Http.PostAsJsonAsync("/api/hosts/door-staff", new { name = "Marko", doorName });
+        created.EnsureSuccessStatusCode();
+        var login = (await created.Content.ReadFromJsonAsync<DoorLogin>())!;
+        return (login, await app.LoginAsync(login.UserName, login.Password));
+    }
+
+    /// <summary>The next midnight in Podgorica, as UTC: when "free before midnight" runs out.</summary>
+    public static DateTime NextMidnight()
+    {
+        var local = CityClock.Local(DateTime.UtcNow, "podgorica");
+        return CityClock.Utc(local.Date.AddDays(1), "podgorica");
+    }
+
+    /// <summary>The perk as A5's pricer gives it: the party page's wording, valid until local midnight.</summary>
+    public static PerkQuote FreeBeforeMidnight(bool skipLine = false, DateTime? validUntil = null) =>
+        new("freeEntryBefore", "Free for you before midnight", 1, 5m, validUntil ?? NextMidnight(), skipLine);
+
+    /// <summary>Moves a party (and so its bookings' party end) in time.</summary>
+    public static Task SetTimesAsync(this TestApp app, Guid partyId, DateTime startsAt, DateTime endsAt) =>
+        app.WithDb(db => db.Parties.Where(p => p.Id == partyId)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.StartsAt, startsAt).SetProperty(p => p.EndsAt, endsAt)));
+}
+
+/// <summary>An IBookingPricer whose answer the test sets.</summary>
+public class FakePricer : IBookingPricer
+{
+    public PerkQuote? Answer { get; set; }
+    public int Calls;
+
+    public Task<PerkQuote?> QuoteAsync(Guid userId, Guid partyId, int ticketCount, DateTime nowUtc, CancellationToken ct)
+    {
+        Interlocked.Increment(ref Calls);
+        return Task.FromResult(Answer);
     }
 }

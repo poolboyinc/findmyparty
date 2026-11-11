@@ -8,8 +8,13 @@ namespace FindMyParty.Api.Bookings;
 [Authorize]
 [ApiController]
 [Route("api/bookings")]
-public class BookingsController(BookingService bookings, PassService passes) : ControllerBase
+public class BookingsController(BookingService bookings, PassService passes, GuestPassService guestPasses) : ControllerBase
 {
+    /// <summary>What checkout shows before booking: price, perk, what to pay at the door, the hold. Same refusals as booking.</summary>
+    [HttpGet("quote")]
+    public async Task<IActionResult> Quote([FromQuery] Guid partyId, [FromQuery] int ticketCount, CancellationToken ct) =>
+        Ok(await bookings.QuoteAsync(User.UserId(), partyId, ticketCount, ct));
+
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] CreateBookingRequest request,
@@ -21,6 +26,7 @@ public class BookingsController(BookingService bookings, PassService passes) : C
         return Ok(new { BookingId = bookingId });
     }
 
+    /// <summary>My bookings and the guest passes others gave me.</summary>
     [HttpGet("my")]
     public async Task<IActionResult> GetMine(CancellationToken ct) => Ok(await bookings.ForUserAsync(User.UserId(), ct));
 
@@ -34,6 +40,11 @@ public class BookingsController(BookingService bookings, PassService passes) : C
         await bookings.CancelAsync(User.UserId(), bookingId, ct);
         return NoContent();
     }
+
+    /// <summary>"Send to a guest": a link worth one spot of this booking.</summary>
+    [HttpPost("{bookingId:guid}/guest-passes")]
+    public async Task<IActionResult> CreateGuestPass(Guid bookingId, CancellationToken ct) =>
+        Ok(await guestPasses.CreateAsync(User.UserId(), bookingId, ct));
 
     [Authorize(Roles = Roles.Host)]
     [HttpPost("{bookingId:guid}/confirm")]
