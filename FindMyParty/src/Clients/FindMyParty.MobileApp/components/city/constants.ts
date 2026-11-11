@@ -106,13 +106,17 @@ export const LABEL_BOX = {
 } as const;
 
 export const BUILDINGS = {
-  /** Mapbox Streets carries buildings from zoom 13. */
-  minZoom: 13,
+  /**
+   * Mapbox Streets carries every building only from zoom 15; further out just a few big ones,
+   * which look like litter. So buildings start here, rising out of the ground as you zoom in
+   * (and below this zoom the map lays itself flat: CAMERA.flattenBelowZoom).
+   */
+  minZoom: 15,
   /**
    * Podgorica is low; zoomed out far enough to see every venue its buildings would be a few
    * points tall. The map stretches them upwards, more when far out, less when close.
    */
-  verticalScale: [13, 2.6, 15, 1.8, 17, 1.2] as const,
+  verticalScale: [15, 1.8, 16, 1.6, 17.5, 1.2] as const,
   opacity: 0.95,
   ambientOcclusion: 0.35,
   /** Metres: the slab laid over each roof so the facade image does not show on top. */
