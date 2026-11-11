@@ -16,6 +16,13 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+    <PackageReference Include="SkiaSharp" Version="4.155.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.155.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Sign art draws its text in the app's own font (copied from the app's assets/fonts). -->
+    <EmbeddedResource Include="SignArt/coolvetica.ttf" LogicalName="FindMyParty.Api.SignArt.coolvetica.ttf" />
   </ItemGroup>
 
 </Project>
