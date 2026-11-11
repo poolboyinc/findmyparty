@@ -18,6 +18,7 @@ public class AuthController(
     TokenService tokens,
     IExternalAuthService externalAuth,
     AppDbContext db,
+    IEnumerable<IAccountCleanup> cleanups,
     ILogger<AuthController> logger) : ControllerBase
 {
     [HttpPost("register")]
@@ -110,7 +111,8 @@ public class AuthController(
 
     /// <summary>
     /// Permanently deletes the signed-in user's account and what hangs off it: their bookings (spots go back),
-    /// and for a host their venue and parties (cancelled, with the bookings on them).
+    /// and for a host their venue and parties (cancelled, with the bookings on them). Each feature removes
+    /// its own rows through an IAccountCleanup, in the same transaction: either everything goes or nothing does.
     /// </summary>
     [HttpDelete("account")]
     [Authorize]
@@ -142,6 +144,10 @@ public class AuthController(
             await db.Parties.Where(p => partyIds.Contains(p.Id))
                 .ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, PartyStatus.Cancelled).SetProperty(p => p.TicketsSold, 0));
         }
+
+        // What other features keep about this account. One that fails stops the whole deletion.
+        foreach (var cleanup in cleanups)
+            await cleanup.DeleteAsync(userId, HttpContext.RequestAborted);
 
         // The user row takes roles, external logins, refresh tokens and the venue profile with it.
         var result = await userManager.DeleteAsync(user);

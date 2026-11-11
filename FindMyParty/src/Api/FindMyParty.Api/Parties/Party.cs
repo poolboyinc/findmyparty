@@ -33,6 +33,12 @@ public class Party
     public bool Featured { get; private set; }
     public PartyStatus Status { get; private set; }
     public bool IsDeleted { get; private set; }
+    /// <summary>Youngest age let in: 16, 18 or 21; null for no limit.</summary>
+    public int? AgeLimit { get; private set; }
+    /// <summary>How long after the start a pass is held for its guest.</summary>
+    public int HoldMinutes { get; private set; } = DefaultHoldMinutes;
+
+    public const int DefaultHoldMinutes = 90;
 
     protected Party() { }
 

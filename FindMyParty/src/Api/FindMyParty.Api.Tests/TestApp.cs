@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Collections.Concurrent;
+using FindMyParty.Api.Common;
 using FindMyParty.Api.Data;
 using FindMyParty.Api.Identity;
 using FindMyParty.Api.Parties;
@@ -20,9 +22,15 @@ namespace FindMyParty.Api.Tests;
 /// <summary>The real API in-process against a real, throwaway Postgres. Shared by every test; tests create their own data.</summary>
 public class TestApp : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder().WithImage("postgres:18-alpine").Build();
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:18-alpine").Build();
     public FakeImageStorage Images { get; } = new();
     public FakeExternalAuth ExternalAuth { get; } = new();
+    /// <summary>Every push the API "sent". Shared by all tests: look for your own user with SentTo.</summary>
+    public FakeNotifier Notifier { get; } = new();
+    /// <summary>Every mail the API "sent". Shared by all tests: look for your own address with SentTo.</summary>
+    public FakeEmail Email { get; } = new();
+    /// <summary>The API's clock (its TimeProvider). Runs with the real clock until a test moves it with At(...).</summary>
+    public TestClock Clock { get; } = new();
 
     public async Task InitializeAsync()
     {
@@ -48,12 +56,29 @@ public class TestApp : WebApplicationFactory<Program>, IAsyncLifetime
             services.AddSingleton<IImageStorage>(Images);
             services.RemoveAll<IExternalAuthService>();
             services.AddSingleton<IExternalAuthService>(ExternalAuth);
+            services.RemoveAll<INotifier>();
+            services.AddSingleton<INotifier>(Notifier);
+            services.RemoveAll<IEmailSender>();
+            services.AddSingleton<IEmailSender>(Email);
+            services.RemoveAll<TimeProvider>();
+            services.AddSingleton<TimeProvider>(Clock);
         });
     }
 
     /// <summary>The same service started again with extra settings, e.g. on its own empty database.</summary>
     public WebApplicationFactory<Program> With(Dictionary<string, string?> settings) =>
         WithWebHostBuilder(b => b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(settings)));
+
+    /// <summary>
+    /// The same service started again with extra or replaced services (a fake pricer, a recording listener),
+    /// and optionally extra settings. It shares this app's database, clock, notifier and mail unless told otherwise.
+    /// </summary>
+    public WebApplicationFactory<Program> WithServices(Action<IServiceCollection> configure, Dictionary<string, string?>? settings = null) =>
+        WithWebHostBuilder(b =>
+        {
+            if (settings is not null) b.ConfigureAppConfiguration((_, c) => c.AddInMemoryCollection(settings));
+            b.ConfigureTestServices(configure);
+        });
 
     /// <summary>A connection string for another database on the same throwaway server.</summary>
     public string ConnectionStringFor(string database) =>
@@ -111,6 +136,21 @@ public class TestApp : WebApplicationFactory<Program>, IAsyncLifetime
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokens.AccessToken);
         var id = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(tokens.AccessToken).Subject;
         return new Actor(client, Guid.Parse(id), email, tokens);
+    }
+
+    // ── places ──
+
+    private static int _spots;
+
+    /// <summary>
+    /// A place nothing else is near (far from Montenegro, at least 5 km from every other spot). Every test shares one
+    /// database and list calls stop at 100 rows, so a test that reads a feed puts its venue or party on a spot of its
+    /// own and asks with lat, lng and a small radiusKm.
+    /// </summary>
+    public static (double Latitude, double Longitude) NewSpot()
+    {
+        var n = Interlocked.Increment(ref _spots);
+        return (Math.Round(-40 + n % 400 * 0.05, 4), Math.Round(-120 + n / 400 * 0.1, 4));
     }
 
     // ── parties ──
@@ -180,6 +220,91 @@ public class FakeImageStorage : IImageStorage
         await content.CopyToAsync(copy, ct);
         Uploads.Add((key, contentType, copy.Length));
         return $"https://images.test/{key}";
+    }
+}
+
+/// <summary>Records pushes instead of sending them.</summary>
+public class FakeNotifier : INotifier
+{
+    private readonly ConcurrentQueue<Push> _sent = new();
+
+    public IReadOnlyList<Push> Sent => _sent.ToArray();
+    public IReadOnlyList<Push> SentTo(Guid userId) => _sent.Where(p => p.UserIds.Contains(userId)).ToList();
+    public IReadOnlyList<Push> SentTo(Guid userId, string type) => _sent.Where(p => p.Type == type && p.UserIds.Contains(userId)).ToList();
+    public void Clear() => _sent.Clear();
+
+    public Task SendAsync(Push push, CancellationToken ct = default)
+    {
+        _sent.Enqueue(push);
+        return Task.CompletedTask;
+    }
+}
+
+public record SentEmail(string To, string Subject, string Html, string Text);
+
+/// <summary>Records mails instead of sending them.</summary>
+public class FakeEmail : IEmailSender
+{
+    private readonly ConcurrentQueue<SentEmail> _sent = new();
+
+    public IReadOnlyList<SentEmail> Sent => _sent.ToArray();
+    public IReadOnlyList<SentEmail> SentTo(string address) => _sent.Where(m => string.Equals(m.To, address, StringComparison.OrdinalIgnoreCase)).ToList();
+    public void Clear() => _sent.Clear();
+
+    public Task SendAsync(string to, string subject, string html, string text, CancellationToken ct = default)
+    {
+        _sent.Enqueue(new SentEmail(to, subject, html, text));
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+/// The clock the API reads through TimeProvider. It is the real clock until a test sets it; a set clock stands still
+/// until it is advanced or set again, forwards or backwards. One app is shared by every test, so always put it back:
+/// <code>using var _ = app.Clock.At(new DateTime(2026, 11, 13, 22, 30, 0, DateTimeKind.Utc));</code>
+/// Signing in and tokens stay on the real clock, so an Actor keeps working wherever the clock is.
+/// </summary>
+public class TestClock : TimeProvider
+{
+    private readonly object _gate = new();
+    private DateTimeOffset? _fixed;
+
+    public override DateTimeOffset GetUtcNow()
+    {
+        lock (_gate) return _fixed ?? System.GetUtcNow();
+    }
+
+    /// <summary>Now, as a UTC DateTime: what the API gets from `time.GetUtcNow().UtcDateTime`.</summary>
+    public DateTime UtcNow => GetUtcNow().UtcDateTime;
+
+    /// <summary>Stops the clock at this moment.</summary>
+    public void SetUtcNow(DateTimeOffset value)
+    {
+        lock (_gate) _fixed = value.ToUniversalTime();
+    }
+
+    /// <summary>Moves the clock (stopping it at the current moment first if it was running). Negative goes back.</summary>
+    public void Advance(TimeSpan delta)
+    {
+        lock (_gate) _fixed = (_fixed ?? System.GetUtcNow()) + delta;
+    }
+
+    /// <summary>Back to the real clock.</summary>
+    public void Reset()
+    {
+        lock (_gate) _fixed = null;
+    }
+
+    /// <summary>Stops the clock at this UTC moment until the returned handle is disposed.</summary>
+    public IDisposable At(DateTime utc)
+    {
+        SetUtcNow(new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)));
+        return new Restore(this);
+    }
+
+    private sealed class Restore(TestClock clock) : IDisposable
+    {
+        public void Dispose() => clock.Reset();
     }
 }
 

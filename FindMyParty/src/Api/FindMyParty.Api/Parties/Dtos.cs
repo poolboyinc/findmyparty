@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace FindMyParty.Api.Parties;
 
@@ -46,6 +47,9 @@ public class PartyResponse
     public string? CrowdLevel { get; set; }
     /// <summary>"live" once guests have been scanned in at the door; "expected" while it is still based on passes taken.</summary>
     public string? CrowdSource { get; set; }
+
+    /// <summary>Fields other features add (see IPartyEnricher). Each key is written as an ordinary JSON property.</summary>
+    [JsonExtensionData] public Dictionary<string, object?> Extra { get; set; } = new();
 }
 
 public class PartyDetailResponse
@@ -68,6 +72,9 @@ public class PartyDetailResponse
     public string? Genre { get; set; }
     public string? PerformerName { get; set; }
     public string? PerformerType { get; set; }
+
+    /// <summary>Fields other features add (see IPartyDetailEnricher). Each key is written as an ordinary JSON property.</summary>
+    [JsonExtensionData] public Dictionary<string, object?> Extra { get; set; } = new();
 }
 
 public class HostPartyResponse

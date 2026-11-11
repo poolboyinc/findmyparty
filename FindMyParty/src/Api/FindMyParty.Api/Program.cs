@@ -63,6 +63,13 @@ if (config.GetValue<bool>("Seed:Demo")) builder.Services.AddHostedService<DemoRe
 builder.Services.AddSingleton<IExternalAuthService, ExternalAuthService>();
 builder.Services.AddSingleton<IImageStorage, S3ImageStorage>();
 
+// Shared plumbing for features, then the features themselves. This file does not grow with them:
+// a feature registers its own services in a class that implements IFeature (see Common/Features.cs).
+builder.Services.AddHttpClient();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddFeatures(config);
+
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 // Railway (and any proxy) puts the real client address in X-Forwarded-For. Without this every
@@ -102,7 +109,10 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    // Tests build the schema straight from the model, so they need no migration. Everything else migrates.
+    var database = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database;
+    if (app.Environment.IsEnvironment("Testing")) await database.EnsureCreatedAsync();
+    else await database.MigrateAsync();
     var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     foreach (var role in Roles.All)
         if (!await roles.RoleExistsAsync(role))
@@ -126,6 +136,7 @@ using (var scope = app.Services.CreateScope())
 
 app.UseForwardedHeaders();
 app.UseExceptionHandler();
+app.UseStaticFiles(); // wwwroot: the image share pages point at
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();

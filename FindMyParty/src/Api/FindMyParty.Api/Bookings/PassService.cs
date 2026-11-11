@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace FindMyParty.Api.Bookings;
 
 /// <summary>The Pass at the door: handing the guest their code, scanning it in, and the host's live numbers.</summary>
-public class PassService(AppDbContext db)
+public class PassService(AppDbContext db, CheckInListeners listeners)
 {
     public async Task<PassResponse> GetPassAsync(Guid userId, Guid bookingId, CancellationToken ct = default)
     {
@@ -24,7 +24,7 @@ public class PassService(AppDbContext db)
             row.b.Status.ToString(), row.b.PartyId, row.Title, row.VenueName, row.StartsAt, row.EndsAt, row.b.TotalPrice);
     }
 
-    private record Scanned(Booking Booking, Guid HostId, string Title, int Outside);
+    private record Scanned(Booking Booking, Guid HostId, Guid? VenueId, string Title, int Outside);
 
     /// <summary>Reads a scanned pass and checks everything that can refuse it. Changes nothing.</summary>
     private async Task<Scanned> ReadAsync(Guid hostId, string? scanned, DateTime now, CancellationToken ct)
@@ -36,7 +36,7 @@ public class PassService(AppDbContext db)
             from b in db.Bookings
             where b.Id == bookingId
             join p in db.Parties on b.PartyId equals p.Id
-            select new { b, p.HostId, p.Title, PartyStatus = p.Status, p.EndsAt }).AsNoTracking().FirstOrDefaultAsync(ct)
+            select new { b, p.HostId, p.VenueId, p.Title, PartyStatus = p.Status, p.EndsAt }).AsNoTracking().FirstOrDefaultAsync(ct)
             ?? throw ApiException.NotFound("Pass");
         if (row.HostId != hostId) throw ApiException.Forbidden("This pass is for another host's party.");
 
@@ -51,7 +51,7 @@ public class PassService(AppDbContext db)
 
         var outside = row.b.TicketCount - row.b.CheckedInCount;
         if (outside <= 0) throw AlreadyUsed(row.b.FirstCheckedInAt);
-        return new Scanned(row.b, row.HostId, row.Title, outside);
+        return new Scanned(row.b, row.HostId, row.VenueId, row.Title, outside);
     }
 
     private async Task<string> GuestNameAsync(Guid userId, CancellationToken ct)
@@ -94,9 +94,17 @@ public class PassService(AppDbContext db)
         if (updated == 0)
             throw AlreadyUsed(await db.Bookings.Where(b => b.Id == bookingId).Select(b => b.FirstCheckedInAt).FirstAsync(ct));
 
-        db.CheckIns.Add(new CheckIn { Id = Guid.NewGuid(), BookingId = bookingId, PartyId = s.Booking.PartyId, Admitted = letIn, At = now, ByUserId = hostId });
+        // Asked after the update above, which holds the booking's row: no other scan of this pass can be in between.
+        var guestUserId = s.Booking.UserId;
+        var firstForGuest = !await db.CheckIns.AnyAsync(c => c.BookingId == bookingId && c.GuestUserId == guestUserId, ct);
+        var checkIn = new CheckIn { Id = Guid.NewGuid(), BookingId = bookingId, PartyId = s.Booking.PartyId, Admitted = letIn, At = now, ByUserId = hostId, GuestUserId = guestUserId };
+        db.CheckIns.Add(checkIn);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+
+        // The scan stands from here on. Listeners (Glow, pushes) are told even if the door's phone has hung up.
+        await listeners.PublishAsync(
+            new CheckInEvent(checkIn.Id, bookingId, checkIn.PartyId, s.VenueId, guestUserId, letIn, now, firstForGuest), CancellationToken.None);
 
         return new CheckInResponse(bookingId, await GuestNameAsync(s.Booking.UserId, ct), letIn, s.Booking.TicketCount,
             s.Booking.CheckedInCount + letIn, PricePerGuest(s.Booking) * letIn, s.Title);

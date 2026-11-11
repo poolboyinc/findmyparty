@@ -1,3 +1,4 @@
+using FindMyParty.Api.Common;
 using FindMyParty.Api.Data;
 using FindMyParty.Api.Parties;
 using Microsoft.AspNetCore.Mvc;
@@ -8,7 +9,7 @@ namespace FindMyParty.Api.Venues;
 /// <summary>Venues as the public sees them. On the map a venue is one beam, however many parties it has.</summary>
 [ApiController]
 [Route("api/venues")]
-public class VenuesController(AppDbContext db, PartyReader reader) : ControllerBase
+public class VenuesController(AppDbContext db, PartyReader reader, Enrichers enrich) : ControllerBase
 {
     /// <summary>
     /// Venues, each with its next open party and that party's crowd range.
@@ -46,11 +47,13 @@ public class VenuesController(AppDbContext db, PartyReader reader) : ControllerB
             .GroupBy(p => p.VenueId!.Value)
             .ToDictionary(g => g.Key, g => g.First()); // already soonest first
 
-        return Ok(venues.Select(v =>
+        var summaries = venues.Select(v =>
         {
             next.TryGetValue(v.Id, out var party);
             return new VenueSummary(v.Id, v.VenueName, v.Latitude, v.Longitude, party?.CrowdLevel, party?.CrowdSource, party?.Id, party?.Title);
-        }));
+        }).ToList();
+        await enrich.VenuesAsync(summaries, User.OptionalUserId(), ct); // other features add their fields here; keep this call
+        return Ok(summaries);
     }
 
     /// <summary>A venue's page: where it is, when it opens, and its open parties, soonest first.</summary>
@@ -62,7 +65,9 @@ public class VenuesController(AppDbContext db, PartyReader reader) : ControllerB
 
         var parties = await reader.ToResponsesAsync(reader.Open().Where(p => p.VenueId == id).OrderBy(p => p.StartsAt).Take(30), ct);
         var next = parties.FirstOrDefault();
-        return Ok(new VenueResponse(v.Id, v.VenueName, v.Address, v.Latitude, v.Longitude, v.WorkingHoursOpen, v.WorkingHoursClose, v.WorkingDays,
-            next?.CrowdLevel, next?.CrowdSource, parties));
+        var venue = new VenueResponse(v.Id, v.VenueName, v.Address, v.Latitude, v.Longitude, v.WorkingHoursOpen, v.WorkingHoursClose, v.WorkingDays,
+            next?.CrowdLevel, next?.CrowdSource, parties);
+        await enrich.VenueAsync(venue, User.OptionalUserId(), ct); // other features add their fields here; keep this call
+        return Ok(venue);
     }
 }

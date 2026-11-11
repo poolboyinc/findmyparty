@@ -52,6 +52,8 @@ public class CheckIn
     public int Admitted { get; set; }
     public DateTime At { get; set; }
     public Guid ByUserId { get; set; }
+    /// <summary>Who came in: the booker, or the holder of a guest pass.</summary>
+    public Guid GuestUserId { get; set; }
 }
 
 public record PassResponse(

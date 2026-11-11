@@ -11,7 +11,7 @@ namespace FindMyParty.Api.Parties;
 
 [ApiController]
 [Route("api/parties")]
-public class PartiesController(AppDbContext db, IImageStorage images, PartyReader reader, PassService passes) : ControllerBase
+public class PartiesController(AppDbContext db, IImageStorage images, PartyReader reader, PassService passes, Enrichers enrich) : ControllerBase
 {
     [Authorize(Roles = Roles.Host)]
     [HttpPost]
@@ -126,7 +126,8 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
         [FromQuery] double? radiusKm,
         [FromQuery] DateOnly? date,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
@@ -151,7 +152,9 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
                     Math.Cos(lat0 * toRad) * Math.Cos(p.Latitude * toRad) * Math.Pow(Math.Sin((p.Longitude - lng0) * toRad / 2), 2))) <= r);
         }
 
-        return Ok(await reader.ToResponsesAsync(query.OrderBy(p => p.StartsAt).Skip((page - 1) * pageSize).Take(pageSize)));
+        var parties = await reader.ToResponsesAsync(query.OrderBy(p => p.StartsAt).Skip((page - 1) * pageSize).Take(pageSize), ct);
+        await enrich.PartiesAsync(parties, User.OptionalUserId(), ct); // other features add their fields here; keep this call
+        return Ok(parties);
     }
 
     /// <summary>The night in numbers, for the party's host.</summary>
@@ -161,13 +164,13 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
 
     /// <summary>A party's details. Drafts are visible to their host only.</summary>
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id)
+    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var p = await db.Parties.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+        var p = await db.Parties.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, ct);
         if (p == null) return NotFound();
         if (p.Status == PartyStatus.Draft && !(User.Identity?.IsAuthenticated == true && p.HostId == User.UserId())) return NotFound();
 
-        return Ok(new PartyDetailResponse
+        var party = new PartyDetailResponse
         {
             Id = p.Id,
             Title = p.Title,
@@ -182,11 +185,13 @@ public class PartiesController(AppDbContext db, IImageStorage images, PartyReade
             IsSoldOut = p.TicketsSold >= p.Capacity,
             ImageUrl = p.ImageUrl,
             VenueId = p.VenueId,
-            VenueName = p.VenueId == null ? null : await db.VenueProfiles.Where(v => v.Id == p.VenueId).Select(v => v.VenueName).FirstOrDefaultAsync(),
+            VenueName = p.VenueId == null ? null : await db.VenueProfiles.Where(v => v.Id == p.VenueId).Select(v => v.VenueName).FirstOrDefaultAsync(ct),
             Genre = p.Genre,
             PerformerName = p.PerformerName,
             PerformerType = p.PerformerType
-        });
+        };
+        await enrich.PartyAsync(party, User.OptionalUserId(), ct); // other features add their fields here; keep this call
+        return Ok(party);
     }
 
     [HttpGet("{id:guid}/availability")]
