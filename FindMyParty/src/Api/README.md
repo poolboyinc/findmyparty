@@ -28,6 +28,14 @@ or, with your own Postgres:
 | `Storage__ServiceUrl`, `Storage__AccessKey`, `Storage__SecretKey`, `Storage__Bucket`, `Storage__PublicBaseUrl` | for image uploads | Any S3-compatible bucket. Without them the API runs and image uploads answer 503. |
 | `Bootstrap__AdminEmail` | once | Register in the app first, set this to that email, restart: the account becomes Admin. Remove it afterwards. |
 | `RateLimits__AuthPerMinute`, `RateLimits__GeneralPerMinute` | no | Default 10 and 240 |
+| `Public__BaseUrl` | recommended | The API's public address, used in mails and share links (`/p`, `/v`, `/r`, `/g`, `/i`, `/reset`). Without it the request's own host is used. |
+| `App__Scheme`, `Share__AppStoreUrl` | no | The app's URL scheme (default `findmypartymobileapp`) and an App Store link shown on share pages (hidden while empty). |
+| `Email__ApiKey`, `Email__From`, `Email__BaseUrl` | for mail | A Resend-compatible API (password reset). Without a key, mails are only written to the log. |
+| `Push__Enabled`, `Push__AccessToken` | no | Pushes go through Expo's push service (on by default; the access token only if Expo push security is switched on). |
+| `Bookings__DefaultHoldMinutes`, `Door__OfflineWindowMinutes` | no | Default 90 and 15 |
+| `Signs__FacadeWeekly`, `Signs__HologramWeekly`, `Signs__TonightSlot`, `Signs__TonightSlotsPerNight` | no | Sign prices in euros (40, 90, 15) and tonight slots per city (2) |
+| `Seed__Demo`, `Seed__OwnerEmail`, `Seed__OwnerHistory`, `Seed__DoorPassword` | demo only | Demo city; the owner's account runs Monkey and gets nights, Glow, friends and a recap; a password for the two demo door logins (`monkey-door1`, `monkey-door2`). |
+| `Database__ResetIfMismatched` | once, after a migration reset | If the database holds migrations this version does not know, the app refuses to start. With this set to `true` it drops every table and builds the database again. Remove it after that start. |
 
 ### Images on Cloudflare R2
 

@@ -80,7 +80,20 @@ public class SignArtTests(TestApp app)
         for (var x = 0; x < face.Width; x += 2)
             if (Near(face.GetPixel(x, y), ink, 2)) inked++;
         // VOLT fills a good part of the panel.
-        Assert.InRange(inked / (double)(face.Width * face.Height / 4), 0.15, 0.6);
+        Assert.InRange(inked / (double)(face.Width * face.Height / 4), 0.1, 0.6);
+    }
+
+    [Fact]
+    public async Task The_words_on_a_face_stay_inside_its_light_edge()
+    {
+        using var face = SKBitmap.Decode(await BytesAsync("face", Volt));
+        var ink = SKColor.Parse("#1a0a00");
+        int left = face.Width, right = 0;
+        for (var y = 0; y < face.Height; y++)
+        for (var x = 0; x < face.Width; x++)
+            if (Near(face.GetPixel(x, y), ink, 2)) { left = Math.Min(left, x); right = Math.Max(right, x); }
+        // At most 80% of the width, centred: a tenth of the face clear on each side.
+        Assert.True(left >= face.Width * 0.09 && right <= face.Width * 0.91, $"ink from {left} to {right} of {face.Width}");
     }
 
     // ── the hologram ──

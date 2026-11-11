@@ -33,7 +33,11 @@ export function drawFace({ top, bottom, ink, widthM, heightM, text }) {
   g.strokeRect(line * 1.5, line * 1.5, W - line * 3, H - line * 3);
   const lines = text.split('|');
   const longest = Math.max(...lines.map((l) => l.length), 1);
-  const size = Math.min(H / (lines.length + 0.4), (W * 0.94) / (longest * 0.5));
+  let size = Math.min(H / (lines.length + 0.4), (W * 0.94) / (longest * 0.5));
+  // Measured: the longest line takes at most 80% of the face, so the words stay inside the light edge.
+  g.font = `${size}px Coolvetica, Helvetica, Arial, sans-serif`;
+  const widest = Math.max(...lines.map((l) => g.measureText(l).width));
+  if (widest > W * 0.8) size *= (W * 0.8) / widest;
   g.font = `${size}px Coolvetica, Helvetica, Arial, sans-serif`;
   g.fillStyle = ink;
   g.textAlign = 'center';
@@ -101,7 +105,10 @@ export function drawHologram({ top, widthM, heightM, text }) {
   }
   const lines = text.split('|');
   const longest = Math.max(...lines.map((l) => l.length), 1);
-  const size = Math.min((h - 4) / lines.length, (w - 6) / (longest * 0.6));
+  let size = Math.min((h - 4) / lines.length, (w - 6) / (longest * 0.6));
+  g.font = `${size}px Coolvetica, Helvetica, Arial, sans-serif`;
+  const widest = Math.max(...lines.map((l) => g.measureText(l).width));
+  if (widest > (w - 6) * 0.9) size *= ((w - 6) * 0.9) / widest;
   g.font = `${size}px Coolvetica, Helvetica, Arial, sans-serif`;
   g.fillStyle = top;
   g.shadowColor = top;

@@ -13,6 +13,7 @@ const BY_CODE: Record<string, string> = {
   party_over: 'This party is over.',
   invalid_code: 'That is not a FindMyParty pass.',
   locked_out: 'Too many wrong passwords. Try again in a few minutes.',
+  account_closed: 'This account has been closed.',
   account_exists: 'An account with this email already exists. Log in with your password.',
 
   // Build 3 (BUILD-3-SPEC §2.7). `hold_expired` and `already_used` are worded below from the problem body.
@@ -43,6 +44,8 @@ const BY_CODE: Record<string, string> = {
   slot_full: "Tonight's slots are taken.",
   sign_limit: 'You can have three signs at a time.',
   sign_invalid: 'Up to 24 characters on two lines.',
+  sign_not_pending: 'This sign is not waiting for review.',
+  batch_too_big: 'Too many scans waiting. They go in smaller groups.',
   sign_running: 'A sign that is already up cannot be cancelled here.',
   // `referrer_unknown`, `referrer_late` and `referrer_self` are never shown, so they have no sentence.
 };

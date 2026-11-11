@@ -110,9 +110,9 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     // Tests build the schema straight from the model, so they need no migration. Everything else migrates.
-    var database = scope.ServiceProvider.GetRequiredService<AppDbContext>().Database;
-    if (app.Environment.IsEnvironment("Testing")) await database.EnsureCreatedAsync();
-    else await database.MigrateAsync();
+    var appDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    if (app.Environment.IsEnvironment("Testing")) await appDb.Database.EnsureCreatedAsync();
+    else await DatabaseStart.PrepareAsync(appDb, config, app.Logger);
     var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     foreach (var role in Roles.All)
         if (!await roles.RoleExistsAsync(role))

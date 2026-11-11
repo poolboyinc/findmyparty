@@ -44,6 +44,9 @@ public sealed class SignArtRenderer
         var lines = spec.Lines;
         var longest = Math.Max(lines.Max(l => l.Length), 1);
         var size = Math.Min(height / (lines.Length + 0.4), width * 0.94 / (longest * 0.5));
+        // The guess above takes a letter as half its size wide; Coolvetica's capitals are wider. Measured, the
+        // longest line may take FaceTextShare of the face, so the words stay inside the light edge.
+        size = Fit(lines, size, width * FaceTextShare);
         using var font = Font(size);
         using var ink = new SKPaint { IsAntialias = true, Color = Colour(spec.Ink) };
         for (var i = 0; i < lines.Length; i++)
@@ -133,6 +136,7 @@ public sealed class SignArtRenderer
         var lines = spec.Lines;
         var longest = Math.Max(lines.Max(l => l.Length), 1);
         var size = Math.Min((h - 4) / lines.Length, (w - 6) / (longest * 0.6));
+        size = Fit(lines, size, (w - 6) * HologramTextShare);
         using var font = Font(size);
         using var textGlow = Glow(8 * scale);
         using var text = Paint(SKPaintStyle.Fill);
@@ -180,6 +184,33 @@ public sealed class SignArtRenderer
         using var font = new SKFont(Coolvetica.Value, 1);
         return (-font.Metrics.Ascent - font.Metrics.Descent) / 2;
     });
+
+    /// <summary>The share of a face's width its longest line may take, and of a hologram's panel.</summary>
+    public const double FaceTextShare = 0.8;
+    public const double HologramTextShare = 0.9;
+
+    /// <summary><paramref name="size"/>, made smaller if the widest line at that size is wider than <paramref name="room"/>.</summary>
+    private static double Fit(string[] lines, double size, double room)
+    {
+        using var font = Font(size);
+        var widest = lines.Max(line => KernedWidth(line, font));
+        return widest > room && widest > 0 ? size * room / widest : size;
+    }
+
+    /// <summary>How wide one line is in this font, kerned like the browser does.</summary>
+    private static double KernedWidth(string line, SKFont font)
+    {
+        if (line.Length == 0) return 0;
+        var glyphs = font.GetGlyphs(line);
+        var width = (double)font.MeasureText(MemoryMarshal.AsBytes(glyphs.AsSpan()), SKTextEncoding.GlyphId);
+        if (glyphs.Length > 1)
+        {
+            var pairs = new int[glyphs.Length - 1];
+            if (font.Typeface.GetKerningPairAdjustments(glyphs, pairs))
+                width += pairs.Sum() * (double)font.Size / font.Typeface.UnitsPerEm;
+        }
+        return width;
+    }
 
     /// <summary>
     /// One line of text centred on <paramref name="centre"/>, kerned like the browser does (the font's kerning

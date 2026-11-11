@@ -37,6 +37,18 @@ namespace FindMyParty.Api.Data.Migrations
                     b.Property<DateTime?>("FirstCheckedInAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("GuestSpots")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("GuestsIn")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("HeldUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("HoldReminderSentAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -52,6 +64,29 @@ namespace FindMyParty.Api.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<decimal>("PerkDiscount")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<int>("PerkGuests")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PerkKey")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("PerkTitle")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("PerkValidUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("SkipLine")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -70,12 +105,16 @@ namespace FindMyParty.Api.Data.Migrations
 
                     b.HasIndex("PartyId");
 
+                    b.HasIndex("Status", "HeldUntil");
+
                     b.HasIndex("UserId", "IdempotencyKey")
                         .IsUnique();
 
                     b.ToTable("Bookings", t =>
                         {
                             t.HasCheckConstraint("CK_Bookings_CheckedIn", "\"CheckedInCount\" >= 0 AND \"CheckedInCount\" <= \"TicketCount\"");
+
+                            t.HasCheckConstraint("CK_Bookings_GuestSpots", "\"GuestsIn\" >= 0 AND \"GuestsIn\" <= \"GuestSpots\" AND \"GuestSpots\" < \"TicketCount\"");
                         });
                 });
 
@@ -88,6 +127,12 @@ namespace FindMyParty.Api.Data.Migrations
                     b.Property<int>("Admitted")
                         .HasColumnType("integer");
 
+                    b.Property<decimal>("AmountDue")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<DateTime>("At")
                         .HasColumnType("timestamp with time zone");
 
@@ -97,6 +142,22 @@ namespace FindMyParty.Api.Data.Migrations
                     b.Property<Guid>("ByUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ClientScanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DoorName")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("Host");
+
+                    b.Property<Guid?>("GuestPassId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("GuestUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("PartyId")
                         .HasColumnType("uuid");
 
@@ -104,9 +165,547 @@ namespace FindMyParty.Api.Data.Migrations
 
                     b.HasIndex("BookingId");
 
+                    b.HasIndex("ByUserId");
+
+                    b.HasIndex("ClientScanId")
+                        .IsUnique();
+
+                    b.HasIndex("GuestUserId");
+
                     b.HasIndex("PartyId", "At");
 
                     b.ToTable("CheckIns");
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Bookings.GuestPass", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CheckedInAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ClaimedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ClaimedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PassSecret")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("ClaimedByUserId");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("GuestPasses", (string)null);
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Cities.City", b =>
+                {
+                    b.Property<string>("Slug")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("RadiusKm")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.HasKey("Slug");
+
+                    b.ToTable("Cities", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Slug = "podgorica",
+                            Latitude = 42.441899999999997,
+                            Longitude = 19.263200000000001,
+                            Name = "Podgorica",
+                            Order = 1,
+                            RadiusKm = 12.0,
+                            TimeZone = "Europe/Podgorica"
+                        },
+                        new
+                        {
+                            Slug = "budva",
+                            Latitude = 42.2911,
+                            Longitude = 18.840299999999999,
+                            Name = "Budva",
+                            Order = 2,
+                            RadiusKm = 12.0,
+                            TimeZone = "Europe/Podgorica"
+                        },
+                        new
+                        {
+                            Slug = "niksic",
+                            Latitude = 42.773099999999999,
+                            Longitude = 18.944500000000001,
+                            Name = "Nikšić",
+                            Order = 3,
+                            RadiusKm = 12.0,
+                            TimeZone = "Europe/Podgorica"
+                        },
+                        new
+                        {
+                            Slug = "kotor",
+                            Latitude = 42.424700000000001,
+                            Longitude = 18.7712,
+                            Name = "Kotor",
+                            Order = 4,
+                            RadiusKm = 12.0,
+                            TimeZone = "Europe/Podgorica"
+                        },
+                        new
+                        {
+                            Slug = "tivat",
+                            Latitude = 42.430399999999999,
+                            Longitude = 18.696200000000001,
+                            Name = "Tivat",
+                            Order = 5,
+                            RadiusKm = 12.0,
+                            TimeZone = "Europe/Podgorica"
+                        },
+                        new
+                        {
+                            Slug = "herceg-novi",
+                            Latitude = 42.453099999999999,
+                            Longitude = 18.537500000000001,
+                            Name = "Herceg Novi",
+                            Order = 6,
+                            RadiusKm = 12.0,
+                            TimeZone = "Europe/Podgorica"
+                        });
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Door.DoorStaff", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DoorName")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<Guid>("VenueId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.HasIndex("VenueId");
+
+                    b.ToTable("DoorStaff", (string)null);
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Friends.FriendRequestLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FromUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ToUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ToUserId");
+
+                    b.HasIndex("FromUserId", "At");
+
+                    b.ToTable("FriendRequestLog");
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Friends.Friendship", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RequestedById")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<Guid>("UserHighId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserLowId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserHighId");
+
+                    b.HasIndex("UserLowId", "UserHighId")
+                        .IsUnique();
+
+                    b.ToTable("Friendship");
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Friends.UserBlock", b =>
+                {
+                    b.Property<Guid>("BlockerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BlockedId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("BlockerId", "BlockedId");
+
+                    b.HasIndex("BlockedId");
+
+                    b.ToTable("UserBlock");
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Friends.UserReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ReportedUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ReporterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResolvedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReportedUserId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("ReporterId", "CreatedAt");
+
+                    b.ToTable("UserReport");
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Glow.GlowEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ClaimId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateOnly>("NightDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("PartyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Points")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("VenueId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "At");
+
+                    b.HasIndex("UserId", "BookingId", "Kind")
+                        .IsUnique()
+                        .HasFilter("\"BookingId\" IS NOT NULL");
+
+                    b.ToTable("GlowEntries", (string)null);
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Glow.PerkClaim", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ClaimedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PerkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RedeemedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RedeemedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("PerkId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("PerkClaims", (string)null);
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Glow.RecapNotice", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("NightDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId", "NightDate");
+
+                    b.ToTable("RecapNotices", (string)null);
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Glow.RecapShare", b =>
+                {
+                    b.Property<string>("Token")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("NightDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Token");
+
+                    b.HasIndex("UserId", "NightDate")
+                        .IsUnique();
+
+                    b.ToTable("RecapShares", (string)null);
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Glow.SponsoredPerk", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ColorBottom")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<string>("ColorTop")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("GlowCost")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Ink")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<string>("LogoText")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<int>("MinLevel")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SponsorName")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("Stock")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<Guid>("VenueId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VenueId", "EndsAt");
+
+                    b.ToTable("SponsoredPerks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SponsoredPerks_Stock", "\"Stock\" IS NULL OR \"Stock\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Glow.VenuePerk", b =>
+                {
+                    b.Property<Guid>("VenueId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<TimeOnly?>("UntilLocalTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("VenueId", "Kind");
+
+                    b.ToTable("VenuePerks", (string)null);
                 });
 
             modelBuilder.Entity("FindMyParty.Api.Identity.ApplicationUser", b =>
@@ -121,12 +720,38 @@ namespace FindMyParty.Api.Data.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("text");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
+
+                    b.Property<int>("GlowBalance")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("GlowLifetime")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("HomeCity")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("InvisibleUntil")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
@@ -142,6 +767,21 @@ namespace FindMyParty.Api.Data.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
 
+                    b.Property<bool>("NotifyFriends")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("NotifyNights")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("NotifyVenues")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("PasswordHash")
                         .HasColumnType("text");
 
@@ -151,11 +791,28 @@ namespace FindMyParty.Api.Data.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("ReferredByUserId")
+                        .HasColumnType("text");
+
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
 
+                    b.Property<bool>("ShareWithFriends")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("SharingSuspended")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("Subscription")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Taste")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
@@ -221,6 +878,31 @@ namespace FindMyParty.Api.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("Area")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<double?>("BuildingHeightM")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("CitySlug")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("podgorica");
+
+                    b.Property<string>("Footprint")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<double>("Latitude")
                         .HasColumnType("double precision");
 
@@ -248,10 +930,97 @@ namespace FindMyParty.Api.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CitySlug");
+
                     b.HasIndex("UserId")
                         .IsUnique();
 
                     b.ToTable("VenueProfiles");
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Me.SavedItem", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId", "Kind", "TargetId");
+
+                    b.ToTable("SavedItems", (string)null);
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Messaging.PasswordReset", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PasswordResets", (string)null);
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Messaging.PushDevice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExpoToken")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpoToken")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PushDevices", (string)null);
                 });
 
             modelBuilder.Entity("FindMyParty.Api.Parties.Party", b =>
@@ -259,6 +1028,9 @@ namespace FindMyParty.Api.Data.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("AgeLimit")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Capacity")
                         .HasColumnType("integer");
@@ -277,6 +1049,11 @@ namespace FindMyParty.Api.Data.Migrations
                     b.Property<string>("Genre")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<int>("HoldMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(90);
 
                     b.Property<Guid>("HostId")
                         .HasColumnType("uuid");
@@ -334,6 +1111,248 @@ namespace FindMyParty.Api.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_Parties_TicketsSold", "\"TicketsSold\" >= 0 AND \"TicketsSold\" <= \"Capacity\"");
                         });
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Parties.PartyAct", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("PartyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PartyId");
+
+                    b.ToTable("PartyActs", (string)null);
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Signs.SignBooking", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdvertiserName")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ArtworkUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("BookedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CardSubtitle")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("CardTitle")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("ColorBottom")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<string>("ColorTop")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("EndsOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Format")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)");
+
+                    b.Property<string>("Ink")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<string>("InvoiceStatus")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<Guid?>("PartyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PerkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SpotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("StartsOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(25)
+                        .HasColumnType("character varying(25)");
+
+                    b.Property<Guid?>("VenueId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookedByUserId");
+
+                    b.HasIndex("PartyId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("SpotId", "StartsOn");
+
+                    b.ToTable("SignBooking");
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Signs.SignHide", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SignBookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId", "SignBookingId");
+
+                    b.ToTable("SignHide");
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Signs.SignSpot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<double>("BaseHeightM")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("BearingDeg")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("BuildingHeightM")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("CitySlug")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Format")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<double>("HeightM")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("VenueId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("WeeklyPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<double>("WidthM")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CitySlug", "Format", "Number")
+                        .IsUnique();
+
+                    b.ToTable("SignSpot");
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Venues.VenueFollow", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("VenueId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId", "VenueId");
+
+                    b.HasIndex("VenueId");
+
+                    b.ToTable("VenueFollows", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
@@ -488,6 +1507,24 @@ namespace FindMyParty.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Parties.PartyAct", b =>
+                {
+                    b.HasOne("FindMyParty.Api.Parties.Party", null)
+                        .WithMany()
+                        .HasForeignKey("PartyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FindMyParty.Api.Venues.VenueFollow", b =>
+                {
+                    b.HasOne("FindMyParty.Api.Identity.VenueProfile", null)
+                        .WithMany()
+                        .HasForeignKey("VenueId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
