@@ -45,7 +45,7 @@ public class GlowDemoSeed(AppDbContext db, GlowService glow, IConfiguration conf
             perks.Add(new VenuePerk
             {
                 VenueId = venueId, Kind = kind, Enabled = true,
-                UntilLocalTime = kind == PerkKinds.FreeEntryBefore ? PerkText.Midnight : null,
+                UntilLocalTime = kind == PerkKinds.FreeEntryBefore ? FindMyParty.Api.Glow.PerkText.Midnight : null,
                 UpdatedAt = demo.Now.AddMinutes(i - switches.Length), // lists show the venues in this order
             });
         }

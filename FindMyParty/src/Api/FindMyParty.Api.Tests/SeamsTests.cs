@@ -415,7 +415,7 @@ public class SeamsTests(TestApp app)
 
         Assert.Equal([10, 20, 10, 20], ran);
         Assert.Equal(afterFirst, await CountAsync(db));
-        Assert.Equal(7 + 24, afterFirst.Users); // seven demo hosts, twenty-four demo guests
+        Assert.Equal(7 + 24 + 2, afterFirst.Users); // seven demo hosts, twenty-four demo guests, Monkey's two door logins
         Assert.Equal(7, afterFirst.Venues);
     }
 
@@ -593,16 +593,16 @@ public class SeamsTests(TestApp app)
     }
 
     [Fact]
-    public void Outside_tests_push_mail_and_door_access_fall_back_to_the_defaults_unless_a_feature_brought_its_own()
+    public void Outside_tests_push_goes_through_Expo_doors_take_door_logins_and_mail_is_only_logged_until_a_key_is_set()
     {
         var config = new ConfigurationBuilder().Build();
 
         var plain = new ServiceCollection().AddFeatures(config);
         var withOwn = new ServiceCollection().AddSingleton<INotifier>(new FakeNotifier()).AddFeatures(config);
 
-        Assert.Equal(typeof(NullNotifier), Assert.Single(plain, d => d.ServiceType == typeof(INotifier)).ImplementationType);
+        Assert.Equal(typeof(FindMyParty.Api.Messaging.ExpoNotifier), Assert.Single(plain, d => d.ServiceType == typeof(INotifier)).ImplementationType);
         Assert.Equal(typeof(LogEmailSender), Assert.Single(plain, d => d.ServiceType == typeof(IEmailSender)).ImplementationType);
-        Assert.Equal(typeof(HostOnlyVenueAccess), Assert.Single(plain, d => d.ServiceType == typeof(IVenueAccess)).ImplementationType);
+        Assert.Equal(typeof(FindMyParty.Api.Door.DoorVenueAccess), Assert.Single(plain, d => d.ServiceType == typeof(IVenueAccess)).ImplementationType);
         Assert.IsType<FakeNotifier>(Assert.Single(withOwn, d => d.ServiceType == typeof(INotifier)).ImplementationInstance);
     }
 
