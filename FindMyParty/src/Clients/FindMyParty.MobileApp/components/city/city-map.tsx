@@ -1,16 +1,17 @@
-import { memo, type ComponentProps, useCallback, useMemo, useRef } from 'react';
+import { memo, type ComponentProps, useCallback, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { LineString } from 'geojson';
 import { Camera, MapView } from '@rnmapbox/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CityCamera } from '@/hooks/city/useCityCamera';
 import { colors, layout, spacing } from '@/theme';
-import type { VenueSummary } from '@/types/api';
 import { CityStyle } from './city-style';
 import { LAYER, MAP_STYLE_URL, type LngLat } from './constants';
 import { venueOfBuilding } from './footprint';
-import type { CityMode } from './geojson';
+import type { CityMode, FriendsOnMap, VenueOnMap } from './geojson';
 import { RouteLayer } from './route-layer';
+import { SignLayers } from './sign-layers';
+import { signsInView, type SignOnMap } from './signs';
 import { UserDot } from './user-dot';
 import { VenueLayers } from './venue-layers';
 import { useVenueFootprints } from '@/hooks/city/useVenueFootprints';
@@ -20,10 +21,16 @@ type MapPress = Parameters<NonNullable<ComponentProps<typeof MapView>['onPress']
 
 type Props = {
   camera: CityCamera;
-  venues: readonly VenueSummary[];
+  venues: readonly VenueOnMap[];
   selectedId: string | null;
-  /** Live, or My City. */
+  /** Live, My City, or Friends. */
   mode: CityMode;
+  /** Friends layer: who is at which venue (`FriendsOut.venues` as it comes). */
+  friends?: readonly FriendsOnMap[];
+  /** The city's signs, in the server's order (`MapSign[]` as it comes). The map draws the few in view. */
+  signs?: readonly SignOnMap[];
+  /** A sign was tapped. */
+  onSelectSign?: (signId: string) => void;
   /** My City: the venues the user has been scanned into. */
   earned: ReadonlySet<string>;
   onSelectVenue: (venueId: string) => void;
@@ -38,6 +45,10 @@ type Props = {
   /** The screen is in front of the user: busy venues may pulse. */
   pulse?: boolean;
 };
+
+const NO_SIGNS: readonly SignOnMap[] = [];
+/** The design allows this many signs in view at once. */
+const SIGNS_IN_VIEW = 3;
 
 /** Left edge of the Mapbox wordmark, and of the "i" button beside it. */
 const LOGO_LEFT = spacing.base;
@@ -56,6 +67,9 @@ export const CityMap = memo(function CityMap({
   selectedId,
   mode,
   earned,
+  friends,
+  signs = NO_SIGNS,
+  onSelectSign,
   onSelectVenue,
   onPressEmpty,
   routeLine,
@@ -79,11 +93,18 @@ export const CityMap = memo(function CityMap({
   const mapRef = useRef<MapView>(null);
   const { footprints, scan } = useVenueFootprints(venues);
   const { syncView } = camera;
+  // The part of the city on screen, kept from the last time the map came to rest: it decides
+  // which signs are drawn.
+  const [view, setView] = useState<{ west: number; south: number; east: number; north: number } | null>(null);
+  const shownSigns = useMemo(() => signsInView(signs, view, SIGNS_IN_VIEW), [signs, view]);
+
   const handleIdle = useCallback(
     (state: MapState) => {
       syncView(state.properties.pitch, state.properties.zoom);
       // Once the buildings are drawn, find each venue's own building so its roof lights up.
       void scan(mapRef.current);
+      const { ne, sw } = state.properties.bounds;
+      if (ne && sw) setView({ west: sw[0], south: sw[1], east: ne[0], north: ne[1] });
     },
     [syncView, scan],
   );
@@ -132,12 +153,14 @@ export const CityMap = memo(function CityMap({
       <Camera ref={camera.ref} defaultSettings={camera.initial} />
       <CityStyle />
       <RouteLayer line={routeLine} />
+      {camera.flat ? null : <SignLayers signs={shownSigns} onSelect={onSelectSign} />}
       <VenueLayers
         venues={venues}
         selectedId={selectedId}
         flat={camera.flat}
         mode={mode}
         earned={earned}
+        friends={friends}
         footprints={footprints}
         pulse={pulse}
         onSelect={onSelectVenue}

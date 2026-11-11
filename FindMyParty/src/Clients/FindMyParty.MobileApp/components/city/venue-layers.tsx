@@ -1,17 +1,16 @@
 import { memo, useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { ShapeSource } from '@rnmapbox/maps';
-import type { VenueSummary } from '@/types/api';
 import { useReducedMotion } from '@/components/afterglow/motion';
 import { PULSE, SOURCE, TAP_HITBOX } from './constants';
 import type { Footprint } from './footprint';
-import { friendMarks, tappedVenueId, venuePoints, venueShapes, type CityMode, type FriendsOnMap } from './geojson';
+import { friendMarks, tappedVenueId, venuePoints, venueShapes, type CityMode, type FriendsOnMap, type VenueOnMap } from './geojson';
 import { friendLayers, pingLayers, venueLayers } from './layers';
 import { SpecLayers } from './spec-layer';
 
 type PressEvent = Parameters<NonNullable<ComponentProps<typeof ShapeSource>['onPress']>>[0];
 
 type Props = {
-  venues: readonly VenueSummary[];
+  venues: readonly VenueOnMap[];
   selectedId: string | null;
   /** 2D: beams off, discs sized by the crowd. */
   flat: boolean;

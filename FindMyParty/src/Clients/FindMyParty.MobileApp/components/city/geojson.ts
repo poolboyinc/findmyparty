@@ -3,7 +3,6 @@
 import type { Feature, FeatureCollection, LineString, Point, Polygon } from 'geojson';
 import { crowdBars, crowdColor, crowdStrength } from '@/services/crowd';
 import { colors } from '@/theme';
-import type { VenueSummary } from '@/types/api';
 import { BUILDINGS, FRAME, LABEL, PALETTE, SPRITE, SWITCH, type LngLat } from './constants';
 import type { Footprint } from './footprint';
 import { closed, inset, narrowSide, reversed, sharpCorners, squareAround, tidy, toDegrees, toMetres, type XY } from './outline';
@@ -15,6 +14,21 @@ import { BEAM_EARNED, RING_EARNED, RING_GHOST, RING_SELECTED, beamImage, beamLen
  * dimmed and unnamed, and the user's friends in cyan at the venues they were scanned into.
  */
 export type CityMode = 'live' | 'mine' | 'friends';
+
+/**
+ * What the map needs of a venue. The API's `VenueOnMap` has all of it; small maps (the recap
+ * card, a sign preview) pass just this.
+ */
+export type VenueOnMap = {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  crowdLevel: string | null;
+  crowdSource: string | null;
+  /** The outline of the venue's building the server holds, when its host has picked one. */
+  footprint?: { ring?: unknown; heightM?: unknown } | null;
+};
 
 /** A text offset in ems: [right, down]. */
 type Offset = [number, number];
@@ -122,7 +136,7 @@ export function selectedCrowdLine(level: string | null | undefined, source: stri
   return `${level} inside`;
 }
 
-function isOnEarth(venue: VenueSummary): boolean {
+function isOnEarth(venue: VenueOnMap): boolean {
   return (
     Number.isFinite(venue.latitude) &&
     Number.isFinite(venue.longitude) &&
@@ -144,7 +158,7 @@ export type VenueDrawing = {
 };
 
 /** Where a venue's light stands: the middle of its building when known, else its own point. */
-function anchorOf(venue: VenueSummary, drawing: VenueDrawing): LngLat {
+function anchorOf(venue: VenueOnMap, drawing: VenueDrawing): LngLat {
   return drawing.footprints?.[venue.id]?.centroid ?? [venue.longitude, venue.latitude];
 }
 
@@ -168,7 +182,7 @@ function offsetsAt(beamPt: number, size: number, hasCount: boolean, flatGap: num
   };
 }
 
-function venueProps(venue: VenueSummary, drawing: VenueDrawing): VenueProps {
+function venueProps(venue: VenueOnMap, drawing: VenueDrawing): VenueProps {
   const mine = drawing.mode === 'mine';
   const ghost = mine && !drawing.earned.has(venue.id);
   const bars = crowdBars(venue.crowdLevel);
@@ -224,7 +238,7 @@ function venueProps(venue: VenueSummary, drawing: VenueDrawing): VenueProps {
 
 /** One point per venue: the lights on the roof, the names and the discs all hang on these. */
 export function venuePoints(
-  venues: readonly VenueSummary[],
+  venues: readonly VenueOnMap[],
   drawing: VenueDrawing,
 ): FeatureCollection<Point, VenueProps> {
   const features: Feature<Point, VenueProps>[] = [];
@@ -256,7 +270,7 @@ function shape(props: ShapeProps, rings: XY[][], origin: LngLat): Feature<Polygo
  * Heights are plain metres; the layer style stretches them the same way as the city's buildings.
  */
 export function venueShapes(
-  venues: readonly VenueSummary[],
+  venues: readonly VenueOnMap[],
   drawing: VenueDrawing,
 ): FeatureCollection<Polygon, ShapeProps> {
   const features: Feature<Polygon, ShapeProps>[] = [];
@@ -415,7 +429,7 @@ export function metresBetween(a: LngLat, b: LngLat): number {
 }
 
 /** The venue closest to a coordinate, if one is within `withinM` metres. */
-export function nearestVenueId(venues: readonly VenueSummary[], at: LngLat, withinM: number): string | null {
+export function nearestVenueId(venues: readonly VenueOnMap[], at: LngLat, withinM: number): string | null {
   let best: string | null = null;
   let bestDistance = withinM;
   for (const venue of venues) {

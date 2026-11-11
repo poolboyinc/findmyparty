@@ -66,8 +66,10 @@ function paddingWithBottom(bottom: number): CameraPadding {
  * Every move sends the padding too. The native camera treats padding that is left out as zero,
  * so a move without it would drop the room kept for an open sheet.
  */
-export function useCityCamera() {
+export function useCityCamera(home: LngLat = CITY.center) {
   const ref = useRef<Camera>(null);
+  /** The city the map first opened on. */
+  const firstHome = useRef(home).current;
   const reduceMotion = useReducedMotion();
   /**
    * Whether this opening drops in from above. Null until known: the map waits for it (a read of
@@ -171,8 +173,8 @@ export function useCityCamera() {
   const onMapLoaded = useCallback(() => {
     if (!drop) return;
     ignorePitchUntil.current = Date.now() + CAMERA.drop.ms + 600;
-    move({ ...DEFAULT_CAMERA, animationMode: 'easeTo', animationDuration: CAMERA.drop.ms });
-  }, [drop, move]);
+    move({ ...DEFAULT_CAMERA, centerCoordinate: firstHome, animationMode: 'easeTo', animationDuration: CAMERA.drop.ms });
+  }, [drop, move, firstHome]);
 
   /** Locate-me: fly to a coordinate, close in. */
   const flyTo = useCallback(
@@ -241,12 +243,27 @@ export function useCityCamera() {
     [move],
   );
 
-  /** Given to `<Camera defaultSettings>` once the drop is decided; never changed afterwards. */
-  const initial = drop === null ? null : drop ? DROP_START : DEFAULT_CAMERA;
+  /** Another city was chosen: fly to its middle, back at the resting zoom. */
+  const goTo = useCallback(
+    (center: LngLat) => {
+      focused.current = null;
+      move({ centerCoordinate: center, zoomLevel: CAMERA.zoom, animationMode: 'flyTo', animationDuration: CAMERA.flyMs });
+    },
+    [move],
+  );
+
+  /**
+   * Given to `<Camera defaultSettings>` once the drop is decided; never changed afterwards, so it
+   * looks at the city that was chosen when the map first opened (`goTo` moves it later).
+   */
+  const initial = useMemo(
+    () => (drop === null ? null : { ...(drop ? DROP_START : DEFAULT_CAMERA), centerCoordinate: firstHome }),
+    [drop, firstHome],
+  );
 
   return useMemo(
-    () => ({ ref, initial, flat, toggleFlat, syncView, onMapLoaded, flyTo, focus, refocus, release, fitBounds }),
-    [initial, flat, toggleFlat, syncView, onMapLoaded, flyTo, focus, refocus, release, fitBounds],
+    () => ({ ref, initial, flat, toggleFlat, syncView, onMapLoaded, goTo, flyTo, focus, refocus, release, fitBounds }),
+    [initial, flat, toggleFlat, syncView, onMapLoaded, goTo, flyTo, focus, refocus, release, fitBounds],
   );
 }
 

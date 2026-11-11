@@ -2,7 +2,7 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import type { MapView } from '@rnmapbox/maps';
 import { LAYER } from '@/components/city/constants';
 import { footprintFromServer, pickFootprint, type Footprint } from '@/components/city/footprint';
-import type { VenueSummary } from '@/types/api';
+import type { VenueOnMap } from '@/components/city/geojson';
 
 /** Points around a venue in which its building is looked for. */
 const SEARCH_PT = 60;
@@ -26,14 +26,14 @@ function snapshot(): Footprints {
 
 /** Where a venue was when its building was found; if the venue moves, the building is looked for again. */
 const foundAt = new Map<string, string>();
-const placeOf = (venue: VenueSummary) => `${venue.longitude},${venue.latitude}`;
+const placeOf = (venue: VenueOnMap) => `${venue.longitude},${venue.latitude}`;
 
 /** The outline the server holds for a venue's building, when the venue's host has picked one. */
-function stored(venue: VenueSummary): Footprint | null {
-  return footprintFromServer((venue as { footprint?: { ring?: unknown; heightM?: unknown } | null }).footprint);
+function stored(venue: VenueOnMap): Footprint | null {
+  return footprintFromServer(venue.footprint);
 }
 
-async function scan(map: MapView | null, venues: readonly VenueSummary[]): Promise<void> {
+async function scan(map: MapView | null, venues: readonly VenueOnMap[]): Promise<void> {
   if (!map || busy) return;
   // A venue whose building the server knows needs no looking for.
   const missing = venues.filter((venue) => !stored(venue) && foundAt.get(venue.id) !== placeOf(venue));
@@ -77,7 +77,7 @@ async function scan(map: MapView | null, venues: readonly VenueSummary[]): Promi
  * otherwise the building is found from the buildings a map has drawn. Call `scan` when a map
  * settles; venues found once are kept, the rest are tried again on the next scan.
  */
-export function useVenueFootprints(venues: readonly VenueSummary[]) {
+export function useVenueFootprints(venues: readonly VenueOnMap[]) {
   const found = useSyncExternalStore(subscribe, snapshot, snapshot);
   const footprints = useMemo(() => {
     let merged: Record<string, Footprint> | null = null;
