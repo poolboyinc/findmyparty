@@ -1,29 +1,32 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { alpha } from '@/components/pass/format';
-import type { SoundShare } from '@/services/glow';
 import { colors, radii, spacing, typography } from '@/theme';
+import type { SoundShare } from '@/types/api';
 
-/** Widest bar full violet, the next ones fainter, as in the mock. */
+/** Widest bar full violet, the next ones fainter, as in the mock (`--uv`, then 60% and 30%). */
 const STRENGTH = [1, 0.6, 0.3] as const;
 const BAR = 8;
 
-/** "Your sound": the guest's top genres as three bars in proportion, with their percentages under them. */
+/** `colors.quiet` at an opacity, for the fainter bars. */
+function quietAt(opacity: number): string {
+  const n = parseInt(colors.quiet.slice(1), 16);
+  return `rgba(${(n >> 16) & 0xff},${(n >> 8) & 0xff},${n & 0xff},${opacity})`;
+}
+
+/** "Your sound" (`Me.sound`): the guest's top genres as up to three bars in proportion, with their percentages under them. */
 export function YourSound({ shares }: { shares: SoundShare[] }) {
-  const spoken = shares.map((s) => `${s.label} ${s.share} percent`).join(', ');
+  const shown = shares.slice(0, 3);
+  const spoken = shown.map((s) => `${s.genre} ${s.percent} percent`).join(', ');
   return (
     <View style={styles.card} accessible accessibilityRole="text" accessibilityLabel={`Your sound: ${spoken}`}>
       <View style={styles.bars}>
-        {shares.map((s, i) => (
-          <View
-            key={s.label}
-            style={[styles.bar, { flex: Math.max(1, s.share), backgroundColor: alpha(colors.quiet, STRENGTH[i] ?? 0.3) }]}
-          />
+        {shown.map((s, i) => (
+          <View key={s.genre} style={[styles.bar, { flex: Math.max(1, s.percent), backgroundColor: quietAt(STRENGTH[i] ?? 0.3) }]} />
         ))}
       </View>
       <View style={styles.labels}>
-        {shares.map((s) => (
-          <Text key={s.label} style={styles.label} numberOfLines={1}>
-            {s.label} {s.share}%
+        {shown.map((s) => (
+          <Text key={s.genre} style={styles.label} numberOfLines={1}>
+            {s.genre} {s.percent}%
           </Text>
         ))}
       </View>

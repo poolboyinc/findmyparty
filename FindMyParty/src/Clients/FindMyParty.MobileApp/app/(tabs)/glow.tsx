@@ -1,50 +1,59 @@
-import { Fragment, useCallback, useReducer, useState } from 'react';
+import { Fragment, useCallback, useReducer, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Failed, Loading } from '@/components/afterglow/state';
+import { PressableScale } from '@/components/afterglow/motion';
+import { Empty, Failed, Loading } from '@/components/afterglow/state';
 import { Display } from '@/components/afterglow/text';
-import { EarnList } from '@/components/glow/earn-list';
+import { EarnSheet, type EarnSheetRef } from '@/components/glow/earn-sheet';
 import { GlowRing } from '@/components/glow/glow-ring';
 import { LevelLadder } from '@/components/glow/level-ladder';
-import { useGlow } from '@/components/glow/use-glow';
-import { shortDate } from '@/components/pass/format';
+import { PerkList } from '@/components/glow/perk-list';
+import { nightLabel } from '@/components/glow/when';
 import { PrimaryButton } from '@/components/ui/primary-button';
+import { routes } from '@/constants/routes';
+import { useGlow, usePerks } from '@/hooks/queries';
+import { useHomeCity } from '@/hooks/useHomeCity';
 import { ApiError } from '@/services/api';
-import { LEVELS, formatGlow, type Glow, type HistoryRow } from '@/services/glow';
+import { formatGlow } from '@/services/glow';
 import { colors, layout, radii, spacing, typography } from '@/theme';
+import type { GlowNight, GlowSummary } from '@/types/api';
 
-/** How many past nights the list shows. */
-const HISTORY_ROWS = 12;
-
-/** The Glow tab: where the guest stands (ring, level, ladder), how Glow is earned, and the nights that earned it. */
+/** The Glow tab (S-17): where the guest stands, the perks that gives them, and the nights that earned it. All from the server. */
 export default function GlowTab() {
   const insets = useSafeAreaInsets();
-  const { glow, bookings } = useGlow();
-  const { error, isPending, refetch } = bookings;
+  const { slug, city } = useHomeCity();
+  const glow = useGlow();
+  const perks = usePerks(slug);
+  const earnSheet = useRef<EarnSheetRef>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  const { refetch: refetchGlow } = glow;
+  const { refetch: refetchPerks } = perks;
+
   // react-native-screens v4 can hand a tab back unpainted; a render on focus repaints it.
-  // Coming back is also a reason to look again: there may have been a scan since.
+  // Coming back is also a reason to look again: there may have been a scan or a claim since.
   const [, repaint] = useReducer((n: number) => n + 1, 0);
   useFocusEffect(
     useCallback(() => {
       repaint();
-      void refetch({ cancelRefetch: false });
-    }, [refetch]),
+      void refetchGlow({ cancelRefetch: false });
+      void refetchPerks({ cancelRefetch: false });
+    }, [refetchGlow, refetchPerks]),
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await refetch();
+      await Promise.all([refetchGlow(), refetchPerks()]);
     } finally {
       setRefreshing(false);
     }
-  }, [refetch]);
+  }, [refetchGlow, refetchPerks]);
 
-  const signedOut = error instanceof ApiError && error.kind === 'signed_out';
+  const summary = glow.data;
+  const signedOut = glow.error instanceof ApiError && glow.error.kind === 'signed_out';
   const tabBarRoom = insets.bottom + layout.floatingTabBarHeight + layout.floatingTabBarBottomOffset + spacing.base;
 
   return (
@@ -52,18 +61,45 @@ export default function GlowTab() {
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.base, paddingBottom: tabBarRoom }]}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.labelSecondary} />}
+        refreshControl={
+          summary ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.labelSecondary} /> : undefined
+        }
       >
         <View style={styles.header}>
           <Display size="lg" accessibilityRole="header">
             Glow
           </Display>
-          {glow && glow.streak > 0 ? <Text style={styles.streak}>{glow.streak}-week streak</Text> : null}
+          {summary && summary.streakWeeks > 0 ? <Text style={styles.streak}>{summary.streakWeeks}-week streak</Text> : null}
         </View>
 
-        {glow ? (
-          <GlowBoard glow={glow} />
-        ) : isPending ? (
+        {summary ? (
+          <>
+            <Standing summary={summary} onPress={() => earnSheet.current?.present()} />
+
+            <Text style={styles.section} accessibilityRole="header">
+              Your perks
+            </Text>
+            {perks.data ? (
+              perks.data.length > 0 ? (
+                <PerkList perks={perks.data} balance={summary.balance} />
+              ) : (
+                <View style={styles.perksState}>
+                  <Empty title="No perks here yet" body={`Venues in ${city?.name ?? 'your city'} have not switched any on.`} />
+                </View>
+              )
+            ) : perks.isPending ? (
+              <View style={styles.perksState}>
+                <Loading />
+              </View>
+            ) : (
+              <View style={styles.perksState}>
+                <Failed error={perks.error} onRetry={() => refetchPerks()} />
+              </View>
+            )}
+
+            <LastNights nights={summary.lastNights} />
+          </>
+        ) : glow.isPending ? (
           <View style={styles.state}>
             <Loading />
           </View>
@@ -74,77 +110,101 @@ export default function GlowTab() {
           </View>
         ) : (
           <View style={styles.state}>
-            <Failed error={error} onRetry={() => refetch()} />
+            <Failed error={glow.error} onRetry={() => refetchGlow()} />
           </View>
         )}
       </ScrollView>
+
+      {summary ? <EarnSheet ref={earnSheet} multiplierFromWeek={summary.multiplierFromWeek} /> : null}
     </View>
   );
 }
 
-function GlowBoard({ glow }: { glow: Glow }) {
-  const history = glow.history.slice(0, HISTORY_ROWS);
+/** The ring card and the ladder under it. The card opens "How you earn". */
+function Standing({ summary, onPress }: { summary: GlowSummary; onPress: () => void }) {
+  const { level, next, toNext } = summary;
+  const spoken =
+    `${formatGlow(summary.lifetime)} Glow. Level ${level.number} of ${summary.levels.length}, ${level.name}.` +
+    (next && toNext !== null ? ` ${formatGlow(toNext)} to ${next.name}.` : ' The top level.');
+
   return (
     <>
-      <View style={styles.card}>
-        <GlowRing total={glow.total} fill={glow.ring} />
+      <PressableScale
+        onPress={onPress}
+        scaleTo={0.98}
+        style={styles.card}
+        accessibilityRole="button"
+        accessibilityLabel={spoken}
+        accessibilityHint="Shows how you earn Glow"
+      >
+        <GlowRing total={summary.lifetime} fill={summary.ring} />
         <View style={styles.standing}>
           <Text style={styles.levelOf}>
-            Level {glow.levelNumber} of {LEVELS.length}
+            Level {level.number} of {summary.levels.length}
           </Text>
           <Display size="lg" color={colors.earned} style={styles.levelName} numberOfLines={1} adjustsFontSizeToFit>
-            {glow.level.name}
+            {level.name}
           </Display>
-          {glow.next && glow.toNext !== null ? (
+          {next && toNext !== null ? (
             <Text style={styles.toNext}>
-              <Text style={styles.toNextFigure}>{formatGlow(glow.toNext)}</Text> to {glow.next.name}
+              <Text style={styles.toNextFigure}>{formatGlow(toNext)}</Text> to {next.name}
             </Text>
           ) : (
             <Text style={styles.toNext}>The top level</Text>
           )}
         </View>
-      </View>
+      </PressableScale>
 
       <View style={styles.ladder}>
-        <LevelLadder current={glow.level.name} ladder={glow.ladder} />
+        <LevelLadder levels={summary.levels} current={level.name} ladder={summary.ladder} />
       </View>
-
-      <Text style={styles.section} accessibilityRole="header">
-        How you earn
-      </Text>
-      <EarnList />
-
-      {history.length > 0 ? (
-        <>
-          <Text style={styles.section} accessibilityRole="header">
-            {history.length === 1 ? 'Last night' : 'Last nights'}
-          </Text>
-          <View>
-            {history.map((row, i) => (
-              <Fragment key={row.bookingId}>
-                {i > 0 ? <View style={styles.line} /> : null}
-                <HistoryLine row={row} />
-              </Fragment>
-            ))}
-          </View>
-        </>
-      ) : null}
     </>
   );
 }
 
-function HistoryLine({ row }: { row: HistoryRow }) {
-  const date = shortDate(new Date(row.at));
+/** "Last night" (one row) or "Last nights": what each scan earned. A row opens that night's recap. */
+function LastNights({ nights }: { nights: GlowNight[] }) {
+  const several = nights.length > 1;
   return (
-    <View style={styles.historyRow} accessible accessibilityRole="text" accessibilityLabel={`${row.title}, ${date}, plus ${row.points} Glow`}>
-      <View style={styles.historyWords}>
-        <Text style={styles.historyTitle} numberOfLines={1}>
-          {row.title}
+    <>
+      <Text style={styles.section} accessibilityRole="header">
+        {several ? 'Last nights' : 'Last night'}
+      </Text>
+      {nights.length === 0 ? (
+        <Text style={styles.noNights}>Nothing yet. Your first scan at a door starts your Glow.</Text>
+      ) : (
+        <View>
+          {nights.map((night, i) => (
+            <Fragment key={`${night.bookingId}-${night.at}`}>
+              {i > 0 ? <View style={styles.line} /> : null}
+              <NightLine night={night} withDate={several} />
+            </Fragment>
+          ))}
+        </View>
+      )}
+    </>
+  );
+}
+
+function NightLine({ night, withDate }: { night: GlowNight; withDate: boolean }) {
+  const date = nightLabel(night.date);
+  return (
+    <PressableScale
+      onPress={() => router.push(routes.night(night.date))}
+      scaleTo={0.98}
+      style={styles.nightRow}
+      accessibilityRole="button"
+      accessibilityLabel={`${night.title}, ${date}, plus ${formatGlow(night.points)} Glow`}
+      accessibilityHint="Opens the recap of that night"
+    >
+      <View style={styles.nightWords}>
+        <Text style={styles.nightTitle} numberOfLines={1}>
+          {night.title}
         </Text>
-        <Text style={styles.historyDate}>{date}</Text>
+        {withDate ? <Text style={styles.nightDate}>{date}</Text> : null}
       </View>
-      <Text style={styles.historyPoints}>+{formatGlow(row.points)}</Text>
-    </View>
+      <Text style={styles.nightPoints}>+{formatGlow(night.points)}</Text>
+    </PressableScale>
   );
 }
 
@@ -164,13 +224,13 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   streak: {
-    ...typography.subheadline,
+    ...typography.footnote,
     fontWeight: '700',
     color: colors.earned,
     fontVariant: ['tabular-nums'],
   },
   card: {
-    marginTop: spacing.md,
+    marginTop: spacing.md + 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg - 1,
@@ -182,7 +242,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   levelOf: {
-    ...typography.footnote,
+    ...typography.caption1,
     fontWeight: '600',
     color: colors.labelTertiary,
   },
@@ -209,32 +269,42 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
+  perksState: {
+    minHeight: 140,
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.card,
+  },
   line: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.separator,
   },
-  historyRow: {
+  nightRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.sm + 1,
   },
-  historyWords: {
+  nightWords: {
     flex: 1,
     gap: spacing.xxs,
   },
-  historyTitle: {
+  nightTitle: {
     ...typography.body,
     color: colors.label,
   },
-  historyDate: {
+  nightDate: {
     ...typography.footnote,
     color: colors.labelTertiary,
   },
-  historyPoints: {
+  nightPoints: {
     ...typography.bodyEmphasized,
     color: colors.earned,
     fontVariant: ['tabular-nums'],
+  },
+  noNights: {
+    ...typography.subheadline,
+    color: colors.labelSecondary,
   },
   state: {
     minHeight: 240,

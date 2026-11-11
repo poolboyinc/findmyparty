@@ -1,8 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { LEVELS } from '@/services/glow';
 import { colors, spacing, typography } from '@/theme';
 
 type Props = {
+  /** `GlowSummary.levels`: Spark to Inferno, lowest first. */
+  levels: readonly { name: string }[];
   /** The current level's name. */
   current: string;
   /** 0–1 along the bar; each level sits a quarter further on. */
@@ -10,17 +11,17 @@ type Props = {
 };
 
 /** The five levels in a row with a lime bar under them filled up to where the guest stands. */
-export function LevelLadder({ current, ladder }: Props) {
+export function LevelLadder({ levels, current, ladder }: Props) {
   const fill = Math.min(1, Math.max(0, ladder));
   return (
     <View
       style={styles.wrap}
       accessible
       accessibilityRole="text"
-      accessibilityLabel={`Levels: ${LEVELS.map((level) => level.name).join(', ')}. You are at ${current}.`}
+      accessibilityLabel={`Levels: ${levels.map((level) => level.name).join(', ')}. You are at ${current}.`}
     >
       <View style={styles.names}>
-        {LEVELS.map((level) => (
+        {levels.map((level) => (
           <Text key={level.name} style={[styles.name, level.name === current && styles.current]}>
             {level.name}
           </Text>
