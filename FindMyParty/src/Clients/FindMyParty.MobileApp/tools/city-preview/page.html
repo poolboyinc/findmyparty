@@ -6,6 +6,7 @@
     <link href="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.css" rel="stylesheet" />
     <script src="https://api.mapbox.com/mapbox-gl-js/v3.16.0/mapbox-gl.js"></script>
     <style>
+      @font-face { font-family: 'Coolvetica'; src: url('/fonts/coolvetica.ttf') format('truetype'); font-display: block; }
       html, body, #map { margin: 0; height: 100%; background: #07060d; }
       .mapboxgl-ctrl-bottom-right, .mapboxgl-ctrl-bottom-left { display: none; }
     </style>
@@ -23,7 +24,7 @@
           'text-variable-anchor text-anchor text-max-angle text-writing-mode text-rotate text-padding text-keep-upright ' +
           'text-transform text-offset text-allow-overlap text-ignore-placement text-optional line-cap line-join ' +
           'line-miter-limit line-round-limit line-sort-key line-z-offset line-elevation-reference fill-sort-key ' +
-          'circle-sort-key fill-extrusion-edge-radius').split(' '),
+          'circle-sort-key fill-extrusion-edge-radius model-id').split(' '),
       );
       const kebab = (name) => name.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
       const TYPE = { fillExtrusion: 'fill-extrusion' };
@@ -91,8 +92,10 @@
         await new Promise((resolve) => map.once('load', resolve));
       }
 
-      async function dress({ images, fog, layers, sources }) {
+      async function dress({ images, models = [], fog, layers, sources }) {
+        await document.fonts.load('20px Coolvetica');
         await Promise.all(images.map(loadImage));
+        for (const model of models) if (!map.hasModel(model.name)) map.addModel(model.name, model.url);
         if (fog) map.setFog(fog);
         for (const [id, data] of Object.entries(sources)) {
           if (map.getSource(id)) map.getSource(id).setData(data);

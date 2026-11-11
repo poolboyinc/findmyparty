@@ -18,10 +18,13 @@ import type {
   FillLayerStyle as FillLayerStyleProps,
   LightLayerStyle as LightLayerStyleProps,
   LineLayerStyle as LineLayerStyleProps,
+  ModelLayerStyle as ModelLayerStyleProps,
   SymbolLayerStyle as SymbolLayerStyleProps,
 } from '@rnmapbox/maps';
 import { colors } from '@/theme';
-import { BUILDINGS, FACADE_IMAGE, FRAME, GROUND_GLOW, LABEL, LABEL_BOX_IMAGE, PALETTE, PULSE, SPRITE, SWITCH } from './constants';
+import { FRIEND_MARK } from './geojson';
+import { FRIEND_RING } from './sprites';
+import { BUILDINGS, FACADE_IMAGE, FRAME, GROUND_GLOW, LABEL, LABEL_BOX_IMAGE, PALETTE, PULSE, SIGN, SPRITE, SWITCH } from './constants';
 
 /** A Mapbox expression, as the package types it. */
 type Expr = Extract<NonNullable<CircleLayerStyleProps['circleRadius']>, readonly unknown[]>;
@@ -103,6 +106,10 @@ export const FILTER = {
   /** Venues that have a picture to show: '' means none. */
   hasBeam: ['!=', ['get', 'beam'], ''],
   hasPing: ['!=', ['get', 'ping'], ''],
+  hologram: KIND('hologram'),
+  avatar: KIND('avatar'),
+  friendVenue: KIND('name'),
+  tag: KIND('tag'),
   frame: banded('frame'),
   post: banded('post'),
   /** Mapbox Streets buildings that are meant to be drawn in 3D. */
@@ -180,27 +187,15 @@ export const STREET_CORE_STYLE: LineLayerStyleProps = {
 
 const HEIGHT: Expr = ['get', 'height'];
 const MIN_HEIGHT: Expr = ['get', 'min_height'];
-const [, vs0, vz1, vs1, vz2, vs2] = BUILDINGS.verticalScale;
 
 /**
- * A height in metres, stretched upwards (BUILDINGS.verticalScale) and rising out of the ground over the
- * first third of a zoom level so tiles do not pop in flat. One top-level interpolate, as Mapbox requires.
+ * A height in metres, stretched upwards (BUILDINGS.stretch) and rising out of the ground just past
+ * the zoom where buildings begin, so tiles do not pop in flat. One top-level interpolate, as
+ * Mapbox requires.
  */
 function growing(value: Expr): Expr {
   const z0 = BUILDINGS.minZoom;
-  return [
-    'interpolate',
-    ['linear'],
-    ['zoom'],
-    z0,
-    0,
-    z0 + 0.3,
-    ['*', vs0, value],
-    vz1,
-    ['*', vs1, value],
-    vz2,
-    ['*', vs2, value],
-  ];
+  return ['interpolate', ['linear'], ['zoom'], z0, 0, z0 + BUILDINGS.riseOverZoom, ['*', BUILDINGS.stretch, value]];
 }
 
 /**
@@ -259,6 +254,9 @@ export const LIGHT_STYLE: LightLayerStyleProps = {
 /** Metres above the ground of the venue's roof, stretched like the city's buildings. */
 const ON_THE_ROOF: Expr = growing(['get', 'roofM']);
 
+/** How much of the crowd's light is left on the Friends layer. */
+const DIMMED = 0.4;
+
 const BEAM_SIZE: Num = SWITCH.beamsScaleWithZoom ? zoomStops(SPRITE.sizeByZoom) : 1;
 const RING_SIZE: Num = zoomStops(SPRITE.ringByZoom);
 
@@ -266,9 +264,12 @@ const RING_SIZE: Num = zoomStops(SPRITE.ringByZoom);
  * The beam: a picture of light standing on the roof, always upright and facing the camera, the
  * same few points wide whatever the zoom. Hidden in flat (2D) mode, where the discs carry the picture.
  */
-export function beamStyle(flat: boolean): SymbolLayerStyleProps {
+export function beamStyle(flat: boolean, dim = false): SymbolLayerStyleProps {
   return {
     visibility: flat ? 'none' : 'visible',
+    // Friends layer: the crowd's light steps back so the friends stand out.
+    iconOpacity: dim ? DIMMED : 1,
+    iconOpacityTransition: QUICK,
     iconImage: ['get', 'beam'],
     iconSize: BEAM_SIZE,
     iconAnchor: 'bottom',
@@ -283,9 +284,11 @@ export function beamStyle(flat: boolean): SymbolLayerStyleProps {
 }
 
 /** The ring the beam rises from: it lies flat on the roof, so the tilt turns it into an ellipse. */
-export function ringStyle(flat: boolean): SymbolLayerStyleProps {
+export function ringStyle(flat: boolean, dim = false): SymbolLayerStyleProps {
   return {
     visibility: flat ? 'none' : 'visible',
+    iconOpacity: dim ? DIMMED : 1,
+    iconOpacityTransition: QUICK,
     iconImage: ['get', 'ring'],
     iconSize: RING_SIZE,
     iconPitchAlignment: 'map',
@@ -456,6 +459,96 @@ export function selectedLabelStyle(): SymbolLayerStyleProps {
     iconAllowOverlap: true,
   };
 }
+
+// ── Friends ─────────────────────────────────────────────────────────────────
+
+/** A friend at a venue: a cyan ring with their initial (or "+2"), beside the beam at the roof. */
+export const FRIEND_AVATAR_STYLE: SymbolLayerStyleProps = {
+  iconImage: FRIEND_RING,
+  iconOffset: ['get', 'iconOffset'],
+  iconAllowOverlap: true,
+  iconIgnorePlacement: true,
+  textField: ['get', 'text'],
+  textFont: MAP_FONT,
+  textSize: FRIEND_MARK.initialSize,
+  textColor: colors.you,
+  textOffset: ['get', 'textOffset'],
+  textAllowOverlap: true,
+  textIgnorePlacement: true,
+  symbolZOffset: ON_THE_ROOF,
+};
+
+/** The name of the venue the friends are at, to the right of their rings. */
+export const FRIEND_VENUE_STYLE: SymbolLayerStyleProps = {
+  textField: ['get', 'text'],
+  textFont: MAP_FONT,
+  textSize: FRIEND_MARK.nameSize,
+  textAnchor: 'left',
+  textJustify: 'left',
+  textOffset: ['get', 'textOffset'],
+  textColor: colors.label,
+  textHaloColor: colors.bg,
+  textHaloWidth: 1.4,
+  textHaloBlur: 0.8,
+  textAllowOverlap: true,
+  textIgnorePlacement: true,
+  symbolZOffset: ON_THE_ROOF,
+};
+
+// ── Signs ───────────────────────────────────────────────────────────────────
+
+/**
+ * The thin coloured slab on the wall under a sign: stretched like the buildings. If the 3D panel
+ * in front of it cannot be drawn, this is what marks the sign (and it is what a tap lands on).
+ */
+export const SIGN_SLAB_STYLE: FillExtrusionLayerStyleProps = {
+  fillExtrusionColor: ['get', 'fill'],
+  fillExtrusionBase: growing(['get', 'base']),
+  fillExtrusionHeight: growing(['get', 'top']),
+  fillExtrusionOpacity: 1,
+  fillExtrusionVerticalGradient: false,
+};
+
+/**
+ * The sign itself: a flat 3D panel carrying the sign's picture, standing just in front of the
+ * wall. Each feature says which model, how big, turned which way and how high.
+ */
+export const SIGN_PANEL_STYLE: ModelLayerStyleProps = {
+  modelId: ['get', 'model'],
+  modelScale: ['get', 'scale'],
+  modelRotation: ['get', 'rotation'],
+  modelTranslation: ['get', 'translation'],
+  // A sign is a light: shown at its own colours, not shaded by the map's light.
+  modelEmissiveStrength: 1,
+  modelType: 'common-3d',
+};
+
+/** Height above the ground of a hologram or an "Ad" tag, stretched like the buildings. */
+const SIGN_HEIGHT: Expr = growing(['get', 'z']);
+
+/** A hologram floating over a roof: a picture standing upright, facing the camera, sized in points. */
+export const SIGN_HOLOGRAM_STYLE: SymbolLayerStyleProps = {
+  iconImage: ['get', 'image'],
+  iconSize: zoomStops(SIGN.hologramByZoom),
+  iconAnchor: 'bottom',
+  iconPitchAlignment: 'viewport',
+  iconRotationAlignment: 'viewport',
+  iconAllowOverlap: true,
+  iconIgnorePlacement: true,
+  symbolZOffset: SIGN_HEIGHT,
+};
+
+/** The amber "Ad" block over a paid wall panel. */
+export const SIGN_TAG_STYLE: SymbolLayerStyleProps = {
+  iconImage: ['get', 'image'],
+  iconSize: zoomStops(SIGN.tagByZoom),
+  iconAnchor: 'bottom',
+  iconPitchAlignment: 'viewport',
+  iconRotationAlignment: 'viewport',
+  iconAllowOverlap: true,
+  iconIgnorePlacement: true,
+  symbolZOffset: SIGN_HEIGHT,
+};
 
 // ── Route ───────────────────────────────────────────────────────────────────
 

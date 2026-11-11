@@ -18,8 +18,10 @@ const out = process.env.OUT ?? '/tmp/city-preview';
 mkdirSync(out, { recursive: true });
 
 const C = await import('@/components/city/constants');
-const { cityLayers, pingLayers, venueLayers } = await import('@/components/city/layers');
-const { venuePoints, venueShapes } = await import('@/components/city/geojson');
+const { cityLayers, friendLayers, pingLayers, signLayers, venueLayers } = await import('@/components/city/layers');
+const { signArtUrl, signFeatures, signImageName } = await import('@/components/city/signs');
+const { decodeSignArt, drawFace, drawHologram, quadGlb } = await import('./sign-art.mjs');
+const { friendMarks, venuePoints, venueShapes } = await import('@/components/city/geojson');
 const { pickFootprint } = await import('@/components/city/footprint');
 const { ATMOSPHERE_STYLE } = await import('@/components/city/layer-styles');
 const { SPRITE_NAMES } = await import('@/components/city/sprites');
@@ -38,6 +40,18 @@ for (const [name, [longitude, latitude]] of Object.entries(JSON.parse(process.en
 }
 const byName = (name) => venues.find((v) => v.name === name);
 
+// Signs to try: SIGNS=<file.json> (an array like the API's MapSign[]), else three on real walls
+// near the demo venues: a paid panel, a venue's own, a hologram.
+const DEMO_SIGNS = [
+  { id: 'volt', format: 'facade', own: false, text: 'VOLT', colorTop: '#ffd23c', colorBottom: '#ff7a18', ink: '#1a0a00',
+    spot: { longitude: 19.263993, latitude: 42.440313, bearingDeg: 202, baseHeightM: 5, widthM: 14, heightM: 9, buildingHeightM: 17 } },
+  { id: 'kula', format: 'facade', own: true, text: 'KULA', colorTop: '#3a1bd6', colorBottom: '#ec5b93', ink: '#ffffff',
+    spot: { longitude: 19.264919, latitude: 42.441174, bearingDeg: 202, baseHeightM: 8, widthM: 12, heightM: 7, buildingHeightM: 20 } },
+  { id: 'aura', format: 'hologram', own: false, text: 'AURA|SPRITZ', colorTop: '#ffb020', colorBottom: '#ffb020', ink: '#ffb020',
+    spot: { longitude: 19.26287, latitude: 42.44072, bearingDeg: 0, baseHeightM: 0, widthM: 10, heightM: 5, buildingHeightM: 17 } },
+];
+const signs = process.env.SIGNS === '0' ? [] : process.env.SIGNS ? JSON.parse(readFileSync(process.env.SIGNS, 'utf8')) : DEMO_SIGNS;
+
 const DEFAULT = { center: C.CITY.center, zoom: C.CAMERA.zoom, pitch: C.CAMERA.pitch, bearing: C.CAMERA.heading };
 const at = (name) => {
   const v = byName(name);
@@ -49,9 +63,19 @@ const SHOTS = {
   default: { camera: DEFAULT },
   selected: { camera: DEFAULT, select: 'Monkey' },
   near: { camera: { ...DEFAULT, center: at('Monkey'), zoom: 16.6 } },
+  signs: { camera: { ...DEFAULT, center: [19.2639, 42.4406], zoom: 17.4 } },
   close: { camera: { ...DEFAULT, center: at('Monkey'), zoom: 17.8 }, select: 'Monkey' },
   far: { camera: { ...DEFAULT, zoom: 13.8 } },
   mine: { camera: DEFAULT, mode: 'mine', earned: ['Monkey', 'Kula'] },
+  friends: {
+    camera: DEFAULT,
+    mode: 'friends',
+    friends: [
+      { venue: 'Dr. House', count: 3, initials: ['M', 'A', 'S'] },
+      { venue: 'Neon Bašta', count: 1, initials: ['L'] },
+      { venue: 'Blok 5', count: 1, initials: ['D'] },
+    ],
+  },
   flat: { camera: { ...DEFAULT, pitch: 0, bearing: 0, zoom: 15.6 }, flat: true },
   backdrop: {
     camera: {
@@ -75,11 +99,29 @@ const shots = (wanted.length ? wanted : Object.keys(SHOTS)).map((name) => {
 });
 
 // ── A tiny web server for the page and the app's images ─────────────────────
-const MIME = { '.html': 'text/html', '.png': 'image/png' };
+const MIME = { '.html': 'text/html', '.png': 'image/png', '.ttf': 'font/ttf', '.glb': 'model/gltf-binary' };
+let page = null;
 const server = http
-  .createServer((request, response) => {
+  .createServer(async (request, response) => {
     const path = new URL(request.url, 'http://x').pathname;
+    response.setHeader('access-control-allow-origin', '*');
     try {
+      // Standing in for the server's sign-art endpoints, drawn by the reference in sign-art.mjs.
+      const art = path.match(/^\/api\/sign-art\/(face|hologram|panel)\/([A-Za-z0-9_-]+)\.(png|glb)$/);
+      if (art) {
+        const sign = decodeSignArt(art[2]);
+        const draw = art[1] === 'hologram' ? drawHologram : drawFace;
+        const url = await page.run(`(${draw.toString()})(${JSON.stringify(sign)})`);
+        const png = Buffer.from(url.split(',')[1], 'base64');
+        response.setHeader('content-type', MIME[`.${art[3]}`]);
+        response.end(art[1] === 'panel' ? quadGlb(png) : png);
+        return;
+      }
+      if (path === '/fonts/coolvetica.ttf') {
+        response.setHeader('content-type', MIME['.ttf']);
+        response.end(readFileSync(join(app, 'assets/fonts/coolvetica.ttf')));
+        return;
+      }
       const file = path === '/' ? join(here, 'page.html') : join(app, 'assets/images', path.replace(/^\/images\//, '').replace(/\.\./g, ''));
       response.setHeader('content-type', MIME[extname(file)] ?? 'application/octet-stream');
       response.end(readFileSync(file));
@@ -106,7 +148,7 @@ const images = [
   ...SPRITE_NAMES.map((name) => ({ name, url: `${base}/images/city/${name}.png`, pixelRatio: C.SPRITE.pixelRatio })),
 ];
 
-const page = await openPage();
+page = await openPage();
 const footprints = {};
 try {
   await page.goto(`${base}/`);
@@ -124,11 +166,41 @@ try {
     });
     const sources = () => {
       const points = venuePoints(venues, drawing());
-      return { [C.SOURCE.venuePoints]: points, [C.SOURCE.venueShapes]: venueShapes(venues, drawing()), [C.SOURCE.venueLights]: points };
+      return {
+        [C.SOURCE.venuePoints]: points,
+        [C.SOURCE.venueShapes]: venueShapes(venues, drawing()),
+        [C.SOURCE.venueLights]: points,
+        [C.SOURCE.friends]: friendMarks(friends, footprints, flat),
+        [C.SOURCE.signSlabs]: signData.slabs,
+        [C.SOURCE.signPanels]: signData.panels,
+        [C.SOURCE.signMarks]: signData.marks,
+      };
     };
-    const groups = venueLayers(flat, shot.labels ?? true);
+    const friendsMode = shot.mode === 'friends';
+    const groups = venueLayers(flat, (shot.labels ?? true) && !friendsMode, friendsMode);
+    const friends = (shot.friends ?? []).flatMap((f) => {
+      const venue = byName(f.venue);
+      return venue
+        ? [{ venueId: venue.id, venueName: venue.name, latitude: venue.latitude, longitude: venue.longitude, count: f.count, friends: f.initials.map((initial) => ({ initial })) }]
+        : [];
+    });
     // PULSE=1 shows the second ripple of the pulse, as if caught mid-beat.
-    const layers = [...cityLayers(), ...groups.ground, ...groups.shapes, ...pingLayers(flat, Number(process.env.PULSE ?? 3)), ...groups.lights];
+    const signGroups = signLayers();
+    const shownSigns = flat ? [] : signs;
+    const signData = signFeatures(shownSigns, C.BUILDINGS.stretch);
+    const layers = [
+      ...cityLayers(),
+      ...groups.ground,
+      ...groups.shapes,
+      ...signGroups.slabs,
+      ...signGroups.panels,
+      ...pingLayers(flat, Number(process.env.PULSE ?? 3)),
+      ...groups.lights,
+      ...friendLayers(),
+      ...signGroups.marks,
+    ];
+    const signImages = shownSigns.filter((sign) => sign.format === 'hologram').map((sign) => ({ name: signImageName(sign), url: signArtUrl(base, sign, 'hologram'), pixelRatio: 3 }));
+    const signModels = shownSigns.filter((sign) => sign.format !== 'hologram').map((sign) => ({ name: signImageName(sign), url: signArtUrl(base, sign, 'panel') }));
 
     if (!started) {
       await page.run(`start(${JSON.stringify({ token, styleUrl: C.MAP_STYLE_URL.replace('mapbox://styles/', 'mapbox://styles/'), camera: shot.camera })})`);
@@ -136,7 +208,7 @@ try {
     } else {
       await page.run(`moveTo(${JSON.stringify(shot.camera)})`);
     }
-    const problems = await page.run(`dress(${JSON.stringify({ images, fog, layers, sources: sources() })})`);
+    const problems = await page.run(`dress(${JSON.stringify({ images: [...images, ...signImages], models: signModels, fog, layers, sources: sources() })})`);
 
     // As the app does when the map settles: find each venue's own building, then draw again.
     let found = 0;

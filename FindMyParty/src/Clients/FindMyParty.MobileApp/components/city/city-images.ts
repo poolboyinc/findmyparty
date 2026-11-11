@@ -1,9 +1,10 @@
 // The light pictures, by the names the map layers use (components/city/sprites.ts).
-// Metro needs each `require` written out. Regenerate the files with tools/city-preview/make-sprites.mjs.
+// Written by tools/city-preview/make-sprites.mjs: do not edit by hand.
 
 import { LABEL_BOX, LABEL_BOX_IMAGE, SPRITE } from './constants';
 
 const FILES = {
+  'ad-tag': require('@/assets/images/city/ad-tag.png'),
   'beam-0-expected': require('@/assets/images/city/beam-0-expected.png'),
   'beam-0-live': require('@/assets/images/city/beam-0-live.png'),
   'beam-1-expected': require('@/assets/images/city/beam-1-expected.png'),
@@ -27,6 +28,7 @@ const FILES = {
   'count-4-live': require('@/assets/images/city/count-4-live.png'),
   'count-5-expected': require('@/assets/images/city/count-5-expected.png'),
   'count-5-live': require('@/assets/images/city/count-5-live.png'),
+  'friend-ring': require('@/assets/images/city/friend-ring.png'),
   'ping-3': require('@/assets/images/city/ping-3.png'),
   'ping-4': require('@/assets/images/city/ping-4.png'),
   'ping-5': require('@/assets/images/city/ping-5.png'),

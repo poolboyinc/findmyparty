@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { BackgroundLayer, CircleLayer, FillExtrusionLayer, FillLayer, LineLayer, SymbolLayer } from '@rnmapbox/maps';
+import { BackgroundLayer, CircleLayer, FillExtrusionLayer, FillLayer, LineLayer, ModelLayer, SymbolLayer } from '@rnmapbox/maps';
 import type { LayerSpec } from './layers';
 
 /** One entry of layers.ts as the Mapbox layer it describes. */
@@ -24,6 +24,8 @@ export const SpecLayer = memo(function SpecLayer({ spec }: { spec: LayerSpec }) 
       return <CircleLayer {...common} {...zoom} style={spec.style} />;
     case 'symbol':
       return <SymbolLayer {...common} {...zoom} style={spec.style} />;
+    case 'model':
+      return <ModelLayer {...common} {...zoom} style={spec.style} />;
     case 'fillExtrusion':
       // The package's FillExtrusionLayer types require both zoom bounds.
       return (

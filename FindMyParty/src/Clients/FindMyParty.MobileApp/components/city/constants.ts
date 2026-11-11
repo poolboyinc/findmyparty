@@ -113,10 +113,12 @@ export const BUILDINGS = {
    */
   minZoom: 15,
   /**
-   * Podgorica is low; zoomed out far enough to see every venue its buildings would be a few
-   * points tall. The map stretches them upwards, more when far out, less when close.
+   * Podgorica is low. Every height on the map (buildings, the lit roof lines, where beams and
+   * signs stand) is stretched upwards by this, so the city reads as a city when tilted.
    */
-  verticalScale: [15, 1.8, 16, 1.6, 17.5, 1.2] as const,
+  stretch: 1.5,
+  /** Buildings rise out of the ground over this much zoom past `minZoom`, so tiles do not pop in. */
+  riseOverZoom: 0.3,
   opacity: 0.95,
   ambientOcclusion: 0.35,
   /** Metres: the slab laid over each roof so the facade image does not show on top. */
@@ -239,6 +241,19 @@ export const PULSE = {
   fadeMs: 650,
 } as const;
 
+/**
+ * Signs (S-19). They belong to the street, so they only show once the map is close enough to
+ * read them; a hologram is sized in points like a beam, a wall panel in metres like its wall.
+ */
+export const SIGN = {
+  fromZoom: 15.6,
+  /** Size of a hologram at each zoom: [zoom, size, …]. */
+  hologramByZoom: [15.6, 0.7, 16.5, 1, 18, 1.5] as const,
+  tagByZoom: [15.6, 0.8, 17, 1, 18.5, 1.25] as const,
+  /** Metres the hologram's light cone starts above the roof. */
+  hologramLiftM: 0.6,
+} as const;
+
 /** The soft pool of light on the ground around a lit venue, in points: far, middle, near. */
 export const GROUND_GLOW = { radius: [10, 30, 80] as const, live: 0.36, expected: 0.2 } as const;
 
@@ -273,6 +288,12 @@ export const SOURCE = {
   venueShapes: 'city-venue-shapes',
   /** The same points again, for what stands on the roof: ring, beam, names. */
   venueLights: 'city-venue-lights',
+  /** Signs: the slab on the wall, the 3D panel in front of it, and holograms and "Ad" tags. */
+  signSlabs: 'city-sign-slabs',
+  signPanels: 'city-sign-panels',
+  signMarks: 'city-sign-marks',
+  /** Friends layer: the friends at each venue. */
+  friends: 'city-friends',
 } as const;
 
 export const LAYER = {
@@ -293,6 +314,12 @@ export const LAYER = {
   ping: 'city-ping-',
   roofRing: 'city-roof-ring',
   beam: 'city-beam',
+  signSlab: 'city-sign-slab',
+  signPanel: 'city-sign-panel',
+  signHologram: 'city-sign-hologram',
+  signTag: 'city-sign-tag',
+  friendAvatar: 'city-friend-avatar',
+  friendVenue: 'city-friend-venue',
   labelNames: 'city-label-names',
   labelSelected: 'city-label-selected',
   youGlow: 'city-you-glow',

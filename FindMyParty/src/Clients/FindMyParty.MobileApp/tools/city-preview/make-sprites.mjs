@@ -36,6 +36,9 @@ sprites.push({ kind: 'beam', name: 'beam-earned', heat: 0.45, color: '#c6ff3d', 
 sprites.push({ kind: 'ring', name: 'ring-earned', color: '#c6ff3d' });
 sprites.push({ kind: 'ring', name: 'ring-selected', color: '#ffffff' });
 sprites.push({ kind: 'ring', name: 'ring-ghost', color: '#ffffff', dashed: true });
+// The amber block over a paid sign, and the ring a friend's initial sits in.
+sprites.push({ kind: 'tag', name: 'ad-tag' });
+sprites.push({ kind: 'friend', name: 'friend-ring' });
 // The ripple that spreads from the roof of a busy venue: the ring again, twice as wide and thinner.
 for (let bars = 3; bars <= 5; bars++) sprites.push({ kind: 'ring', name: `ping-${bars}`, color: crowdColor(bars), ping: true });
 for (let bars = 1; bars <= 5; bars++) {
@@ -125,6 +128,36 @@ function draw(sprite) {
     return { url: canvas.toDataURL('image/png'), width: W, height: H, length: L, halo: R };
   }
 
+  if (sprite.kind === 'tag') {
+    // The mock's `.adtag`: a small amber block, dark "Ad", barely rounded.
+    const g = make(17, 11);
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = '#ffb020';
+    g.beginPath();
+    g.roundRect(0, 0, W, H, 2);
+    g.fill();
+    g.font = `700 ${6.5 * S}px "Adwaita Sans", "Inter", system-ui, sans-serif`;
+    g.fillStyle = '#1a0f00';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('Ad', W / 2, H / 2 + 0.5);
+    return { url: canvas.toDataURL('image/png'), width: W, height: H };
+  }
+
+  if (sprite.kind === 'friend') {
+    // The mock's `.av`: a dark disc with a cyan ring; the friend's initial is set on top by the map.
+    const g = make(24, 24);
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = '#0b1a24';
+    g.strokeStyle = '#22e6ff';
+    g.lineWidth = 1.5;
+    g.beginPath();
+    g.arc(12, 12, 10, 0, 7);
+    g.fill();
+    g.stroke();
+    return { url: canvas.toDataURL('image/png'), width: W, height: H };
+  }
+
   if (sprite.kind === 'count') {
     // The crowd under a venue's name: small, semi-bold, in the venue's colour, with a dark edge
     // so it reads on the map (the mock's `.vt small`: 7.5 px × 1.37).
@@ -177,6 +210,32 @@ try {
     sizes[sprite.name] = { width: result.width, height: result.height, length: result.length, halo: result.halo };
   }
   console.log(JSON.stringify(sizes, null, 1));
+
+  // The list the app loads the pictures from: Metro needs every `require` written out.
+  const names = sprites.map((sprite) => sprite.name).sort();
+  writeFileSync(
+    join(here, '../../components/city/city-images.ts'),
+    `// The light pictures, by the names the map layers use (components/city/sprites.ts).
+// Written by tools/city-preview/make-sprites.mjs: do not edit by hand.
+
+import { LABEL_BOX, LABEL_BOX_IMAGE, SPRITE } from './constants';
+
+const FILES = {
+${names.map((name) => `  '${name}': require('@/assets/images/city/${name}.png'),`).join('\n')}
+} as const;
+
+/** Ready for the map's \`<Images>\`: each picture with its pixels-per-point. */
+export const SPRITE_IMAGES = {
+  ...Object.fromEntries(Object.entries(FILES).map(([name, image]) => [name, { image, scale: SPRITE.pixelRatio }])),
+  [LABEL_BOX_IMAGE]: {
+    image: require('@/assets/images/city/label-box.png'),
+    scale: LABEL_BOX.pixelRatio,
+    stretchX: LABEL_BOX.stretch,
+    stretchY: LABEL_BOX.stretch,
+  },
+};
+`,
+  );
 } finally {
   await page.close();
 }

@@ -29,6 +29,10 @@ export function pingImage(bars: number): string {
 }
 const PING_FROM_BARS = 3;
 
+/** The amber "Ad" block over a paid sign, and the ring a friend's initial sits in. */
+export const AD_TAG = 'ad-tag';
+export const FRIEND_RING = 'friend-ring';
+
 export const BEAM_EARNED = 'beam-earned';
 export const RING_EARNED = 'ring-earned';
 export const RING_SELECTED = 'ring-selected';
@@ -45,6 +49,8 @@ export const SPRITE_NAMES: readonly string[] = [
   ...BARS.flatMap((bars) => [beamImage(bars, false), beamImage(bars, true), ringImage(bars)]),
   ...BARS.slice(1).flatMap((bars) => [countImage(bars, false), countImage(bars, true)]),
   ...BARS.map(pingImage).filter(Boolean),
+  AD_TAG,
+  FRIEND_RING,
   BEAM_EARNED,
   RING_EARNED,
   RING_SELECTED,

@@ -4,8 +4,8 @@ import type { VenueSummary } from '@/types/api';
 import { useReducedMotion } from '@/components/afterglow/motion';
 import { PULSE, SOURCE, TAP_HITBOX } from './constants';
 import type { Footprint } from './footprint';
-import { tappedVenueId, venuePoints, venueShapes, type CityMode } from './geojson';
-import { pingLayers, venueLayers } from './layers';
+import { friendMarks, tappedVenueId, venuePoints, venueShapes, type CityMode, type FriendsOnMap } from './geojson';
+import { friendLayers, pingLayers, venueLayers } from './layers';
 import { SpecLayers } from './spec-layer';
 
 type PressEvent = Parameters<NonNullable<ComponentProps<typeof ShapeSource>['onPress']>>[0];
@@ -15,8 +15,10 @@ type Props = {
   selectedId: string | null;
   /** 2D: beams off, discs sized by the crowd. */
   flat: boolean;
-  /** Live, or My City. */
+  /** Live, My City, or Friends. */
   mode?: CityMode;
+  /** Friends layer: who is at which venue. */
+  friends?: readonly FriendsOnMap[];
   /** My City: the venues the user has been scanned into. */
   earned?: ReadonlySet<string>;
   /** Names on the map. Off for the welcome backdrop. */
@@ -30,6 +32,8 @@ type Props = {
 };
 
 const NONE: ReadonlySet<string> = new Set();
+const NO_FRIENDS: readonly FriendsOnMap[] = [];
+const FRIEND_LAYERS = friendLayers();
 /** Steps in one pulse: the three ripples, then a rest. */
 const PULSE_STEPS = PULSE.sizes.length + 1;
 const AT_REST: number = PULSE.sizes.length;
@@ -58,6 +62,7 @@ export const VenueLayers = memo(function VenueLayers({
   flat,
   mode = 'live',
   earned = NONE,
+  friends = NO_FRIENDS,
   labels = true,
   footprints,
   pulse = false,
@@ -72,7 +77,13 @@ export const VenueLayers = memo(function VenueLayers({
   );
   const points = useMemo(() => venuePoints(venues, drawing), [venues, drawing]);
   const shapes = useMemo(() => venueShapes(venues, drawing), [venues, drawing]);
-  const layers = useMemo(() => venueLayers(flat, labels), [flat, labels]);
+  const friendsMode = mode === 'friends';
+  // On the Friends layer the venues go unnamed; the friends' marks carry the names.
+  const layers = useMemo(() => venueLayers(flat, labels && !friendsMode, friendsMode), [flat, labels, friendsMode]);
+  const marks = useMemo(
+    () => friendMarks(friendsMode ? friends : NO_FRIENDS, footprints, flat),
+    [friendsMode, friends, footprints, flat],
+  );
 
   const handlePress = useCallback(
     (event: PressEvent) => {
@@ -94,6 +105,9 @@ export const VenueLayers = memo(function VenueLayers({
       <ShapeSource id={SOURCE.venueLights} shape={points} {...press}>
         <SpecLayers specs={pings} />
         <SpecLayers specs={layers.lights} />
+      </ShapeSource>
+      <ShapeSource id={SOURCE.friends} shape={marks} {...press}>
+        <SpecLayers specs={FRIEND_LAYERS} />
       </ShapeSource>
     </>
   );

@@ -8,13 +8,20 @@ import type {
   FillExtrusionLayerStyle,
   FillLayerStyle,
   LineLayerStyle,
+  ModelLayerStyle,
   SymbolLayerStyle,
 } from '@rnmapbox/maps';
-import { BASEMAP_LAYER, BASEMAP_SOURCE, BUILDINGS, LAYER, PULSE, SOURCE, SWITCH } from './constants';
+import { BASEMAP_LAYER, BASEMAP_SOURCE, BUILDINGS, LAYER, PULSE, SIGN, SOURCE, SWITCH } from './constants';
 import {
   BASEMAP_STYLE,
   FILTER,
+  FRIEND_AVATAR_STYLE,
+  FRIEND_VENUE_STYLE,
   ROOF_STYLE,
+  SIGN_HOLOGRAM_STYLE,
+  SIGN_PANEL_STYLE,
+  SIGN_SLAB_STYLE,
+  SIGN_TAG_STYLE,
   STREET_CORE_STYLE,
   STREET_GLOW_STYLE,
   WATER_EDGE_STYLE,
@@ -39,6 +46,7 @@ type StyleByType = {
   fillExtrusion: FillExtrusionLayerStyle;
   circle: CircleLayerStyle;
   symbol: SymbolLayerStyle;
+  model: ModelLayerStyle;
 };
 
 type SpecOf<K extends keyof StyleByType> = {
@@ -116,7 +124,12 @@ export function cityLayers(): LayerSpec[] {
  *   shapes  the bright line round the roof of the venue's building and the lines up its corners;
  *   lights  the ring on the roof, the beam standing in it, then names with their crowd, the selected block.
  */
-export function venueLayers(flat: boolean, labels: boolean): { ground: LayerSpec[]; shapes: LayerSpec[]; lights: LayerSpec[] } {
+export function venueLayers(
+  flat: boolean,
+  labels: boolean,
+  /** Friends layer: beams and rings at part strength. */
+  dim = false,
+): { ground: LayerSpec[]; shapes: LayerSpec[]; lights: LayerSpec[] } {
   const ground = { source: SOURCE.venuePoints } as const;
   const shapes = { source: SOURCE.venueShapes } as const;
   const lights = { source: SOURCE.venueLights } as const;
@@ -133,8 +146,8 @@ export function venueLayers(flat: boolean, labels: boolean): { ground: LayerSpec
       { type: 'fillExtrusion', id: LAYER.roofFrame, ...shapes, filter: FILTER.frame, style: lit },
     ],
     lights: [
-      { type: 'symbol', id: LAYER.roofRing, ...lights, style: ringStyle(flat) },
-      { type: 'symbol', id: LAYER.beam, ...lights, filter: FILTER.hasBeam, style: beamStyle(flat) },
+      { type: 'symbol', id: LAYER.roofRing, ...lights, style: ringStyle(flat, dim) },
+      { type: 'symbol', id: LAYER.beam, ...lights, filter: FILTER.hasBeam, style: beamStyle(flat, dim) },
       ...(labels
         ? ([
             { type: 'symbol', id: LAYER.labelNames, ...lights, filter: FILTER.names, style: nameStyle() },
@@ -158,4 +171,29 @@ export function pingLayers(flat: boolean, step: number): LayerSpec[] {
     filter: FILTER.hasPing,
     style: pingStyle(flat, index, index === step),
   }));
+}
+
+/**
+ * Signs, bottom to top: the slab on the wall, the 3D panel just in front of it, then holograms
+ * and the "Ad" tags. Each group has its own source (SOURCE.signSlabs, signPanels, signMarks).
+ */
+export function signLayers(): { slabs: LayerSpec[]; panels: LayerSpec[]; marks: LayerSpec[] } {
+  const minZoom = SIGN.fromZoom;
+  return {
+    slabs: [{ type: 'fillExtrusion', id: LAYER.signSlab, source: SOURCE.signSlabs, minZoom, style: SIGN_SLAB_STYLE }],
+    panels: [{ type: 'model', id: LAYER.signPanel, source: SOURCE.signPanels, minZoom, style: SIGN_PANEL_STYLE }],
+    marks: [
+      { type: 'symbol', id: LAYER.signHologram, source: SOURCE.signMarks, minZoom, filter: FILTER.hologram, style: SIGN_HOLOGRAM_STYLE },
+      { type: 'symbol', id: LAYER.signTag, source: SOURCE.signMarks, minZoom, filter: FILTER.tag, style: SIGN_TAG_STYLE },
+    ],
+  };
+}
+
+/** The Friends layer's marks (SOURCE.friends): the rings with initials, then the venue names. */
+export function friendLayers(): LayerSpec[] {
+  const source = SOURCE.friends;
+  return [
+    { type: 'symbol', id: LAYER.friendAvatar, source, filter: FILTER.avatar, style: FRIEND_AVATAR_STYLE },
+    { type: 'symbol', id: LAYER.friendVenue, source, filter: FILTER.friendVenue, style: FRIEND_VENUE_STYLE },
+  ];
 }

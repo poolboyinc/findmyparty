@@ -11,9 +11,10 @@ import { BEAM_EARNED, RING_EARNED, RING_GHOST, RING_SELECTED, beamImage, beamLen
 
 /**
  * What the map shows. `live`: every venue by its crowd. `mine` (My City): the venues the user has
- * been scanned into, lit in lime; the others as dashed rings waiting.
+ * been scanned into, lit in lime; the others as dashed rings waiting. `friends`: the crowd beams
+ * dimmed and unnamed, and the user's friends in cyan at the venues they were scanned into.
  */
-export type CityMode = 'live' | 'mine';
+export type CityMode = 'live' | 'mine' | 'friends';
 
 /** A text offset in ems: [right, down]. */
 type Offset = [number, number];
@@ -174,8 +175,9 @@ function venueProps(venue: VenueSummary, drawing: VenueDrawing): VenueProps {
   const strength = crowdStrength(venue.crowdLevel);
   const expected = venue.crowdSource === 'expected';
   const selected = venue.id === drawing.selectedId;
-  // My City is about where you have been, so it shows no crowd.
-  const label = mine ? '' : mapCrowdLabel(venue.crowdLevel, venue.crowdSource);
+  // My City is about where you have been, and Friends about who is where: neither shows the crowd.
+  const quiet = mine || drawing.mode === 'friends';
+  const label = quiet ? '' : mapCrowdLabel(venue.crowdLevel, venue.crowdSource);
   const crowd = mine ? '' : selectedCrowdLine(venue.crowdLevel, venue.crowdSource);
   const color = mine ? colors.earned : crowdColor(venue.crowdLevel);
 
@@ -203,7 +205,7 @@ function venueProps(venue: VenueSummary, drawing: VenueDrawing): VenueProps {
     nameSize: ghost ? LABEL.ghostSize : LABEL.size,
     beam,
     ring,
-    ping: !mine && !expected && !selected ? pingImage(bars) : '',
+    ping: !quiet && !expected && !selected ? pingImage(bars) : '',
     roofM: drawing.flat ? 0 : roofTop(drawing.footprints?.[venue.id]),
     nameFar: atFar.name,
     nameMid: atMid.name,
@@ -316,6 +318,86 @@ export function venueShapes(
   return { type: 'FeatureCollection', features };
 }
 
+/** Friends at one venue, as the server sends them (`FriendsAtVenue`). */
+export type FriendsOnMap = {
+  venueId: string;
+  venueName: string;
+  latitude: number;
+  longitude: number;
+  count: number;
+  /** Three at most. */
+  friends: readonly { initial: string }[];
+};
+
+export type FriendMarkProps = {
+  venueId: string;
+  /** 'avatar': a ring with an initial (or "+2") in it. 'name': the venue's name beside the rings. */
+  kind: 'avatar' | 'name';
+  text: string;
+  /** Points to the right of the venue's point, for the ring; and the same in ems, for its text. */
+  iconOffset: [number, number];
+  textOffset: [number, number];
+  /** Metres from the ground to the venue's roof, or 0. */
+  roofM: number;
+};
+
+/** How far apart the friends' rings sit, where the first one starts, and their text size, in points. */
+export const FRIEND_MARK = { first: 16, step: 15, initialSize: 10, nameSize: 14, nameGap: 14 } as const;
+
+/**
+ * The Friends layer: at each venue where friends are, their initials in cyan rings side by side
+ * (two initials and "+n" from three friends up), then
+ * the venue's name. They sit at the roof, to the right of the beam.
+ */
+export function friendMarks(
+  places: readonly FriendsOnMap[],
+  footprints: Readonly<Record<string, Footprint>> | undefined,
+  flat: boolean,
+): FeatureCollection<Point, FriendMarkProps> {
+  const features: Feature<Point, FriendMarkProps>[] = [];
+  for (const place of places) {
+    if (place.count <= 0 || !Number.isFinite(place.latitude) || !Number.isFinite(place.longitude)) continue;
+    const footprint = footprints?.[place.venueId];
+    const coordinates = footprint?.centroid ?? [place.longitude, place.latitude];
+    const roofM = flat ? 0 : roofTop(footprint);
+    const initials = place.friends.map((friend) => friend.initial.slice(0, 1).toUpperCase()).filter(Boolean);
+    // One or two friends: both initials. Three or more: two initials and "+n", as the mock draws them.
+    const shown = place.count <= 2 && initials.length >= place.count ? initials.slice(0, 2) : initials.slice(0, Math.min(2, initials.length));
+    const rest = place.count - shown.length;
+    const texts = rest > 0 ? [...shown, `+${rest}`] : shown;
+
+    texts.forEach((text, index) => {
+      const x = FRIEND_MARK.first + index * FRIEND_MARK.step;
+      features.push({
+        type: 'Feature',
+        properties: {
+          venueId: place.venueId,
+          kind: 'avatar',
+          text,
+          iconOffset: [x, 0],
+          textOffset: [x / FRIEND_MARK.initialSize, 0],
+          roofM,
+        },
+        geometry: { type: 'Point', coordinates },
+      });
+    });
+    const nameX = FRIEND_MARK.first + (texts.length - 1) * FRIEND_MARK.step + FRIEND_MARK.nameGap;
+    features.push({
+      type: 'Feature',
+      properties: {
+        venueId: place.venueId,
+        kind: 'name',
+        text: place.venueName,
+        iconOffset: [nameX, 0],
+        textOffset: [nameX / FRIEND_MARK.nameSize, 0],
+        roofM,
+      },
+      geometry: { type: 'Point', coordinates },
+    });
+  }
+  return { type: 'FeatureCollection', features };
+}
+
 /** The walking route as the map wants it; an empty collection draws nothing. */
 export function routeCollection(line: LineString | null): FeatureCollection<LineString> {
   return {
@@ -350,7 +432,7 @@ export function nearestVenueId(venues: readonly VenueSummary[], at: LngLat, with
 /** The id of the venue a tap landed on, from the features the map reports under the finger. */
 export function tappedVenueId(features: readonly Feature[]): string | null {
   for (const feature of features) {
-    const id: unknown = feature.properties?.id;
+    const id: unknown = feature.properties?.id ?? feature.properties?.venueId;
     if (typeof id === 'string' && id.length > 0) return id;
   }
   return null;
