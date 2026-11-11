@@ -120,7 +120,7 @@ function City() {
         mode={city.mode}
         earned={city.earned}
         onSelectVenue={city.select}
-        onPressEmpty={city.clearSelection}
+        onPressEmpty={city.pressMap}
         routeLine={route.status === 'ready' ? route.route.line : null}
         showUser={city.showUser}
         onPressUser={city.selectNearUser}

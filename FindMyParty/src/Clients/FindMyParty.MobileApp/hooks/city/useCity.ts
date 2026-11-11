@@ -103,6 +103,7 @@ export function useCity() {
   const walk = useWalkingRoute();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const lastSelectAt = useRef(0);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [asking, setAsking] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -138,6 +139,7 @@ export function useCity() {
       const venue = venues.find((candidate) => candidate.id === venueId);
       if (!venue) return;
       Haptics.selectionAsync();
+      lastSelectAt.current = Date.now();
       setSelectedId(venueId);
       camera.focus([venue.longitude, venue.latitude], sheetHeight.current + SHEET_CUSHION);
     },
@@ -145,6 +147,14 @@ export function useCity() {
   );
 
   const clearSelection = useCallback(() => setSelectedId(null), []);
+  /**
+   * A tap on empty map closes the sheet. The map also reports the tap that just selected a beam as a
+   * map tap, so taps within a moment of a selection are ignored.
+   */
+  const pressMap = useCallback(() => {
+    if (Date.now() - lastSelectAt.current < 400) return;
+    setSelectedId(null);
+  }, []);
 
   const onSheetHeight = useCallback(
     (height: number) => {
@@ -351,6 +361,7 @@ export function useCity() {
     selectedParty,
     select,
     clearSelection,
+    pressMap,
     selectNearUser,
     onSheetHeight,
     /** Metres from you to the selected venue, when your position is known. */

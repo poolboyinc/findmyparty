@@ -42,6 +42,9 @@ const HANDLE_HEIGHT = 24;
  * There is no dimming backdrop: the city stays lit behind it and another beam can be tapped
  * straight away.
  */
+/** How long a just-presented sheet gets to mount before it may be dismissed. */
+const PRESENT_SETTLE_MS = 150;
+
 export function VenueSheet({ venue, party, distance, onDismiss, onWalk, onHeight }: Props) {
   const sheet = useRef<BottomSheetModal>(null);
   const insets = useSafeAreaInsets();
@@ -53,10 +56,27 @@ export function VenueSheet({ venue, party, distance, onDismiss, onWalk, onHeight
   }, [venue, party]);
   const shown = venue ? { venue, party } : last;
 
+  // @gorhom/bottom-sheet: a dismiss() on a modal that was never presented (or is still mounting)
+  // marks it as closing for good, and present() then does nothing. That is why the sheet never
+  // opened on the device: this effect dismissed it on first render. Only dismiss what is open,
+  // and give a fresh present a moment to mount first.
+  const presented = useRef(false);
+  const presentedAt = useRef(0);
   const venueId = venue?.id ?? null;
   useEffect(() => {
-    if (venueId) sheet.current?.present();
-    else sheet.current?.dismiss();
+    if (venueId) {
+      presented.current = true;
+      presentedAt.current = Date.now();
+      sheet.current?.present();
+      return;
+    }
+    if (!presented.current) return;
+    const wait = Math.max(0, PRESENT_SETTLE_MS - (Date.now() - presentedAt.current));
+    const timer = setTimeout(() => {
+      presented.current = false;
+      sheet.current?.dismiss();
+    }, wait);
+    return () => clearTimeout(timer);
   }, [venueId]);
 
   const handleLayout = useCallback(
@@ -66,6 +86,7 @@ export function VenueSheet({ venue, party, distance, onDismiss, onWalk, onHeight
 
   /** Close first, so the sheet is not still open when the user comes back. */
   const open = (path: `/party/${string}` | `/venue/${string}`) => {
+    presented.current = false;
     sheet.current?.dismiss();
     router.push(path);
   };
@@ -75,7 +96,10 @@ export function VenueSheet({ venue, party, distance, onDismiss, onWalk, onHeight
       ref={sheet}
       enableDynamicSizing
       enablePanDownToClose
-      onDismiss={onDismiss}
+      onDismiss={() => {
+        presented.current = false;
+        onDismiss();
+      }}
       handleIndicatorStyle={styles.handle}
       backgroundStyle={styles.background}
     >

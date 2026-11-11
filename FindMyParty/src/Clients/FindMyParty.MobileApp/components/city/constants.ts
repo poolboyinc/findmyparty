@@ -204,6 +204,9 @@ export const BEAM = {
     { to: 0.75, opacity: 0.7 },
     { to: 1, opacity: 0.42 },
   ],
+  /** The lit roof over the venue's own building: how much wider than the roof, and how thick (m). */
+  roofInflate: 1.04,
+  roofDepthM: 1.5,
   /** The white core runs up this share of the beam. */
   coreShare: 0.8,
   coreOpacity: 0.9,
@@ -254,6 +257,7 @@ export const SOURCE = {
 export const LAYER = {
   venueBlock: 'city-venue-block',
   venueEdge: 'city-venue-edge',
+  venueRoof: 'city-venue-roof',
   waterEdge: 'city-water-edge',
   streetGlow: 'city-street-glow',
   streetCore: 'city-street-core',

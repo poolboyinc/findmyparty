@@ -5,6 +5,7 @@ import { crowdColor, crowdStrength } from '@/services/crowd';
 import { colors } from '@/theme';
 import type { VenueSummary } from '@/types/api';
 import { BEAM, LABEL, PALETTE, SWITCH, type LngLat, VENUE_BLOCK } from './constants';
+import { inflate, type Footprint } from './footprint';
 
 /**
  * What the map shows. `live`: every venue by its crowd. `mine` (My City): the venues the user has
@@ -42,7 +43,7 @@ export type VenueProps = {
 };
 
 /** Which part of a beam a polygon is. */
-export type BeamKind = 'block' | 'edge' | 'core' | 'piece' | 'halo' | 'ring' | 'ghost';
+export type BeamKind = 'block' | 'edge' | 'roof' | 'core' | 'piece' | 'halo' | 'ring' | 'ghost';
 
 /** Beam polygons say which part they are, how high they start and end, and their own colour. */
 export type BeamProps = VenueProps & {
@@ -176,7 +177,14 @@ export type VenueDrawing = {
   earned: ReadonlySet<string>;
   /** 2D: names sit above the discs instead of at the tops of the beams. */
   flat: boolean;
+  /** The real building each venue is in, once the map has drawn it (useVenueFootprints). */
+  footprints?: Readonly<Record<string, Footprint>>;
 };
+
+/** Where a venue's light stands: the middle of its building when known, else its own point. */
+function anchorOf(venue: VenueSummary, drawing: VenueDrawing): LngLat {
+  return drawing.footprints?.[venue.id]?.centroid ?? [venue.longitude, venue.latitude];
+}
 
 /** Name and crowd-line offsets, in ems of their own text sizes. */
 function labelOffsets(
@@ -240,7 +248,7 @@ export function venuePoints(
     features.push({
       type: 'Feature',
       properties: venueProps(venue, drawing),
-      geometry: { type: 'Point', coordinates: [venue.longitude, venue.latitude] },
+      geometry: { type: 'Point', coordinates: anchorOf(venue, drawing) },
     });
   }
   return { type: 'FeatureCollection', features };
@@ -271,7 +279,8 @@ export function venueBeams(
   for (const venue of venues) {
     if (!isOnEarth(venue)) continue;
     const props = venueProps(venue, drawing);
-    const center: LngLat = [venue.longitude, venue.latitude];
+    const center: LngLat = anchorOf(venue, drawing);
+    const footprint = drawing.footprints?.[venue.id];
     const beam = [circleRing(center, BEAM.beamRadiusM)];
 
     if (props.ghost) {
@@ -280,23 +289,36 @@ export function venueBeams(
     }
 
     const height = drawing.mode === 'mine' ? BEAM.heightEarned : beamHeight(props.strength);
-    // The venue's block, with a bright edge on its roof; its height is not scaled with zoom.
-    // Beams are scaled with zoom (BEAM.scaleByZoom), so they start a little above the roof to clear it.
-    const ROOF = VENUE_BLOCK.heightM * 1.2;
-    features.push(
-      beamPart(props, [squareRing(center, VENUE_BLOCK.halfM)], {
-        kind: 'block',
-        base: 0,
-        top: VENUE_BLOCK.heightM,
-        fill: VENUE_BLOCK.fill,
-      }),
-      beamPart(props, squareFrame(center, VENUE_BLOCK.halfM, VENUE_BLOCK.edgeM), {
-        kind: 'edge',
-        base: VENUE_BLOCK.heightM,
-        top: VENUE_BLOCK.heightM + VENUE_BLOCK.edgeDepthM,
-        fill: mixHex(props.color, WHITE, 0.35),
-      }),
-    );
+    // With the venue's real building known, its roof lights up in the venue's colour (a slab laid
+    // just over the roof, a touch wider so it covers the edges) and the beam rises from inside it.
+    // Until then, a stand-in block marks the spot. Heights are metres; the styles stretch them
+    // the same way as the city's buildings.
+    const ROOF = footprint ? 0 : VENUE_BLOCK.heightM * 1.2;
+    if (footprint) {
+      features.push(
+        beamPart(props, [inflate(footprint.ring, footprint.centroid, BEAM.roofInflate)], {
+          kind: 'roof',
+          base: footprint.height,
+          top: footprint.height + BEAM.roofDepthM,
+          fill: props.selected ? mixHex(props.color, WHITE, 0.75) : mixHex(props.color, WHITE, 0.25),
+        }),
+      );
+    } else {
+      features.push(
+        beamPart(props, [squareRing(center, VENUE_BLOCK.halfM)], {
+          kind: 'block',
+          base: 0,
+          top: VENUE_BLOCK.heightM,
+          fill: VENUE_BLOCK.fill,
+        }),
+        beamPart(props, squareFrame(center, VENUE_BLOCK.halfM, VENUE_BLOCK.edgeM), {
+          kind: 'edge',
+          base: VENUE_BLOCK.heightM,
+          top: VENUE_BLOCK.heightM + VENUE_BLOCK.edgeDepthM,
+          fill: mixHex(props.color, WHITE, 0.35),
+        }),
+      );
+    }
     features.push(
       beamPart(props, [circleRing(center, BEAM.coreRadiusM)], {
         kind: 'core',

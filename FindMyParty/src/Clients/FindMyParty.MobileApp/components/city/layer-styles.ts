@@ -105,6 +105,7 @@ export const FILTER = {
   counts: named(['!=', ['get', 'label'], '']),
   block: KIND('block'),
   edge: KIND('edge'),
+  roof: KIND('roof'),
   /** Mapbox Streets buildings that are meant to be drawn in 3D. */
   buildings: ['==', ['get', 'extrude'], 'true'],
   /** Every road a car or a person walks along, not paths, tracks or rails. */
@@ -265,6 +266,17 @@ export function beamStyle(opacity: number, flat: boolean): FillExtrusionLayerSty
     fillExtrusionHeight: beamMetres('top'),
     fillExtrusionOpacity: opacity,
     // A beam is light, not a wall: the same brightness from foot to top.
+    fillExtrusionVerticalGradient: false,
+  };
+}
+
+/** The lit roof over a venue's real building: stretched like the city's buildings, so it sits on them. */
+export function litRoofStyle(): FillExtrusionLayerStyleProps {
+  return {
+    fillExtrusionColor: ['get', 'fill'],
+    fillExtrusionBase: growing(['get', 'base']),
+    fillExtrusionHeight: growing(['get', 'top']),
+    fillExtrusionOpacity: 1,
     fillExtrusionVerticalGradient: false,
   };
 }

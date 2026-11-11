@@ -2,11 +2,13 @@ import { memo, useCallback, useMemo, type ComponentProps } from 'react';
 import { CircleLayer, FillExtrusionLayer, ShapeSource, SymbolLayer } from '@rnmapbox/maps';
 import type { VenueSummary } from '@/types/api';
 import { BEAM, LAYER, SOURCE, TAP_HITBOX } from './constants';
+import type { Footprint } from './footprint';
 import { tappedVenueId, venueBeams, venuePoints, type CityMode } from './geojson';
 import {
   FILTER,
   beamStyle,
   blockStyle,
+  litRoofStyle,
   countStyle,
   discDotStyle,
   discGlowStyle,
@@ -29,6 +31,8 @@ type Props = {
   earned?: ReadonlySet<string>;
   /** Names on the map. Off for the welcome backdrop. */
   labels?: boolean;
+  /** The real building of each venue that has been found on the map. */
+  footprints?: Readonly<Record<string, Footprint>>;
   /** Without it the venues cannot be tapped (the backdrop). */
   onSelect?: (venueId: string) => void;
 };
@@ -57,9 +61,13 @@ export const VenueLayers = memo(function VenueLayers({
   mode = 'live',
   earned = NONE,
   labels = true,
+  footprints,
   onSelect,
 }: Props) {
-  const drawing = useMemo(() => ({ selectedId, mode, earned, flat }), [selectedId, mode, earned, flat]);
+  const drawing = useMemo(
+    () => ({ selectedId, mode, earned, flat, footprints }),
+    [selectedId, mode, earned, flat, footprints],
+  );
   const points = useMemo(() => venuePoints(venues, drawing), [venues, drawing]);
   const beams = useMemo(() => venueBeams(venues, drawing), [venues, drawing]);
 
@@ -71,6 +79,7 @@ export const VenueLayers = memo(function VenueLayers({
       discRing: discRingStyle(flat),
       block: blockStyle(false, flat),
       edge: blockStyle(true, flat),
+      roof: litRoofStyle(),
       core: beamStyle(BEAM.coreOpacity, flat),
       // The beam's three pieces (BEAM.pieces), brightest at the foot.
       pieces: [0, 1, 2].map((index) => beamStyle(BEAM.pieces[index].opacity, flat)),
@@ -105,6 +114,7 @@ export const VenueLayers = memo(function VenueLayers({
       <ShapeSource id={SOURCE.beams} shape={beams} {...press}>
         <FillExtrusionLayer id={LAYER.venueBlock} filter={FILTER.block} style={styles.block} {...ANY_ZOOM} />
         <FillExtrusionLayer id={LAYER.venueEdge} filter={FILTER.edge} style={styles.edge} {...ANY_ZOOM} />
+        <FillExtrusionLayer id={LAYER.venueRoof} filter={FILTER.roof} style={styles.roof} {...ANY_ZOOM} />
         <FillExtrusionLayer id={LAYER.beamCore} filter={FILTER.core} style={styles.core} {...ANY_ZOOM} />
         <FillExtrusionLayer id={`${LAYER.beamPiece}0`} filter={FILTER.piece(0)} style={styles.pieces[0]} {...ANY_ZOOM} />
         <FillExtrusionLayer id={`${LAYER.beamPiece}1`} filter={FILTER.piece(1)} style={styles.pieces[1]} {...ANY_ZOOM} />

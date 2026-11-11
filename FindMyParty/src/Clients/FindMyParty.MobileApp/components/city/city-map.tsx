@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, type ComponentProps } from 'react';
+import { memo, type ComponentProps, useCallback, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { LineString } from 'geojson';
 import { Camera, MapView } from '@rnmapbox/maps';
@@ -12,6 +12,7 @@ import type { CityMode } from './geojson';
 import { RouteLayer } from './route-layer';
 import { UserDot } from './user-dot';
 import { VenueLayers } from './venue-layers';
+import { useVenueFootprints } from '@/hooks/city/useVenueFootprints';
 
 type MapState = Parameters<NonNullable<ComponentProps<typeof MapView>['onMapIdle']>>[0];
 
@@ -70,14 +71,24 @@ export const CityMap = memo(function CityMap({
     };
   }, [insets.bottom]);
 
+  const mapRef = useRef<MapView>(null);
+  const { footprints, scan } = useVenueFootprints();
   const { syncPitch } = camera;
-  const handleIdle = useCallback((state: MapState) => syncPitch(state.properties.pitch), [syncPitch]);
+  const handleIdle = useCallback(
+    (state: MapState) => {
+      syncPitch(state.properties.pitch);
+      // Once the buildings are drawn, find each venue's own building so its roof lights up.
+      void scan(mapRef.current, venues);
+    },
+    [syncPitch, scan, venues],
+  );
 
   // The camera's first position depends on whether today's drop runs; known within a moment.
   if (!camera.initial) return <View style={styles.waiting} />;
 
   return (
     <MapView
+      ref={mapRef}
       style={styles.map}
       styleURL={MAP_STYLE_URL}
       logoEnabled
@@ -99,6 +110,7 @@ export const CityMap = memo(function CityMap({
         flat={camera.flat}
         mode={mode}
         earned={earned}
+        footprints={footprints}
         onSelect={onSelectVenue}
       />
       {showUser ? <UserDot onPress={onPressUser} onMove={onUserMove} /> : null}
