@@ -29,6 +29,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      "./plugins/push-entitlement.js",
       "expo-router",
       "expo-apple-authentication",
       [
