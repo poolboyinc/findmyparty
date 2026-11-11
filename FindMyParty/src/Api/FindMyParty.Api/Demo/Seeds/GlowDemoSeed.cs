@@ -23,9 +23,15 @@ public class GlowDemoSeed(AppDbContext db, GlowService glow, IConfiguration conf
         if (demo.OwnerId is { } owner && config.GetValue("Seed:OwnerHistory", true))
             await EnsureOwnerHistoryAsync(demo, owner, ct);
 
+        await PayDemoScansAsync(demo, ct);
+    }
+
+    /// <summary>Glow for every demo scan that has none yet (also run last, by GlowCatchUpDemoSeed).</summary>
+    public Task PayDemoScansAsync(DemoContext demo, CancellationToken ct)
+    {
         var people = demo.Guests.Select(g => g.Id).ToList();
         if (demo.OwnerId is { } ownerId) people.Add(ownerId);
-        await PayScansAsync(people, ct);
+        return PayScansAsync(people, ct);
     }
 
     /// <summary>Created once; a host who later switches one off keeps it off.</summary>
@@ -181,4 +187,16 @@ public class GlowDemoSeed(AppDbContext db, GlowService glow, IConfiguration conf
         }
         if (paid > 0) logger.LogInformation("Demo Glow paid for {Count} scans", paid);
     }
+}
+
+/// <summary>
+/// Runs after every other demo seed: the friends' and other later seeds' scans get their Glow in the same
+/// round, not half an hour later.
+/// </summary>
+public class GlowCatchUpDemoSeed(AppDbContext db, GlowService glow, IConfiguration config, ILogger<GlowDemoSeed> logger) : IDemoSeed
+{
+    public int Order => 1000;
+
+    public Task SeedAsync(DemoContext demo, CancellationToken ct) =>
+        new GlowDemoSeed(db, glow, config, logger).PayDemoScansAsync(demo, ct);
 }

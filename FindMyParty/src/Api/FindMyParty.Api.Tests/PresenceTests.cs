@@ -30,10 +30,12 @@ public class PresenceTests(TestApp app)
 
         var detail = await http.GetFromJsonAsync<JsonElement>($"/api/parties/{party.Id}");
         var venue = await http.GetFromJsonAsync<JsonElement>($"/api/venues/{party.Venue}");
-        var feedRow = (await http.GetFromJsonAsync<JsonElement>($"/api/parties?{near}")).EnumerateArray().Single(p => p.GetProperty("id").GetGuid() == party.Id);
+        // An ended party has left the feed (the feed follows the server's clock): it then shows nobody, as it should.
+        var feedRows = (await http.GetFromJsonAsync<JsonElement>($"/api/parties?{near}")).EnumerateArray().Where(p => p.GetProperty("id").GetGuid() == party.Id).ToList();
         var venueRow = (await http.GetFromJsonAsync<JsonElement>($"/api/venues?{near}")).EnumerateArray().Single(v => v.GetProperty("id").GetGuid() == party.Venue);
-        return new[] { detail, venue, feedRow, venueRow }
-            .Select(json => json.TryGetProperty("friendsHere", out var here) ? here : (JsonElement?)null).ToArray();
+        Assert.True(feedRows.Count <= 1);
+        return new JsonElement?[] { detail, venue, feedRows.Count == 1 ? feedRows[0] : null, venueRow }
+            .Select(json => json is { } row && row.TryGetProperty("friendsHere", out var here) ? here : (JsonElement?)null).ToArray();
     }
 
     private async Task AssertNowhereAsync(Actor viewer, Party party, string city = "podgorica")

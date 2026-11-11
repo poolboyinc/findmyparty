@@ -42,7 +42,12 @@ public class AuthController(
         if (user == null) return Unauthorized();
 
         if (await userManager.IsLockedOutAsync(user))
+        {
+            // A ban locks the account for good (Friends/ReportService); wrong passwords lock it for minutes.
+            if (user.LockoutEnd is { } end && end > DateTimeOffset.UtcNow.AddYears(10))
+                throw new ApiException(StatusCodes.Status403Forbidden, "This account has been closed.", "account_closed");
             throw new ApiException(StatusCodes.Status429TooManyRequests, "Too many wrong passwords. Try again in a few minutes.", "locked_out");
+        }
         if (!await userManager.CheckPasswordAsync(user, request.Password))
         {
             await userManager.AccessFailedAsync(user); // counts towards the lockout
@@ -126,7 +131,7 @@ public class AuthController(
 
         // As a guest: give held spots back, then remove the bookings.
         var held = await db.Bookings
-            .Where(b => b.UserId == userId && b.Status != BookingStatus.Cancelled)
+            .Where(b => b.UserId == userId && b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.Expired)
             .GroupBy(b => b.PartyId)
             .Select(g => new { PartyId = g.Key, Tickets = g.Sum(b => b.TicketCount) })
             .ToListAsync();
@@ -162,9 +167,22 @@ public class AuthController(
         return NoContent();
     }
 
+    /// <summary>
+    /// "Mila Perić" → "MilaPeric": user names keep to letters and digits Identity accepts. Accents come off
+    /// (ć → c, š → s, ž → z); the letters that are not a base letter with an accent are spelled out.
+    /// </summary>
+    public static string Ascii(string text)
+    {
+        var spelled = text.Replace("đ", "dj").Replace("Đ", "Dj").Replace("ß", "ss").Replace("ø", "o").Replace("Ø", "O")
+            .Replace("ł", "l").Replace("Ł", "L").Replace("æ", "ae").Replace("Æ", "Ae");
+        var decomposed = spelled.Normalize(System.Text.NormalizationForm.FormD);
+        return new string(decomposed.Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c)
+            != System.Globalization.UnicodeCategory.NonSpacingMark).ToArray());
+    }
+
     private async Task<string> GenerateUniqueUserNameAsync(string displayName)
     {
-        var baseName = new string(displayName.Split('@')[0].Where(c => char.IsLetterOrDigit(c) || c == '_').Take(20).ToArray());
+        var baseName = new string(Ascii(displayName.Split('@')[0]).Where(c => char.IsAsciiLetterOrDigit(c) || c == '_').Take(20).ToArray());
         if (string.IsNullOrEmpty(baseName)) baseName = "user";
 
         var candidate = baseName;

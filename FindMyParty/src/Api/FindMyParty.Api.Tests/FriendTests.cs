@@ -62,9 +62,6 @@ public static class FriendsKit
 
     public static Task<PrivacyState> ShareAsync(this Actor me) => me.PrivacyAsync(share: true);
 
-    public static async Task<Problem> ProblemAsync(this HttpResponseMessage response) =>
-        (await response.Content.ReadFromJsonAsync<Problem>())!;
-
     /// <summary>
     /// A venue of its own (on a spot nothing else is near, in this city) with a published party that runs from
     /// `startedAgo` before now until `endsIn` after now. Made straight in the database: the API will not publish a party that has begun.
