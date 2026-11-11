@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CityPickerSheet, type CityPickerSheetRef } from '@/components/account/city-picker-sheet';
 import { FlatButton } from '@/components/account/provider-button';
 import { Display } from '@/components/afterglow/text';
 import { CityBackdrop } from '@/components/city/backdrop';
@@ -19,13 +20,17 @@ const SCRIM: readonly ScrimStop[] = [
   [1, 1],
 ];
 
-/** True when the phone has not been asked yet, so the system prompt can still show. Errors count as decided. */
-async function canAsk(): Promise<boolean> {
+/** How long the beams stay on screen after a "yes" before first run ends. */
+const LIGHTS_ON_MS = 1400;
+
+/** Where location stands before the button is pressed. Errors count as decided against. */
+async function locationState(): Promise<'ask' | 'granted' | 'decided'> {
   try {
     const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
-    return status === Location.PermissionStatus.UNDETERMINED && canAskAgain;
+    if (status === Location.PermissionStatus.GRANTED) return 'granted';
+    return status === Location.PermissionStatus.UNDETERMINED && canAskAgain ? 'ask' : 'decided';
   } catch {
-    return false;
+    return 'decided';
   }
 }
 
@@ -36,39 +41,57 @@ type Props = {
 };
 
 /**
- * Step 2 of first run, "Turn the lights on." (S-03). Explains location before the system asks. "Light up my city"
- * shows the iOS prompt when it can still show; when the phone already decided, it simply goes on.
+ * Step 2 of first run, "Turn the lights on." (S-03). The city is dark, with one cyan dot for you, and the
+ * words explain location before the system asks. "Light up my city" shows the iOS prompt when it can still
+ * show; on a yes the beams come on, then first run ends. A no, or a phone that already decided, simply goes on.
+ * "Not now, let me pick a city" opens the city picker; choosing a city ends first run.
  */
 export function LightsStep({ width, onDone }: Props) {
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
-  const askable = useRef<Promise<boolean> | null>(null);
+  const [lit, setLit] = useState(false);
+  const state = useRef<Promise<'ask' | 'granted' | 'decided'> | null>(null);
+  const picker = useRef<CityPickerSheetRef>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    askable.current = canAsk();
+    state.current = locationState();
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
   }, []);
 
   const lightUp = async () => {
     if (busy) return;
     setBusy(true);
+    let granted = false;
     try {
-      if (await (askable.current ?? canAsk())) {
+      const before = await (state.current ?? locationState());
+      if (before === 'granted') granted = true;
+      else if (before === 'ask') {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === Location.PermissionStatus.GRANTED) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
+        granted = status === Location.PermissionStatus.GRANTED;
       }
     } catch {
       // No answer from the location module: carry on without location, the map asks again when needed.
-    } finally {
+    }
+    if (!granted) {
       setBusy(false);
       onDone();
+      return;
     }
+    // The lights come on over the city, then the app opens on it.
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setLit(true);
+    timer.current = setTimeout(() => {
+      setBusy(false);
+      onDone();
+    }, LIGHTS_ON_MS);
   };
 
   return (
     <View style={[styles.root, { width }]}>
-      <CityBackdrop style={StyleSheet.absoluteFill} />
+      <CityBackdrop dark={!lit} style={StyleSheet.absoluteFill} />
       <Scrim stops={SCRIM} />
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + spacing.sm }]}>
@@ -77,21 +100,24 @@ export function LightsStep({ width, onDone }: Props) {
           {'Turn the\nlights on.'}
         </Display>
         <Text style={styles.lede}>
-          We use your location to show what is glowing near you and to walk you there. It is never shown to anyone.
+          We use your location to show what is glowing near you and to walk you there. It is never shown to anyone
+          unless you switch on Friends.
         </Text>
         <FlatButton label="Light up my city" tone="action" onPress={lightUp} loading={busy} />
         <Pressable
-          onPress={onDone}
+          onPress={() => picker.current?.present()}
           disabled={busy}
           hitSlop={layout.hitSlop}
           style={styles.later}
           accessibilityRole="button"
           accessibilityLabel="Not now, let me pick a city"
-          accessibilityHint="Goes on without your location"
+          accessibilityHint="Goes on without your location, in the city you pick"
         >
           {({ pressed }) => <Text style={[styles.laterText, pressed && styles.laterPressed]}>Not now, let me pick a city</Text>}
         </Pressable>
       </View>
+
+      <CityPickerSheet ref={picker} onPicked={onDone} />
     </View>
   );
 }

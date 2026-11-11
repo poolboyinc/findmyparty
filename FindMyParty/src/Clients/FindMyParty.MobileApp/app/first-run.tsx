@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { springs, useReducedMotion } from '@/components/afterglow/motion';
 import { LightsStep } from '@/components/first-run/lights-step';
-import { TASTE_GENRES, togglePick } from '@/components/first-run/sound';
+import { knownPicks, togglePick } from '@/components/first-run/sound';
 import { TasteStep } from '@/components/first-run/taste-step';
-import { getTaste, markFirstRunDone, setTaste } from '@/services/taste';
+import { useProfile, useUpdateProfile } from '@/hooks/queries';
+import { errorText } from '@/services/errorText';
+import { markFirstRunDone } from '@/services/taste';
 import { colors } from '@/theme';
 
 type Step = 0 | 1;
@@ -14,25 +17,26 @@ type Step = 0 | 1;
 /**
  * First run, right after an account is made (or the first time on this phone): your sound (S-02), then
  * location (S-03). Both steps sit side by side and the screen slides between them on a spring.
+ * The sound is saved on the account. Opened from settings with `?only=taste`, it is the sound step alone,
+ * with a back button, and goes back once saved.
  */
 export default function FirstRunScreen() {
   const { width } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
+  const { only } = useLocalSearchParams<{ only?: string }>();
+  const tasteOnly = only === 'taste';
   const [step, setStep] = useState<Step>(0);
   const [picks, setPicks] = useState<string[]>([]);
+  const profile = useProfile();
+  const { mutate: saveTaste, isPending: saving } = useUpdateProfile();
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Someone going through it again keeps what they picked before.
+  // Someone going through it again starts from the sound on their account.
+  const accountTaste = profile.data?.taste;
   useEffect(() => {
-    let cancelled = false;
-    getTaste().then((saved) => {
-      if (cancelled) return;
-      const known = saved.filter((genre) => TASTE_GENRES.includes(genre));
-      if (known.length > 0) setPicks((current) => (current.length > 0 ? current : known));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    const known = knownPicks(accountTaste ?? []);
+    if (known.length > 0) setPicks((current) => (current.length > 0 ? current : known));
+  }, [accountTaste]);
 
   const page = useSharedValue(0);
   const fade = useSharedValue(1);
@@ -58,6 +62,7 @@ export default function FirstRunScreen() {
   // Android back on step 2 returns to step 1 instead of leaving first run.
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (tasteOnly) return false;
       if (step === 1) {
         goTo(0);
         return true;
@@ -65,15 +70,36 @@ export default function FirstRunScreen() {
       return false;
     });
     return () => sub.remove();
-  }, [step, goTo]);
+  }, [step, goTo, tasteOnly]);
 
-  const onToggle = useCallback((genre: string) => setPicks((current) => togglePick(current, genre)), []);
+  const onToggle = useCallback((genre: string) => {
+    setSaveError(null);
+    setPicks((current) => togglePick(current, genre));
+  }, []);
 
   const onContinue = () => {
-    if (picks.length === 0) return;
-    // Taste is a nice-to-have: a failed save must not hold anyone on this screen.
-    setTaste(picks).catch(() => {});
-    goTo(1);
+    const taste = knownPicks(picks);
+    if (taste.length === 0 || saving) return;
+    setSaveError(null);
+    saveTaste(
+      { taste },
+      {
+        onSuccess: () => {
+          if (tasteOnly) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            if (router.canGoBack()) router.back();
+            else router.replace('/(tabs)');
+          } else {
+            goTo(1);
+          }
+        },
+        // The sound marks the nights that fit: it is worth one more tap, so the step stays with the reason.
+        onError: (error) => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setSaveError(errorText(error));
+        },
+      },
+    );
   };
 
   const leaving = useRef(false);
@@ -85,6 +111,23 @@ export default function FirstRunScreen() {
       .finally(() => router.replace('/(tabs)'));
   };
 
+  if (tasteOnly) {
+    return (
+      <View style={styles.root}>
+        <Stack.Screen options={{ gestureEnabled: !saving }} />
+        <TasteStep
+          width={width}
+          picks={picks}
+          onToggle={onToggle}
+          onContinue={onContinue}
+          saving={saving}
+          error={saveError}
+          onBack={() => router.back()}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.root}>
       <Animated.View style={[styles.row, { width: width * 2 }, rowStyle]}>
@@ -94,7 +137,14 @@ export default function FirstRunScreen() {
           accessibilityElementsHidden={step !== 0}
           importantForAccessibility={step === 0 ? 'auto' : 'no-hide-descendants'}
         >
-          <TasteStep width={width} picks={picks} onToggle={onToggle} onContinue={onContinue} />
+          <TasteStep
+            width={width}
+            picks={picks}
+            onToggle={onToggle}
+            onContinue={onContinue}
+            saving={saving}
+            error={saveError}
+          />
         </View>
         <View
           style={{ width }}

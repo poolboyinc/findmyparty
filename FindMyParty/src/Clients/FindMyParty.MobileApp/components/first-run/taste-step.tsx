@@ -1,13 +1,16 @@
+import { Ionicons } from '@expo/vector-icons';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlatButton } from '@/components/account/provider-button';
+import { PressableScale } from '@/components/afterglow/motion';
 import { Display } from '@/components/afterglow/text';
-import { colors, layout, spacing, typography } from '@/theme';
+import { colors, layout, radii, spacing, typography } from '@/theme';
 import { GenrePad } from './genre-pad';
 import { SoundCard } from './sound-card';
 import { TASTE_GENRES } from './sound';
 
 const COLUMNS = 3;
+const BACK_SIZE = 40;
 const PAD_GAP = spacing.base;
 /** The mock asks for three; fewer is fine, it only marks fewer nights. */
 const SUGGESTED_PICKS = 3;
@@ -18,10 +21,19 @@ type Props = {
   picks: readonly string[];
   onToggle: (genre: string) => void;
   onContinue: () => void;
+  /** The picks are being saved to the account. */
+  saving?: boolean;
+  /** The sentence to show when saving failed, or null. */
+  error?: string | null;
+  /**
+   * Opened again from settings ("Your sound"): a back button instead of the step count, and "Save"
+   * instead of "Continue". Called when the back button is pressed.
+   */
+  onBack?: () => void;
 };
 
-/** Step 1 of first run, "What do you go out for?" (S-02). */
-export function TasteStep({ width, picks, onToggle, onContinue }: Props) {
+/** Step 1 of first run, "What do you go out for?" (S-02). From settings it edits the sound on its own. */
+export function TasteStep({ width, picks, onToggle, onContinue, saving = false, error = null, onBack }: Props) {
   const insets = useSafeAreaInsets();
   const padSize = Math.floor((width - layout.screenMargin * 2 - PAD_GAP * (COLUMNS - 1)) / COLUMNS);
   const short = picks.length < SUGGESTED_PICKS;
@@ -33,7 +45,20 @@ export function TasteStep({ width, picks, onToggle, onContinue }: Props) {
         showsVerticalScrollIndicator={false}
         alwaysBounceVertical={false}
       >
-        <Text style={styles.step}>Step 1 of 2</Text>
+        {onBack ? (
+          <PressableScale
+            onPress={onBack}
+            disabled={saving}
+            hitSlop={layout.hitSlop}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            style={[styles.back, saving && styles.backDisabled]}
+          >
+            <Ionicons name="chevron-back" size={22} color={colors.label} />
+          </PressableScale>
+        ) : (
+          <Text style={styles.step}>Step 1 of 2</Text>
+        )}
         <Display size="lg" accessibilityRole="header" style={styles.title}>
           {'What do you\ngo out for?'}
         </Display>
@@ -53,10 +78,16 @@ export function TasteStep({ width, picks, onToggle, onContinue }: Props) {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.base }]}>
+        {error ? (
+          <Text style={styles.error} accessibilityRole="alert" accessibilityLiveRegion="polite">
+            {error}
+          </Text>
+        ) : null}
         <FlatButton
-          label="Continue"
+          label={onBack ? 'Save' : 'Continue'}
           tone="action"
           onPress={onContinue}
+          loading={saving}
           disabled={picks.length === 0}
           accessibilityHint={short && picks.length > 0 ? 'Three or more marks more nights for you' : undefined}
         />
@@ -102,5 +133,22 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,
+    gap: spacing.md,
+  },
+  error: {
+    ...typography.subheadline,
+    color: colors.danger,
+    textAlign: 'center',
+  },
+  back: {
+    width: BACK_SIZE,
+    height: BACK_SIZE,
+    borderRadius: radii.card,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backDisabled: {
+    opacity: 0.4,
   },
 });

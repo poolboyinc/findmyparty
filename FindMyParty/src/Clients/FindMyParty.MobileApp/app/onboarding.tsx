@@ -20,11 +20,10 @@ import { useGoogleIdToken } from '@/components/account/use-google-sign-in';
 import { springs, useReducedMotion } from '@/components/afterglow/motion';
 import { Display } from '@/components/afterglow/text';
 import { CityBackdrop } from '@/components/city/backdrop';
-import { CITY } from '@/components/city/constants';
 import { Scrim, type ScrimStop } from '@/components/first-run/scrim';
 import { CookiesUrl, PrivacyUrl, TermsUrl } from '@/constants/legal';
 import { enterApp } from '@/hooks/useAuth';
-import { useVenues } from '@/hooks/queries';
+import { useHomeCity } from '@/hooks/useHomeCity';
 import { externalSignInDetailed } from '@/services/authActions';
 import { externalErrorText } from '@/services/authErrorText';
 import { colors, display, layout, radii, spacing, typography } from '@/theme';
@@ -70,7 +69,8 @@ export default function WelcomeScreen() {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
-  const venues = useVenues();
+  // The city stored on this phone (Podgorica until one is picked), with the server's pulse for tonight.
+  const { city } = useHomeCity();
   const getGoogleIdToken = useGoogleIdToken();
 
   const [busy, setBusy] = useState<Provider | null>(null);
@@ -100,7 +100,7 @@ export default function WelcomeScreen() {
     transform: reduceMotion ? [] : [{ translateY: (1 - arrival.value) * 28 }, { scale: 0.9 + 0.1 * arrival.value }],
   }));
 
-  const liveLine = venues.isSuccess ? outTonightLine(venues.data, CITY.name) : null;
+  const liveLine = outTonightLine(city);
 
   /** Runs one provider's sign-in. `getIdentity` resolves with null when the user backed out. */
   const signIn = async (

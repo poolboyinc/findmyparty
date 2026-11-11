@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, type TextInput } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { PasswordToggle } from '@/components/account/password-toggle';
 import { AuthField } from '@/components/ui/auth-field';
@@ -14,6 +14,8 @@ import { colors, layout, spacing, typography } from '@/theme';
 const MIN_IDENTIFIER_LENGTH = 3;
 
 export default function LoginPage() {
+  // `?reset=1`: arrived from setting a new password with a reset link.
+  const { reset } = useLocalSearchParams<{ reset?: string }>();
   const { email, setEmail, password, setPassword, error, loading, login } = useLogin();
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -39,7 +41,7 @@ export default function LoginPage() {
     <AuthStage
       kicker="Log in"
       title="Welcome back."
-      subtitle="Log in to see your passes and what is glowing tonight."
+      subtitle={reset === '1' ? 'Your new password is set. Log in with it.' : 'Log in to see your passes and what is glowing tonight.'}
       busy={loading}
       footer={
         <>
@@ -92,7 +94,9 @@ export default function LoginPage() {
             />
 
             <Pressable
-              onPress={() => router.push('/forgot-password')}
+              onPress={() =>
+                router.push({ pathname: '/forgot-password', params: email.includes('@') ? { email: email.trim() } : {} })
+              }
               disabled={loading}
               hitSlop={layout.hitSlop}
               accessibilityRole="link"

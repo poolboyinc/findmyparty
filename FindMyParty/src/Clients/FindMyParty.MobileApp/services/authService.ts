@@ -70,6 +70,34 @@ export const session = createSession({
   store: secureTokenStore,
 });
 
+/**
+ * AsyncStorage key for this phone's Expo push token, as last registered with the account (`PUT /api/me/devices`
+ * in services/push.ts). Kept so log out can unregister it. Lives here, not in push.ts, because push.ts goes
+ * through apiClient.ts, which imports this file.
+ */
+export const PUSH_TOKEN_KEY = '@findmyparty/push-token';
+
+/**
+ * Stops pushes for the account that is signing out on this phone: `DELETE /api/me/devices/{token}` while the
+ * session still works. Best effort and quick: a failure must not hold up signing out (the token moves to the
+ * next account that registers it anyway).
+ */
+async function forgetPushDevice(): Promise<void> {
+  try {
+    const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+    if (!pushToken) return;
+    await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
+    const token = await session.getAccessToken();
+    if (!token) return;
+    await fetchWithTimeout(`${ApiConstants.GatewayBaseUrl}/api/me/devices/${encodeURIComponent(pushToken)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    // No signal or no store: sign out anyway.
+  }
+}
+
 /** Passes are saved on the phone so they show with no signal at the door (components/pass/passStore.ts). */
 const SAVED_PASS_PREFIX = '@findmyparty/pass/';
 
@@ -121,8 +149,9 @@ export const authService = {
     return (await session.refresh()) === 'ok';
   },
 
-  /** Ends this device's session on the server too, so the refresh token stops working. */
+  /** Ends this device's session on the server too, so the refresh token stops working and pushes stop coming. */
   async logout(): Promise<void> {
+    await forgetPushDevice();
     await session.signOut();
     await forgetSavedPasses();
   },
@@ -135,7 +164,11 @@ export const authService = {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (response.ok) await forgetSavedPasses();
+      if (response.ok) {
+        // The server removed the account's devices with it; only the phone's copy of the token is left.
+        await AsyncStorage.removeItem(PUSH_TOKEN_KEY).catch(() => {});
+        await forgetSavedPasses();
+      }
       return response.ok;
     } catch {
       return false;

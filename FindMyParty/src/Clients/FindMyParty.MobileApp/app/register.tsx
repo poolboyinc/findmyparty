@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, type TextInput } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { PASSWORD_RULE, passwordOk } from '@/components/account/password-rule';
 import { PasswordToggle } from '@/components/account/password-toggle';
 import { AuthField } from '@/components/ui/auth-field';
 import { AuthStage } from '@/components/account/auth-stage';
@@ -12,13 +13,6 @@ import { colors, layout, spacing, typography } from '@/theme';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // 3 to 20 letters, numbers or underscores, no spaces.
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
-// The server's rule (Identity options in the API's Program.cs).
-const PASSWORD_RULE = 'At least 8 characters, with a number and a lowercase letter.';
-
-function passwordOk(password: string): boolean {
-  return password.length >= 8 && /[0-9]/.test(password) && /[a-z]/.test(password);
-}
-
 /** An empty field only complains after a submit; a filled-in wrong one as soon as it has been left. */
 function fieldError(
   valid: boolean,
